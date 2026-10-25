@@ -71,8 +71,9 @@ Their hackathon.md template scores: components, features, Convex hosting, auth, 
 
 ## MLH Best Domain from GoDaddy Registry — not entered, cheapest extra track
 
-- [ ] Domain `robaudit.us` being bought with code `MLHCH2681`. Azure side: apex registered on SWA `roboaudit-web`, status Validating.
-- [ ] GoDaddy DNS: CNAME `www` -> `kind-river-0eb9d010f.5.azurestaticapps.net`; TXT `@` = `_3i24sgtlce8kd1mhd916uww5gbgkmj2`; Forwarding `robaudit.us` -> `https://www.robaudit.us` (301). GoDaddy has no ALIAS at apex, so the forward is required.
+- [x] Domain `robaudit.us` registered 2026-10-25 09:44Z via Porkbun (.us is a GoDaddy Registry TLD, so it still counts). Azure side: apex registered on SWA `roboaudit-web`, status Validating.
+- [ ] Porkbun DNS (delete the default parking ALIAS/CNAME first): ALIAS `@` -> `kind-river-0eb9d010f.5.azurestaticapps.net`; CNAME `www` -> same; TXT `@` = `_3i24sgtlce8kd1mhd916uww5gbgkmj2`.
+- [ ] GitHub repo: description, homepage, topics set 2026-10-25. Switch homepage to https://www.robaudit.us once live: `gh repo edit Jagga-tech/robaudit --homepage https://www.robaudit.us`.
 - [ ] After the CNAME exists: `az staticwebapp hostname set -n roboaudit-web -g keel-rg --hostname www.robaudit.us`, wait for the cert.
 - [ ] Then replace the azurestaticapps URL in `hackathon.md`, `README.md`, `docs/demo-flow.md`, `docs/frontend-guide.md`, `docs/video-shot-list.md`. QR needs no change (uses `location.origin`).
 
