@@ -1,5 +1,6 @@
 // End-to-end judge demo against the live backend (SpacetimeDB keel + local Convex), asserting the answer key.
-// Usage: pnpm demo [--reset-only] [--require-real]
+// Usage: pnpm demo [--reset-only] [--require-real] [--remote]
+// --remote: a deployed agent is connected, skip the in-process loop. STDB_URI/STDB_DB/CONVEX_URL come from env.
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { ConvexHttpClient } from 'convex/browser';
@@ -67,7 +68,7 @@ try {
   // 0. mode check (before any reset)
   const cvxEnv = spawnSync('npx', ['convex', 'env', 'list'], { cwd: root, encoding: 'utf8' }).stdout ?? '';
   const realCartesia = /^CARTESIA_API_KEY(=\S|\s*$)/m.test(cvxEnv); // never printed; CLI may list names only
-  console.log(`modes: claude=${hasKey ? 'REAL' : 'MOCK'} cartesia=${realCartesia ? 'REAL' : 'MOCK'} gemini=${hasGeminiKey ? 'REAL' : 'OFF'}`);
+  console.log(`modes: claude=${hasKey ? 'REAL' : 'MOCK'} cartesia=${realCartesia ? 'REAL' : 'MOCK'} gemini=${hasGeminiKey ? 'REAL' : 'OFF'} agent=${args.includes('--remote') ? 'remote' : 'local'}`);
   // Gemini is optional (OFF = single reader); with a key set it is always REAL, never a mock.
   if (args.includes('--require-real') && !(hasKey && realCartesia)) throw new Mismatch('--require-real: a mock is active');
 
@@ -77,11 +78,19 @@ try {
   if (args.includes('--reset-only')) throw 'done';
 
   // 2. agent loop in-process
-  const [agent, accountant] = await Promise.all([connectAs('agent'), connectAs('accountant')]);
-  conns.push(agent, accountant);
-  await until('agent/accountant see reset', () => agent.db.workItem.id.find(oak) && accountant.db.workItem.id.find(oak), 5000);
-  stop = startLoop(agentDeps(agent, cvx), { isSeed });
-  beat('2 agent loop started');
+  const remote = args.includes('--remote');
+  const accountant = await connectAs('accountant');
+  conns.push(accountant);
+  if (remote) {
+    await until('accountant sees reset', () => accountant.db.workItem.id.find(oak), 5000);
+    beat('2 agent=remote (loop not started)');
+  } else {
+    const agent = await connectAs('agent');
+    conns.push(agent);
+    await until('agent/accountant see reset', () => agent.db.workItem.id.find(oak) && accountant.db.workItem.id.find(oak), 5000);
+    stop = startLoop(agentDeps(agent, cvx), { isSeed });
+    beat('2 agent loop started');
+  }
 
   const projectId = oakland().id;
   const addSource = (kind: string, text: string) => accountant.reducers.addSource({ projectId, kind, text, parentSourceId: 0n, version: 1 });

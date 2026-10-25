@@ -24,14 +24,16 @@ const readIds = (): Record<string, string> => (existsSync(IDS_FILE) ? JSON.parse
 
 /** Connect with the role's saved token (created and saved on first connect), subscribe to all tables, register the user if missing. */
 export async function connectAs(role: Role, opts: { uri?: string; db?: string } = {}): Promise<DbConnection> {
-  const saved = readIds()[role];
+  // container mode: STDB_AGENT_TOKEN supplies the agent identity; no file read/write
+  const envTok = role === 'agent' ? process.env.STDB_AGENT_TOKEN : undefined;
+  const saved = envTok ?? readIds()[role];
   const conn = await new Promise<DbConnection>((resolve, reject) => {
     DbConnection.builder()
       .withUri(opts.uri ?? STDB_URI)
       .withDatabaseName(opts.db ?? STDB_DB)
       .withToken(saved)
       .onConnect((c, _identity, token) => {
-        if (token !== saved) {
+        if (!envTok && token !== saved) {
           const ids = readIds(); // re-read so concurrent role connects don't clobber each other
           ids[role] = token;
           writeFileSync(IDS_FILE, JSON.stringify(ids, null, 2) + '\n');
