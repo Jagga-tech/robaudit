@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleNewSource, isAdditiveWording, startLoop, type Deps, type LedgerState, type SourceRow } from '../src/loop';
+import { handleNewSource, isAdditiveWording, normalizeAnswer, startLoop, type Deps, type LedgerState, type SourceRow } from '../src/loop';
 import { pollConfirmed } from '../src/bridge';
 import type { Extraction } from '../src/schemas';
 
@@ -15,7 +15,7 @@ const unflagged = (quote: string, amt: string): Extraction => ({
 const inputs = (remaining: bigint) => JSON.stringify({ contractValueCents: '100000000', incurredCents: '40000000', remainingCents: String(remaining), billedCents: '30000000' });
 
 // In-memory ledger mirroring the reducers' row effects; every call is recorded.
-function fake(extraction: Extraction, opts: { remaining?: bigint; convention?: boolean; confirmed?: { answer: string; speaker: string }; explain?: () => Promise<any> } = {}) {
+function fake(extraction: Extraction, opts: { remaining?: bigint; convention?: boolean; confirmed?: { answer: string; speaker: string }; explain?: () => Promise<any>; extract?: () => Promise<Extraction>; extractBoth?: Deps['extractBoth'] } = {}) {
   let n = 100n;
   const nid = () => ++n;
   const s: LedgerState = {
@@ -53,8 +53,10 @@ function fake(extraction: Extraction, opts: { remaining?: bigint; convention?: b
     convex: {
       ask: async (a) => { calls.push(['ask', a]); return 'cvx1'; },
       byWorkItem: async (w) => (opts.confirmed && w === '10' ? [{ _id: 'cvx1', status: 'confirmed', ...opts.confirmed }] : []),
+      fallbackText: async (id) => { calls.push(['fallbackText', id]); },
     },
-    extract: vi.fn(async () => extraction),
+    extract: vi.fn(opts.extract ?? (async () => extraction)),
+    extractBoth: opts.extractBoth,
     explain: opts.explain ?? (async () => ({ summary: 'S.', whyRevenueMoved: 'W.', whatDidNotChange: 'N.' })),
   };
   const add = (kind: string, text: string) => { const r = { id: nid(), projectId: P, kind, text, parentSourceId: 0n }; s.sources.push(r); return r; };
@@ -172,11 +174,89 @@ describe('agent loop', () => {
     expect(JSON.parse(f.named('recordCalculation')[0].inputsJson).remainingCents).toBe('20000000');
   });
 
-  it('explain throws -> no calculation, no propose', async () => {
+  it('explain throws -> calculation recorded first, propose with the template explanation', async () => {
     const f = fake(unflagged('the new total remaining is $600,000', '$600,000'), { explain: async () => { throw new Error('claude down'); } });
-    await expect(handleNewSource(f.add('note', 'the new total remaining is $600,000'), f.deps)).rejects.toThrow('claude down');
-    expect(f.named('recordCalculation')).toHaveLength(0);
+    await handleNewSource(f.add('note', 'the new total remaining is $600,000'), f.deps);
+    expect(f.named('recordCalculation')).toHaveLength(1);
+    const names = f.calls.map((c) => c[0]);
+    expect(names.indexOf('recordCalculation')).toBeLessThan(names.indexOf('propose'));
+    const [p] = f.named('propose');
+    expect(p.calculationId).toBe(f.s.calculations.at(-1)!.id);
+    expect(p.explanation).toContain('The estimate to finish rose from $400,000 to $600,000');
+    expect(p.explanation).toContain('This is an estimate update, not an error or a restatement.');
+  });
+
+  it('explain cites a number not derived from the inputs -> template replaces it', async () => {
+    const f = fake(unflagged('the new total remaining is $600,000', '$600,000'), { explain: async () => ({ summary: 'Revenue fell by $123,456.', whyRevenueMoved: 'W.', whatDidNotChange: 'N.' }) });
+    await handleNewSource(f.add('note', 'the new total remaining is $600,000'), f.deps);
+    const [p] = f.named('propose');
+    expect(p.explanation).not.toContain('$123,456');
+    expect(p.explanation).toContain('The estimate to finish rose from $400,000 to $600,000');
+  });
+
+  it('explain with only input-derived figures is kept', async () => {
+    const f = fake(unflagged('the new total remaining is $600,000', '$600,000'), { explain: async () => ({ summary: 'The estimate to finish rose from $400,000 to $600,000; revenue reversed $100,000.', whyRevenueMoved: 'W.', whatDidNotChange: 'N.' }) });
+    await handleNewSource(f.add('note', 'the new total remaining is $600,000'), f.deps);
+    expect(f.named('propose')[0].explanation).toContain('revenue reversed $100,000.');
+  });
+
+  it('extract rejects once then succeeds -> retried on the next poll, one proposal', async () => {
+    let n = 0;
+    const x = unflagged('the new total remaining is $600,000', '$600,000');
+    const f = fake(x, { extract: async () => { if (n++ === 0) throw new Error('529 overloaded'); return x; } });
+    f.add('note', 'the new total remaining is $600,000');
+    const stop = startLoop(f.deps, { pollMs: 5 });
+    await new Promise((r) => setTimeout(r, 100));
+    stop();
+    expect(f.deps.extract).toHaveBeenCalledTimes(2);
+    expect(f.named('propose')).toHaveLength(1);
+  });
+
+  it('extract always fails -> gives up after 3 attempts', async () => {
+    const f = fake(ambiguous('$1'), { extract: async () => { throw new Error('down'); } });
+    f.add('note', 'the new total remaining is $600,000');
+    const stop = startLoop(f.deps, { pollMs: 5 });
+    await new Promise((r) => setTimeout(r, 150));
+    stop();
+    expect(f.deps.extract).toHaveBeenCalledTimes(3);
+  });
+
+  it('month-3 note filed as cost (no remaining_update) -> additive fallback still uses the convention, 3810 bp', async () => {
+    const asCost: Extraction = { facts: [{ kind: 'cost', amountText: '$50,000', quote: '$50,000', charStart: 8, charEnd: 15 }], ambiguity: { flag: false, kind: 'none', question: '', options: [] } };
+    const f = fake(asCost, { remaining: 60000000n, convention: true });
+    await handleNewSource(f.add('note', 'another $50,000 for conveyor rework'), f.deps);
+    expect(f.named('recordCalculation')[0]).toMatchObject({ progressBp: 3810 });
+    expect(f.named('propose')).toHaveLength(1);
+  });
+
+  it('readers disagree on the amount -> convention skipped, disagreement question asked', async () => {
+    const merged: Extraction = { ...ambiguous('$50,000'), ambiguity: { flag: true, kind: 'other', question: 'Two independent readers disagree on this note: Claude read $50,000, Gemini read $500,000. Which is right?', options: ['additional', 'new_total'] } };
+    const f = fake(ambiguous('$50,000'), { remaining: 60000000n, convention: true,
+      extractBoth: async () => ({ claude: ambiguous('$50,000'), gemini: ambiguous('$500,000'), agreed: false, merged }) });
+    await handleNewSource(f.add('note', 'another $50,000 for conveyor rework'), f.deps);
     expect(f.named('propose')).toHaveLength(0);
+    expect(f.named('ask')[0].question).toMatch(/readers disagree/);
+  });
+
+  it('normalizeAnswer', () => {
+    expect(normalizeAnswer("it's additional")).toBe('additional');
+    expect(normalizeAnswer('new total')).toBe('new_total');
+    expect(normalizeAnswer('additional, not a new total')).toBeNull();
+    expect(normalizeAnswer('no idea')).toBeNull();
+  });
+
+  it('unclear Convex answer -> fallbackText, not resolved; re-confirmed later -> resolved', async () => {
+    const f = fake(ambiguous('$200,000'), { confirmed: { answer: 'additional, not a new total', speaker: 'Matt' } });
+    await handleNewSource(f.add('note', 'we need another $200,000 to finish'), f.deps);
+    const handled = new Set<string>();
+    await pollConfirmed(f.deps, handled);
+    expect(f.named('fallbackText')).toEqual(['cvx1']);
+    expect(f.named('resolveClarification')).toHaveLength(0);
+    expect(handled.has('cvx1')).toBe(false);
+    f.deps.convex.byWorkItem = async () => [{ _id: 'cvx1', status: 'confirmed', answer: 'additional', speaker: 'Matt' }];
+    await pollConfirmed(f.deps, handled);
+    expect(f.named('resolveClarification')).toHaveLength(1);
+    expect(f.named('propose')).toHaveLength(1);
   });
 
   it('startup: extraction row but no calculation/clarification -> processed again', async () => {

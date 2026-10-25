@@ -81,7 +81,12 @@ const confirmAs = (answer: string) => {
 };
 
 const actions: Record<string, () => unknown> = {
-  Reset: () => conn!.reducers.resetDemo({}),
+  Reset: async () => {
+    await conn!.reducers.resetDemo({});
+    // ponytail: resetOpen may not be deployed yet; a missing function must not break Reset
+    const resetOpen = (api.clarifications as any)?.resetOpen;
+    if (resetOpen) await convex.mutation(resetOpen, {}).catch((e: any) => console.warn('resetOpen failed', e));
+  },
   'Add $200k note': () => addSource('note', 'we need another $200,000 to finish'),
   'Confirm "additional"': () => confirmAs('additional'),
   'Confirm "new total"': () => confirmAs('new total'),
@@ -93,7 +98,7 @@ const actions: Record<string, () => unknown> = {
   'Post latest': () => {
     const p = latest(rows(conn!.db.proposal.iter()).filter((p) => p.status === 'approved'));
     if (!p) throw new Error('no approved proposal');
-    return conn!.reducers.post({ proposalId: p.id, revision: p.revision, postingRef: `OAK-R${p.revision}` });
+    return conn!.reducers.post({ proposalId: p.id, revision: p.revision, postingRef: `OAK-WI${p.workItemId}-R${p.revision}` });
   },
   'Add commissioning log': () => addSource('commissioning_log', 'Commissioning complete: 48 of 48 units commissioned, throughput test passed 1,200 totes/hr, acceptance criteria met.'),
   'Add month-3 note': () => addSource('note', 'another $50,000 for conveyor rework'),

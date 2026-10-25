@@ -6,9 +6,9 @@ import { ConvexHttpClient } from 'convex/browser';
 import { anyApi } from 'convex/server';
 import { connectAs, type DbConnection } from '@keel/ledger-client';
 import { hasKey } from '../apps/agent/src/claude.ts';
-import { extract } from '../apps/agent/src/extract.ts';
-import { explain } from '../apps/agent/src/explain.ts';
-import { startLoop, type Deps, type Ledger, type SourceRow } from '../apps/agent/src/loop.ts';
+import { hasGeminiKey } from '../apps/agent/src/gemini.ts';
+import { agentDeps, isSeed } from '../apps/agent/src/ledger-adapter.ts'; // the stage agent's exact wiring (ledgerDeps + extractBoth)
+import { startLoop } from '../apps/agent/src/loop.ts';
 
 const root = new URL('../', import.meta.url);
 for (const f of ['.env.local', '.env']) {
@@ -42,6 +42,7 @@ const entry = (json: string) => (JSON.parse(json) as { account: string; debit: s
   .map((l) => (l.debit !== '0' ? `Dr ${l.account} ${l.debit}` : `Cr ${l.account} ${l.credit}`))
   .sort().reverse().join(' / '); // ponytail: "Dr" sorts after "Cr", reverse puts debits first
 
+const cvx = new ConvexHttpClient(process.env.CONVEX_URL);
 const controller = await connectAs('controller');
 const conns: DbConnection[] = [controller];
 let stop = () => {};
@@ -51,6 +52,8 @@ try {
   const oakland = () => [...db.project.iter()].find((p) => p.name === 'Oakland deployment')!;
   const reset = async () => {
     await controller.reducers.resetDemo({});
+    // stale ringing/answering clarifications would otherwise shadow this run's call (resetOpen may not be deployed yet)
+    await cvx.mutation(anyApi.clarifications.resetOpen, {}).catch((e) => console.log(`resetOpen unavailable: ${e?.message ?? e}`));
     const p = oakland();
     const items = [...db.workItem.iter()].filter((w) => w.projectId === p.id);
     eq('S0 work items', items.length, 1);
@@ -64,7 +67,8 @@ try {
   // 0. mode check (before any reset)
   const cvxEnv = spawnSync('npx', ['convex', 'env', 'list'], { cwd: root, encoding: 'utf8' }).stdout ?? '';
   const realCartesia = /^CARTESIA_API_KEY(=\S|\s*$)/m.test(cvxEnv); // never printed; CLI may list names only
-  console.log(`modes: claude=${hasKey ? 'REAL' : 'MOCK'} cartesia=${realCartesia ? 'REAL' : 'MOCK'}`);
+  console.log(`modes: claude=${hasKey ? 'REAL' : 'MOCK'} cartesia=${realCartesia ? 'REAL' : 'MOCK'} gemini=${hasGeminiKey ? 'REAL' : 'OFF'}`);
+  // Gemini is optional (OFF = single reader); with a key set it is always REAL, never a mock.
   if (args.includes('--require-real') && !(hasKey && realCartesia)) throw new Mismatch('--require-real: a mock is active');
 
   // 1. reset
@@ -76,28 +80,7 @@ try {
   const [agent, accountant] = await Promise.all([connectAs('agent'), connectAs('accountant')]);
   conns.push(agent, accountant);
   await until('agent/accountant see reset', () => agent.db.workItem.id.find(oak) && accountant.db.workItem.id.find(oak), 5000);
-  const cvx = new ConvexHttpClient(process.env.CONVEX_URL);
-  const r = agent.reducers, d = agent.db;
-  const ledger: Ledger = {
-    state: () => ({
-      projects: [...d.project.iter()], sources: [...d.source.iter()], conventions: [...d.convention.iter()],
-      workItems: [...d.workItem.iter()], calculations: [...d.calculation.iter()], extractions: [...d.extraction.iter()],
-      milestones: [...d.contractMilestone.iter()], clarificationRefs: [...d.clarificationRef.iter()], proposals: [...d.proposal.iter()],
-    }),
-    onSourceInsert: (cb) => d.source.onInsert((_ctx, row) => cb(row)),
-    recordExtraction: (a) => r.recordExtraction(a), openClarification: (a) => r.openClarification(a),
-    resolveClarification: (a) => r.resolveClarification(a), recordCalculation: (a) => r.recordCalculation(a),
-    propose: (a) => r.propose(a), openWorkItem: (a) => r.openWorkItem(a), markMilestoneMet: (a) => r.markMilestoneMet(a),
-  };
-  const deps: Deps = {
-    ledger, extract, explain,
-    convex: {
-      ask: (a) => cvx.mutation(anyApi.clarifications.ask, a),
-      byWorkItem: (workItemId) => cvx.query(anyApi.clarifications.byWorkItem, { workItemId }),
-    },
-  };
-  const seedTexts = new Set((JSON.parse(fs.readFileSync(new URL('demo/seed.json', root), 'utf8')) as { sources: { text: string }[] }).sources.map((s) => s.text));
-  stop = startLoop(deps, { isSeed: (s: SourceRow) => s.kind !== 'commissioning_log' && seedTexts.has(s.text) });
+  stop = startLoop(agentDeps(agent, cvx), { isSeed });
   beat('2 agent loop started');
 
   const projectId = oakland().id;
@@ -120,21 +103,24 @@ try {
   const clarAfter5 = await clarCount();
   beat('5 Matt confirmed "additional"');
 
-  // 6. rev 2 numbers move
-  const p2 = await until('proposal revision 2 on Oakland', () => proposalOn(oak, 2), 60000);
-  const c2 = db.calculation.id.find(p2.calculationId)!;
+  // 6. numbers move (calculation lands before the explanation)
+  const note200 = [...db.source.iter()].filter((x) => x.projectId === projectId && x.text === 'we need another $200,000 to finish').reduce((m, x) => (x.id > m.id ? x : m));
+  const c2 = await until('calculation for the $200,000 note', () => [...db.calculation.iter()].find((c) => c.forecastSourceId === note200.id), 60000);
   eq('rev2 progressBp', c2.progressBp, 4000);
   eq('rev2 cumRevenueCents', c2.cumRevenueCents, 40000000n);
   eq('rev2 contractAssetCents', c2.contractAssetCents, 10000000n);
   eq('rev2 marginCents', c2.marginCents, 0n);
   eq('rev2 lossWarning', c2.lossWarning, true);
+  beat('6 calculation: 40%, $400k revenue, $100k asset, $0 margin, loss warning');
+  const p2 = await until('proposal revision 2 on Oakland', () => proposalOn(oak, 2), 60000);
+  eq('rev2 proposal calculation', p2.calculationId, c2.id);
   eq('rev2 entry', entry(p2.entryJson), 'Dr Revenue 10000000 / Cr ContractAsset 10000000');
   ok('rev2 explanation non-empty', p2.explanation.trim());
   const pc = JSON.parse(p2.pendingConventionJson) as { template?: string; key?: string; value?: string };
   eq('rev2 pending convention template', pc.template, 'forecast');
   eq('rev2 pending convention key', pc.key, 'another_means');
   eq('rev2 pending convention value', pc.value, 'additional');
-  beat('6 rev 2: 40%, $400k revenue, $100k asset, $0 margin, loss warning');
+  beat('6b rev 2 proposal: entry + explanation');
 
   // 7. controller approves and posts
   await controller.reducers.decide({ proposalId: p2.id, revision: 2, decision: 'approve', reason: '' });

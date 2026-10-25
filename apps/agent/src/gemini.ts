@@ -1,17 +1,18 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { prompt } from "./claude.js"; // also loads .env
-import { mockExtract, normalizeFacts } from "./extract.js";
+import { normalizeFacts } from "./extract.js";
 import { Extraction } from "./schemas.js";
 
-const hasGeminiKey = !!process.env.GEMINI_API_KEY;
-if (!hasGeminiKey) console.log("MOCK: gemini");
+export const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+if (!hasGeminiKey) console.log("second reader disabled: no GEMINI_API_KEY");
 const SYSTEM = prompt("extract");
 const { $schema: _, ...SCHEMA } = z.toJSONSchema(Extraction);
 let ai: GoogleGenAI | undefined;
 
+// No key = no second reader (throw, so extractBoth runs Claude alone); never a mock vote.
 export async function extractWithGemini(noteText: string): Promise<Extraction> {
-  if (!hasGeminiKey) return mockExtract(noteText);
+  if (!hasGeminiKey) throw new Error("no GEMINI_API_KEY");
   ai ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const res = await ai.models.generateContent({
     model: "gemini-2.5-flash",

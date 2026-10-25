@@ -1,7 +1,7 @@
 import { applyUpdate, adjustment, buildEntry, buildInvoiceEntry, compute, type Convention, type EntryLine } from '@keel/engine';
 import { parseAmountCents } from './extract.js';
 import type { Extraction, Explanation } from './schemas.js';
-import type { ComputeOut } from './explain.js';
+import type { ExplainInput } from './explain.js';
 import { pollConfirmed } from './bridge.js';
 
 // Structural row types: only the fields the agent reads (real binding rows are supersets).
@@ -35,11 +35,11 @@ export type Ledger = {
 export type ConvexClarification = { _id: string; status: string; answer?: string; speaker?: string; answerAudioId?: string };
 export type Deps = {
   ledger: Ledger;
-  convex: { ask(a: { workItemId: string; question: string; options: string[] }): Promise<string>; byWorkItem(workItemId: string): Promise<ConvexClarification[]> };
+  convex: { ask(a: { workItemId: string; question: string; options: string[] }): Promise<string>; byWorkItem(workItemId: string): Promise<ConvexClarification[]>; fallbackText(id: string): Promise<unknown> };
   extract(text: string, sourceId: number): Promise<Extraction>;
   /** Two-reader extraction (Claude + Gemini). Absent = `extract` as the only reader. */
   extractBoth?(text: string, sourceId: number): Promise<{ claude: Extraction; gemini: Extraction | null; agreed: boolean; merged: Extraction }>;
-  explain(input: { before: ComputeOut; after: ComputeOut; adjustmentCents: bigint; convention: string; evidence: string[] }): Promise<Explanation>;
+  explain(input: ExplainInput): Promise<Explanation>;
 };
 
 export const log = (...a: unknown[]) => console.log(new Date().toISOString(), '[agent]', ...a);
@@ -47,6 +47,7 @@ const READER = 'claude';
 const MILESTONE_TITLE = 'Milestone invoice: acceptance';
 const maxBy = <T extends { id: bigint }>(rows: T[]) => rows.reduce<T | undefined>((m, r) => (!m || r.id > m.id ? r : m), undefined);
 const usd = (c: bigint) => `${c < 0n ? '-' : ''}$${(c < 0n ? -c : c) / 100n}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const EXPLAIN_TIMEOUT_MS = 20_000, CALC_WAIT_MS = 5_000, MAX_ATTEMPTS = 3;
 const entryJson = (lines: EntryLine[]) => JSON.stringify(lines.map((l) => ({ account: l.account, debit: String(l.debit), credit: String(l.credit) })));
 
 // ponytail: keyword heuristic backing up Claude's flag; misses paraphrases ("on top of", "bump by"), upgrade = stricter extract prompt or a second classifier
@@ -56,6 +57,12 @@ export const isAdditiveWording = (text: string): boolean =>
 // Amount comes from the quote (verified to be in the note); Claude's amountText only if it also appears in the note.
 const factAmount = (f: Extraction['facts'][number] | undefined, noteText: string) =>
   f ? parseAmountCents(f.quote) ?? (f.amountText && noteText.includes(f.amountText) ? parseAmountCents(f.amountText) : null) : null;
+
+// Facts are the amount source: remaining_update first; else (additive wording / additional_vs_total) the first fact with a parseable amount,
+// because the model sometimes files "another $50,000 for conveyor rework" as cost/other.
+function amountFact(facts: Extraction['facts'], noteText: string, additive: boolean) {
+  return facts.find((f) => f.kind === 'remaining_update') ?? (additive ? facts.find((f) => factAmount(f, noteText) != null) : undefined);
+}
 
 /** Downstream state exists for this source, so it was fully handled (an extraction row alone does not count). */
 function handled(s: LedgerState, src: SourceRow): boolean {
@@ -73,7 +80,7 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
     : await deps.extract(src.text, Number(src.id)).then((c) => ({ claude: c, gemini: null, agreed: true, merged: c }));
   if (!both.agreed) log(`source ${src.id}: readers disagree -> ${both.merged.ambiguity.question}`);
   const x = both.merged;
-  const fact = x.facts.find((f) => f.kind === 'remaining_update');
+  const fact = amountFact(x.facts, src.text, x.ambiguity.kind === 'additional_vs_total' || isAdditiveWording(src.text));
   const amount = factAmount(fact, src.text);
   const claudeFlag = x.ambiguity.flag;
   const ambiguous = claudeFlag || (src.kind !== 'commissioning_log' && amount != null && isAdditiveWording(`${fact!.quote} ${src.text}`));
@@ -89,7 +96,7 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
   if (amount == null) return log(`source ${src.id}: no remaining_update amount, nothing to propose`);
   if (!ambiguous) return proposeForecast(src, amount, 'new_total', [], '', deps);
   const conv = ledger.state().conventions.find((c) => c.template === 'forecast' && c.key === 'another_means');
-  if (conv) {
+  if (conv && both.agreed) { // readers disagreeing on the amount is not something a convention can answer
     log(`convention another_means = ${conv.value} (policy v${conv.policyVersion}) applies; no question`);
     return proposeForecast(src, amount, conv.value as Convention, [`Convention v${conv.policyVersion}: another_means = ${conv.value}`], '', deps);
   }
@@ -113,17 +120,17 @@ export async function proposeFromClarification(ref: ClarificationRefRow, answer:
   const s = deps.ledger.state();
   const note = s.sources.find((x) => x.id === ref.sourceId);
   const ext = s.extractions.find((e) => e.sourceId === ref.sourceId && e.reader === READER);
-  const fact = ext && (JSON.parse(ext.factsJson) as Extraction['facts']).find((f) => f.kind === 'remaining_update');
+  const fact = ext && note && amountFact(JSON.parse(ext.factsJson) as Extraction['facts'], note.text, true); // a clarification was asked, so it was additive
   const amount = note && factAmount(fact, note.text);
   if (!note || amount == null) return log(`clarification ${ref.id}: source ${ref.sourceId} has no amount; nothing to propose`);
   const clar = maxBy(s.sources.filter((x) => x.kind === 'clarification' && x.parentSourceId === note.id));
   await proposeForecast(note, amount, answer, clar ? [clar.text] : [], JSON.stringify({ template: 'forecast', key: 'another_means', value: answer }), deps, clar?.id);
 }
 
+/** Both or neither pattern ("additional, not a new total") = unclear -> null, the caller re-asks as text. */
 export function normalizeAnswer(a: string): Convention | null {
-  if (/new[\s_-]*total|\btotal\b/i.test(a)) return 'new_total';
-  if (/addition|on top|\bmore\b|\bextra\b/i.test(a)) return 'additional';
-  return null;
+  const total = /new[\s_-]*total|\btotal\b/i.test(a), add = /addition|on top|\bmore\b|\bextra\b/i.test(a);
+  return total === add ? null : total ? 'new_total' : 'additional';
 }
 
 // Baseline = newest calculation with an approved/posted proposal (its inputsJson carries the snapshot), else the oldest (seed) one.
@@ -146,15 +153,19 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   const next = { ...snap, remaining: applyUpdate(snap.remaining, amount, convention) };
   const before = compute(snap), after = compute(next);
   const adj = adjustment(before.cumRevenue, after.cumRevenue);
-  // explain first: a Claude failure must not leave an orphan calculation
-  const x = await deps.explain({ before, after, adjustmentCents: adj, convention, evidence: [...citations, src.text] });
+  const input: ExplainInput = {
+    before, after, adjustmentCents: adj, convention, evidence: [...citations, src.text],
+    contractValueCents: snap.contractValue, incurredCents: snap.incurred, remainingBeforeCents: snap.remaining, remainingAfterCents: next.remaining,
+  };
+  // Numbers first (the UI shows them within seconds of confirm); explain can only degrade to the template, never orphan this row.
   await ledger.recordCalculation({
     workItemId, forecastSourceId: src.id,
     inputsJson: JSON.stringify({ contractValueCents: String(next.contractValue), incurredCents: String(next.incurred), remainingCents: String(next.remaining), billedCents: String(next.billed) }),
     progressBp: after.progressBp, cumRevenueCents: after.cumRevenue, contractAssetCents: after.contractAsset, marginCents: after.margin.amount, lossWarning: after.margin.lossWarning,
   });
-  const calc = maxBy(ledger.state().calculations.filter((c) => c.workItemId === workItemId))!;
+  const calc = await waitFor(`calculation for source ${src.id}`, () => maxBy(ledger.state().calculations.filter((c) => c.forecastSourceId === src.id)), CALC_WAIT_MS);
   log(`calculation ${calc.id}: remaining ${usd(next.remaining)} (${convention}), progress ${after.progressBp} bp, cum revenue ${usd(after.cumRevenue)}, adjustment ${usd(adj)}${after.margin.lossWarning ? ', LOSS WARNING' : ''}`);
+  const x = await checkedExplain(input, amount, deps);
 
   const escalation = after.margin.lossWarning
     ? `ESCALATION: expected margin ${usd(after.margin.amount)} on contract ${usd(next.contractValue)} (estimated total cost ${usd(after.estTotal)}); loss contract, controller review required.`
@@ -163,6 +174,59 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   const evidence = [src.id, ...(extraEvidenceId ? [extraEvidenceId] : [])].join(',');
   await ledger.propose({ workItemId, calculationId: calc.id, entryJson: entryJson(buildEntry(adj)), explanation, evidenceSourceIdsCsv: evidence, pendingConventionJson });
   log(`proposal on work item ${workItemId}: adjustment ${usd(adj)}${escalation ? ' (ESCALATION)' : ''}`);
+}
+
+async function waitFor<T>(what: string, f: () => T | undefined, ms: number): Promise<T> {
+  for (const deadline = Date.now() + ms; ; await new Promise((r) => setTimeout(r, 50))) {
+    const v = f();
+    if (v !== undefined) return v;
+    if (Date.now() > deadline) throw new Error(`timed out after ${ms} ms waiting for ${what}`);
+  }
+}
+
+const pct = (bp: bigint | number) => `${Number(bp) / 100}%`;
+export function templateExplanation(i: ExplainInput): Explanation {
+  const { before: b, after: a } = i;
+  const dir = i.remainingAfterCents > i.remainingBeforeCents ? 'rose' : i.remainingAfterCents < i.remainingBeforeCents ? 'fell' : 'stayed';
+  return {
+    summary: `The estimate to finish ${dir} from ${usd(i.remainingBeforeCents)} to ${usd(i.remainingAfterCents)} (read as ${i.convention}), so estimated total cost is now ${usd(a.estTotal)} (was ${usd(b.estTotal)}). Cumulative revenue recognised moves from ${usd(b.cumRevenue)} to ${usd(a.cumRevenue)}, a journal entry of ${usd(i.adjustmentCents)}. Expected margin is now ${usd(a.margin.amount)} (was ${usd(b.margin.amount)}).`,
+    whyRevenueMoved: `Progress is cost incurred (${usd(i.incurredCents)}) over estimated total cost, so the new estimate moves progress from ${pct(b.progressBp)} to ${pct(a.progressBp)}, and revenue on the ${usd(i.contractValueCents)} contract follows progress. Evidence: ${i.evidence.map((e) => `"${e}"`).join('; ')}.`,
+    whatDidNotChange: `Cash and the customer invoice are unchanged; the contract asset moves from ${usd(b.contractAsset)} to ${usd(a.contractAsset)}. This is an estimate update, not an error or a restatement.`,
+  };
+}
+
+const FIGURE = /\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM]\b)?(?:\s*(?:million|billion|thousand|mm|bn)\b)?/gi;
+/** First $-figure in the explanation that is not one of the input-derived values (exact or whole-dollar), else undefined. */
+export function unverifiedFigure(x: Explanation, i: ExplainInput, updateAmount: bigint): string | undefined {
+  const vals = [i.contractValueCents, i.incurredCents, i.remainingBeforeCents, i.remainingAfterCents, i.before.estTotal, i.after.estTotal,
+    i.before.cumRevenue, i.after.cumRevenue, i.before.contractAsset, i.after.contractAsset, i.adjustmentCents, i.before.margin.amount, i.after.margin.amount, updateAmount]
+    .map((v) => (v < 0n ? -v : v));
+  const ok = new Set(vals.flatMap((v) => [v, (v / 100n) * 100n, ((v + 50n) / 100n) * 100n]));
+  return [x.summary, x.whyRevenueMoved, x.whatDidNotChange].join('\n').match(FIGURE)?.find((m) => { const c = parseAmountCents(m); return c == null || !ok.has(c); });
+}
+
+async function checkedExplain(input: ExplainInput, updateAmount: bigint, deps: Deps): Promise<Explanation> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const x = await Promise.race([deps.explain(input), new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error('explain timeout')), EXPLAIN_TIMEOUT_MS); })]);
+    const bad = unverifiedFigure(x, input, updateAmount);
+    if (!bad) return x;
+    log(`explanation replaced: unverified number ${bad}`);
+  } catch (e: any) {
+    log(`explain failed (${e?.message ?? e}); using template explanation`);
+  } finally { clearTimeout(timer); }
+  return templateExplanation(input);
+}
+
+/** Run f once per key; on failure forget the key (so the next poll retries) until MAX_ATTEMPTS, then give up. Rethrows. */
+export async function attempt(key: string, done: Set<string>, attempts: Map<string, number>, f: () => Promise<void>): Promise<void> {
+  done.add(key);
+  try { await f(); } catch (e) {
+    const n = (attempts.get(key) ?? 0) + 1;
+    attempts.set(key, n);
+    if (n < MAX_ATTEMPTS) done.delete(key); else log(`giving up on ${key} after ${n} attempts`);
+    throw e;
+  }
 }
 
 async function milestoneInvoice(src: SourceRow, x: Extraction, deps: Deps) {
@@ -184,22 +248,23 @@ async function milestoneInvoice(src: SourceRow, x: Extraction, deps: Deps) {
 
 /** Subscribe to new sources (deduped, processed one at a time) and poll Convex for confirmations every second. Returns stop(). */
 export function startLoop(deps: Deps, opts: { isSeed?: (s: SourceRow) => boolean; pollMs?: number } = {}): () => void {
-  const seen = new Set<string>(), handledConvex = new Set<string>();
+  const seen = new Set<string>(), handledConvex = new Set<string>(), attempts = new Map<string, number>();
   let chain = Promise.resolve();
   const serial = (what: string, f: () => Promise<void>) => (chain = chain.then(f).catch((e) => log(`ERROR ${what}:`, e?.message ?? e)));
   const onSource = (s: SourceRow) => {
     const key = `${s.id}:${s.text}`; // ponytail: text in key guards against id reuse after reset_demo
     if (seen.has(key) || opts.isSeed?.(s)) return;
     seen.add(key);
-    serial(`source ${s.id}`, () => handleNewSource(s, deps));
+    serial(`source ${s.id}`, () => attempt(key, seen, attempts, () => handleNewSource(s, deps)));
   };
   deps.ledger.onSourceInsert(onSource);
   deps.ledger.state().sources.forEach(onSource); // catch up on anything added while the agent was down
   let polling = false;
   const timer = setInterval(() => {
+    deps.ledger.state().sources.forEach(onSource); // re-queues sources whose last attempt failed
     if (polling) return;
     polling = true;
-    serial('convex poll', () => pollConfirmed(deps, handledConvex)).finally(() => (polling = false));
+    serial('convex poll', () => pollConfirmed(deps, handledConvex, attempts)).finally(() => (polling = false));
   }, opts.pollMs ?? 1000);
   return () => clearInterval(timer);
 }

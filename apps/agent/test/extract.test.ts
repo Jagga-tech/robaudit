@@ -41,6 +41,12 @@ const cases = () => {
     expect(r.ambiguity.options).toEqual(["additional", "new_total"]);
     expect(r.facts.some((f) => parseAmountCents(f.amountText) === 20000000n)).toBe(true);
   });
+  it("month-3 'another $50,000 for conveyor rework' -> one remaining_update, additional_vs_total", async () => {
+    const r = await extract("another $50,000 for conveyor rework", 4);
+    expect(r.ambiguity.flag).toBe(true);
+    expect(r.ambiguity.kind).toBe("additional_vs_total");
+    expect(r.facts.filter((f) => f.kind === "remaining_update").map((f) => parseAmountCents(f.quote))).toEqual([5000000n]);
+  });
   it("no facts for chit-chat", async () => {
     const r = await extract("Crew on site, weather fine.", 2);
     expect(r.facts.length).toBe(0);
@@ -58,7 +64,7 @@ describe.skipIf(!hasKey)("extract (real API)", cases, 120_000);
 describe.skipIf(hasKey)("explain/learn (mock)", () => {
   it("returns MOCK-prefixed strings", async () => {
     const c = { estTotal: 1n, progressBp: 1n, cumRevenue: 1n, contractAsset: 1n, margin: { amount: 1n, bp: 1n, lossWarning: false } };
-    const e = await explain({ before: c, after: c, adjustmentCents: 0n, convention: "x", evidence: [] });
+    const e = await explain({ before: c, after: c, adjustmentCents: 0n, convention: "x", evidence: [], contractValueCents: 1n, incurredCents: 1n, remainingBeforeCents: 1n, remainingAfterCents: 1n });
     expect(e.summary.startsWith("MOCK:")).toBe(true);
     const l = await learnConventions([{ sourceId: 1, text: "x" }]);
     expect(l.proposals[0].value.startsWith("MOCK:")).toBe(true);
@@ -69,7 +75,8 @@ describe.skipIf(!hasKey)("explain/learn (real API)", () => {
   it("explain returns three fields", async () => {
     const b = { estTotal: 1000000000n, progressBp: 6000n, cumRevenue: 720000000n, contractAsset: 120000000n, margin: { amount: 200000000n, bp: 1667n, lossWarning: false } };
     const a = { ...b, estTotal: 1020000000n, progressBp: 5882n, cumRevenue: 705840000n, margin: { amount: 180000000n, bp: 1500n, lossWarning: false } };
-    const e = await explain({ before: b, after: a, adjustmentCents: 20000000n, convention: "additional", evidence: ["we need another $200,000 to finish"] });
+    const e = await explain({ before: b, after: a, adjustmentCents: -14160000n, convention: "additional", evidence: ["we need another $200,000 to finish"],
+      contractValueCents: 1200000000n, incurredCents: 600000000n, remainingBeforeCents: 400000000n, remainingAfterCents: 420000000n });
     expect(e.summary.length).toBeGreaterThan(0);
     expect(e.whatDidNotChange.length).toBeGreaterThan(0);
   });

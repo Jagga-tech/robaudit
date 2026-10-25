@@ -65,14 +65,18 @@ export async function extractBoth(noteText: string, sourceId: number, readers: {
   const second = Promise.race([
     readers.gemini(noteText, sourceId),
     new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error("gemini timeout")), GEMINI_TIMEOUT_MS); }),
-  ]).catch(() => {
-    if (!warned) { warned = true; console.log("second reader unavailable"); }
+  ]).catch((e) => {
+    if (!warned && e?.message !== "no GEMINI_API_KEY") { warned = true; console.log("second reader unavailable"); } // no key: gemini.ts already logged
     return null;
   }).finally(() => clearTimeout(timer));
   const [claude, gemini] = await Promise.all([readers.claude(noteText, sourceId), second]);
   if (!gemini) return { claude, gemini, agreed: true, merged: claude };
   const a = primaryAmount(claude), b = primaryAmount(gemini);
-  if (claude.ambiguity.flag === gemini.ambiguity.flag && a === b) return { claude, gemini, agreed: true, merged: claude };
+  if (a === b) {
+    // Same amount: only the flag can differ; the flagged reader's question wins (still an ordinary additive question).
+    const merged = !claude.ambiguity.flag && gemini.ambiguity.flag ? { ...claude, ambiguity: gemini.ambiguity } : claude;
+    return { claude, gemini, agreed: true, merged };
+  }
   const show = (v: bigint | null | undefined, x: Extraction) => v === undefined ? "no remaining-forecast update" : v === null ? `"${x.facts.find((f) => f.kind === "remaining_update")!.quote}"` : `$${v / 100n}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const bothAmounts = a != null && b != null;
   const merged: Extraction = { ...claude, ambiguity: {

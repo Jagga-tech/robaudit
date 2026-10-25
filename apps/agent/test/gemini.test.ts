@@ -63,9 +63,19 @@ describe("gemini second reader", () => {
     expect(rows.map((x) => x.reader)).toEqual(["claude"]);
   });
 
-  it.skipIf(!!process.env.GEMINI_API_KEY)("(4) mock-mode extractWithGemini returns a valid Extraction", async () => {
-    const x = Extraction.parse(await extractWithGemini(NOTE));
-    expect(x.ambiguity.flag).toBe(true);
+  it.skipIf(!!process.env.GEMINI_API_KEY)("(4) no key -> extractWithGemini throws, extractBoth is single-reader", async () => {
+    await expect(extractWithGemini(NOTE)).rejects.toThrow("no GEMINI_API_KEY");
+    const c = remaining("$200,000");
+    expect(await extractBoth(NOTE, 1, { claude: async () => c, gemini: extractWithGemini })).toMatchObject({ gemini: null, agreed: true, merged: c });
+  });
+
+  it("(5) same amount, only Gemini flags -> agreed, Gemini's question kept, no 'disagree' text", async () => {
+    const r = await extractBoth(NOTE, 1, { claude: async () => remaining("$200,000", false), gemini: async () => remaining("$200,000") });
+    expect(r.agreed).toBe(true);
+    expect(r.merged.ambiguity).toMatchObject({ flag: true, kind: "additional_vs_total", question: "Added or new total?" });
+    expect(r.merged.ambiguity.question).not.toMatch(/disagree/);
+    const r2 = await extractBoth(NOTE, 1, { claude: async () => remaining("$200,000"), gemini: async () => remaining("$200,000", false) });
+    expect(r2).toMatchObject({ agreed: true, merged: { ambiguity: { flag: true, question: "Added or new total?" } } });
   });
 });
 

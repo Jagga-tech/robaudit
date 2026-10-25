@@ -14,7 +14,7 @@ Facts
 - charStart / charEnd: offsets of quote in the note, so that note.slice(charStart, charEnd) === quote.
 
 Ambiguity
-- Set flag true with kind "additional_vs_total" ONLY when a word like "another", "more", "additional" or "extra" attaches to a cost-to-finish figure and the note does not say whether that figure is added to the current remaining forecast or replaces it. Example: "we need another $200,000 to finish".
+- Set flag true with kind "additional_vs_total" ONLY when a word like "another", "more", "additional" or "extra" attaches to a cost-to-finish figure and the note does not say whether that figure is added to the current remaining forecast or replaces it. Examples: "we need another $200,000 to finish"; "another $50,000 for conveyor rework" (this is one fact, kind remaining_update, amountText "$50,000", flagged additional_vs_total, even though it names what the money is for).
 - Wording that states the figure is the whole remaining amount is NOT ambiguous: "the new total remaining is $600,000", "remaining cost to finish is now $600,000". For these, flag is false.
 - When flagged as additional_vs_total: question is one sentence addressed to the deployment manager asking whether the figure is on top of the current remaining forecast or is the new total remaining; options are exactly ["additional", "new_total"].
 - Use kind "other" only for a different ambiguity that would change the accounting, with a one-sentence question and short options.

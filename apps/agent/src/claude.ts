@@ -19,7 +19,7 @@ export const prompt = (name: string) => fs.readFileSync(new URL(`../prompts/${na
 let client: Anthropic | undefined;
 
 export async function structured<S extends z.ZodType>(schema: S, system: string, userText: string): Promise<z.infer<S>> {
-  client ??= new Anthropic();
+  client ??= new Anthropic({ timeout: 30_000, maxRetries: 1 });
   const res = await client.beta.messages.parse({
     model: "claude-opus-5-5",
     max_tokens: 2048,
