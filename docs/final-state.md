@@ -15,6 +15,7 @@ One page of where everything lives. Open items are in `docs/track-todo.md`.
 | Azure Container App `keel-agent` | resource group `keel-rg`, image from GitHub Actions |
 | Jira demo site (Atlassian) | https://one-atlas-udgh.atlassian.net, project `SUMMO`, app `summo-jira` (dev env) |
 | Azure Document Intelligence | `summoai` resource (key in `.env`) |
+| Figma, all web design | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=119-2 (page 08); file https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX |
 
 ## What is built per track
 

@@ -6,7 +6,7 @@
 
 **Seats:** Fills the project accountant's revenue-close seat and the part of the controller's week spent chasing deployment managers. Never the approver's seat.
 
-**Live:** https://www.robaudit.us (workbench at `/workbench`, judge phone at `/phone`). Repo: https://github.com/Jagga-tech/robaudit. Jira mirror: project SUMMO on https://one-atlas-udgh.atlassian.net.
+**Live:** https://www.robaudit.us (workbench at `/workbench`, judge phone at `/phone`). Repo: https://github.com/Jagga-tech/robaudit. Jira mirror: project SUMMO on https://one-atlas-udgh.atlassian.net. Figma (all web design, page 08): https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=119-2.
 
 ## The moment
 
@@ -151,7 +151,7 @@ typescript, node.js, pnpm, spacetimedb, convex, cartesia, claude, anthropic, gem
 
 - [ ] Submit before Oct 25, 9:00 AM PDT
 - [ ] Project image uploaded
-- [ ] GitHub repo link: https://github.com/Jagga-tech/robaudit; live link https://www.robaudit.us
+- [ ] GitHub repo link: https://github.com/Jagga-tech/robaudit; live link https://www.robaudit.us; Figma link https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=119-2 (file sharing must be "Anyone with the link")
 - [ ] Video demo linked; it opens with the moment
 - [ ] Verify exact track names on Hive
 - [ ] MLH Commit Fellowship: opted in and supplemental form submitted

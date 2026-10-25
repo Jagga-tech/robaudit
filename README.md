@@ -10,6 +10,7 @@
   <a href="https://www.robaudit.us">www.robaudit.us</a> ·
   <a href="https://www.robaudit.us/workbench">workbench</a> ·
   <a href="https://www.robaudit.us/phone">judge phone</a> ·
+  <a href="https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=119-2">Figma designs</a> ·
   <a href="docs/devpost.md">Devpost text</a> ·
   <a href="docs/proof.md">proof</a>
 </p>
@@ -41,6 +42,24 @@ The ledger is SpacetimeDB. The phone call runs on Convex. Summo runs on Azure. J
 | Ledger | SpacetimeDB Maincloud, database `keel` (`wss://maincloud.spacetimedb.com`, https://spacetimedb.com/keel) |
 | Phone channel | Convex production deployment `hushed-shrimp-24` (`https://hushed-shrimp-24.convex.cloud`) |
 | Agent | Azure Container Apps `keel-agent` (resource group `keel-rg`) |
+
+## Design (Figma)
+
+All web design lives in one Figma file. Page 08 is the handoff workspace with every screen and state; the other pages are the path to it.
+
+| Page | Link |
+|---|---|
+| 08 Design handoff: every landing, workbench and phone screen with notes | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=119-2 |
+| 07 Landing page | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=41-2 |
+| 02 Design system and selected screens | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=0-1 |
+| 03 Interactive prototype | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=10-4 |
+| 00 Problem and user journey | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=10-2 |
+| 01 UX explorations | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=10-3 |
+| 04 Design-to-code handoff | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=10-5 |
+| 05 Implemented UI round trip | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=10-6 |
+| 06 Workflow evidence and lessons | https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX/?node-id=10-7 |
+
+File: https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX
 
 ## Tracks
 
