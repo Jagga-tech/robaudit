@@ -33,6 +33,11 @@ const send = (w: { id: bigint; projectId: bigint; title: string; status: string 
   }).catch((e) => console.error(`jira-bridge: ${e?.message ?? e}`));
 };
 // Rows already on the ledger at startup are not replayed; only changes from now on. (Restart = resume, no duplicates.)
+// JIRA_SYNC=1 mirrors the work items that have no jira-mirror event yet (e.g. the bridge was down when they were created).
+if (process.env.JIRA_SYNC) {
+  const mirrored = new Set([...d.agentEvent.iter()].filter((e) => e.agent === 'jira-mirror' && e.kind === 'mirror').map((e) => e.refId));
+  for (const w of [...d.workItem.iter()].filter((w) => !mirrored.has(w.id))) send(w);
+}
 d.workItem.onInsert((_ctx, w) => send(w));
 d.workItem.onUpdate((_ctx, old, w) => { if (old.status !== w.status) send(w); });
 console.log(`jira-bridge: watching work items on ${process.env.STDB_DB ?? 'keel'}, posting to Forge`);
