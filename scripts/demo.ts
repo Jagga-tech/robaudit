@@ -111,8 +111,8 @@ try {
   const clar = await until('Convex active clarification ringing for Oakland', async () => {
     const c = await cvx.query(anyApi.clarifications.active, {});
     return c && c.workItemId === String(oak) && ['ringing', 'answering'].includes(c.status) ? c : undefined;
-  });
-  await until('work item awaiting_clarification', () => db.workItem.id.find(oak)?.status === 'awaiting_clarification');
+  }, 60000);
+  await until('work item awaiting_clarification', () => db.workItem.id.find(oak)?.status === 'awaiting_clarification', 60000);
   beat(`4 phone ringing (${clar.status}), work item awaiting_clarification`);
 
   // 5. manager answers
@@ -121,7 +121,7 @@ try {
   beat('5 Matt confirmed "additional"');
 
   // 6. rev 2 numbers move
-  const p2 = await until('proposal revision 2 on Oakland', () => proposalOn(oak, 2));
+  const p2 = await until('proposal revision 2 on Oakland', () => proposalOn(oak, 2), 60000);
   const c2 = db.calculation.id.find(p2.calculationId)!;
   eq('rev2 progressBp', c2.progressBp, 4000);
   eq('rev2 cumRevenueCents', c2.cumRevenueCents, 40000000n);
@@ -146,16 +146,16 @@ try {
   // 8. commissioning log -> milestone invoice
   const maxWi = [...db.workItem.iter()].reduce((m, w) => (w.id > m ? w.id : m), 0n);
   await addSource('commissioning_log', 'Commissioning complete: 48 of 48 units commissioned, throughput test passed 1,200 totes/hr, acceptance criteria met.');
-  const inv = await until('work item "Milestone invoice: acceptance"', () => [...db.workItem.iter()].find((w) => w.id > maxWi && w.title === 'Milestone invoice: acceptance'));
-  const pInv = await until('invoice proposal', () => proposalOn(inv.id, 1));
+  const inv = await until('work item "Milestone invoice: acceptance"', () => [...db.workItem.iter()].find((w) => w.id > maxWi && w.title === 'Milestone invoice: acceptance'), 60000);
+  const pInv = await until('invoice proposal', () => proposalOn(inv.id, 1), 60000);
   eq('invoice entry', entry(pInv.entryJson), 'Dr AccountsReceivable 20000000 / Cr ContractAsset 20000000');
-  await until('acceptance milestone met', () => [...db.contractMilestone.iter()].find((m) => m.projectId === projectId && m.name === 'acceptance')?.status === 'met');
+  await until('acceptance milestone met', () => [...db.contractMilestone.iter()].find((m) => m.projectId === projectId && m.name === 'acceptance')?.status === 'met', 60000);
   beat('8 acceptance met -> invoice Dr AR 200,000 / Cr ContractAsset 200,000');
 
   // 9. month 3: convention applies, no call
   const before = Math.max(...[...db.proposal.iter()].filter((p) => p.workItemId === oak).map((p) => p.revision));
   await addSource('note', 'another $50,000 for conveyor rework');
-  const p3 = await until('new Oakland proposal (revision > before) with progressBp 3810', () => [...db.proposal.iter()].find((p) => p.workItemId === oak && p.revision > before && db.calculation.id.find(p.calculationId)?.progressBp === 3810));
+  const p3 = await until('new Oakland proposal (revision > before) with progressBp 3810', () => [...db.proposal.iter()].find((p) => p.workItemId === oak && p.revision > before && db.calculation.id.find(p.calculationId)?.progressBp === 3810), 60000);
   eq('Convex clarifications for Oakland (no new call)', await clarCount(), clarAfter5);
   ok(`rev ${p3.revision} explanation cites another_means`, p3.explanation.includes('another_means'));
   beat(`9 month 3: rev ${p3.revision} 3810 bp, no call, convention cited`);

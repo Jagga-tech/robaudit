@@ -22,12 +22,12 @@ export async function structured<S extends z.ZodType>(schema: S, system: string,
   client ??= new Anthropic();
   const res = await client.beta.messages.parse({
     model: "claude-opus-5-5",
-    max_tokens: 4096,
+    max_tokens: 2048,
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userText }],
-    output_config: { format: betaZodOutputFormat(schema) },
+    output_config: { effort: "low", format: betaZodOutputFormat(schema) },
   });
   if (res.stop_reason === "refusal") throw new Error(`Claude refused: ${res.stop_details?.category ?? "unknown"} ${res.stop_details?.explanation ?? ""}`.trim());
   if (res.parsed_output == null) throw new Error(`Claude output did not parse (stop_reason=${res.stop_reason})`);
