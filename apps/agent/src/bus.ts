@@ -32,7 +32,7 @@ export function createBus() {
 }
 
 // ---- agents: a name, a seat, the reducers it may call, its handlers; every action is logged to agent_event ----
-export type Kind = 'read' | 'agree' | 'disagree' | 'reconcile' | 'ask' | 'answer' | 'compute' | 'explain' | 'propose' | 'review' | 'learn' | 'skip' | 'error';
+export type Kind = 'read' | 'agree' | 'disagree' | 'reconcile' | 'ask' | 'answer' | 'compute' | 'explain' | 'propose' | 'review' | 'learn' | 'skip' | 'error' | 'flag' | 'pass';
 export type Agent<H> = { name: string; seat: string; may: readonly string[]; handlers: H };
 
 /** Every ledger reducer an agent could reach for, `post` included (a human approval; no agent may call it). */

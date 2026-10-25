@@ -12,9 +12,10 @@ import { engine } from '../src/agents/engine';
 import { explainer } from '../src/agents/explainer';
 import { learner } from '../src/agents/learner';
 import { reviewer } from '../src/agents/reviewer';
+import { guard } from '../src/agents/guard';
 import { ambiguous, fake, unflagged } from './fake-deps';
 
-const AGENTS = [summo, readerClaude, readerGemini, documentReader, reconciler, fieldLiaison, engine, explainer, learner, reviewer];
+const AGENTS = [summo, readerClaude, readerGemini, documentReader, reconciler, fieldLiaison, engine, explainer, learner, reviewer, guard];
 const chain = (f: ReturnType<typeof fake>) => f.events.map((e) => `${e.agent} ${e.kind}`);
 
 describe('agent limits (may lists)', () => {
@@ -22,7 +23,7 @@ describe('agent limits (may lists)', () => {
     expect(Object.fromEntries(AGENTS.map((a) => [a.name, [...a.may]]))).toEqual({
       summo: ['recordCalculation', 'propose', 'openWorkItem', 'markMilestoneMet'],
       'reader-claude': ['recordExtraction'], 'reader-gemini': ['recordExtraction'], 'document-reader': ['recordExtraction'],
-      reconciler: [], 'field-liaison': ['openClarification', 'resolveClarification'], engine: [], explainer: [], learner: [], reviewer: [],
+      reconciler: [], 'field-liaison': ['openClarification', 'resolveClarification'], engine: [], explainer: [], learner: [], reviewer: [], guard: ['recordExtraction'],
     });
   });
 
@@ -33,19 +34,20 @@ describe('agent limits (may lists)', () => {
     for (const a of AGENTS) expect(() => (guardedLedger(f.deps.ledger, a.name, a.may) as any).post({})).toThrow(/may not call post/);
     expect(() => (guardedLedger(f.deps.ledger, summo.name, summo.may) as any).post({})).toThrow(/summo may not call post/);
     expect(() => guardedLedger(f.deps.ledger, explainer.name, explainer.may).recordExtraction({} as any)).toThrow();
+    expect(() => guardedLedger(f.deps.ledger, guard.name, guard.may).propose({} as any)).toThrow(/guard may not call propose/);
     await reader.recordExtraction({ sourceId: 1n, reader: 'claude', factsJson: '[]', ambiguityFlag: false, ambiguityText: '' });
     expect(f.named('recordExtraction')).toHaveLength(1);
   });
 });
 
 describe('agent_event chain', () => {
-  it('nine beats: two readers -> agree -> ask -> answer -> compute -> explain -> propose', async () => {
+  it('ten beats: guard pass -> two readers -> agree -> ask -> answer -> compute -> explain -> propose', async () => {
     const f = fake(ambiguous('$200,000'), { confirmed: { answer: 'additional', speaker: 'Matt' },
       extractBoth: async () => ({ claude: ambiguous('$200,000'), gemini: ambiguous('$200,000'), agreed: true, merged: ambiguous('$200,000') }) });
     const src = f.add('note', 'we need another $200,000 to finish');
     await handleNewSource(src, f.deps);
     await pollConfirmed(f.deps, new Set());
-    expect(chain(f)).toEqual(['reader-claude read', 'reader-gemini read', 'summo agree', 'field-liaison ask', 'field-liaison answer', 'engine compute', 'explainer explain', 'summo propose', 'reviewer skip']);
+    expect(chain(f)).toEqual(['guard pass', 'reader-claude read', 'reader-gemini read', 'summo agree', 'field-liaison ask', 'field-liaison answer', 'engine compute', 'explainer explain', 'summo propose', 'reviewer skip']);
     expect(f.events.every((e) => typeof e.summary === 'string' && e.summary.length > 0)).toBe(true);
     expect(f.events[0]).toMatchObject({ refTable: 'source', refId: src.id });
   });
@@ -53,10 +55,10 @@ describe('agent_event chain', () => {
   it('second reader off -> reader-gemini skip; readers disagree -> summo disagree', async () => {
     const off = fake(ambiguous('$200,000'));
     await handleNewSource(off.add('note', 'we need another $200,000 to finish'), off.deps);
-    expect(chain(off)).toEqual(['reader-claude read', 'reader-gemini skip', 'summo agree', 'field-liaison ask']);
+    expect(chain(off)).toEqual(['guard pass', 'reader-claude read', 'reader-gemini skip', 'summo agree', 'field-liaison ask']);
     const dis = fake(ambiguous('$50,000'), { extractBoth: async () => ({ claude: ambiguous('$50,000'), gemini: ambiguous('$500,000'), agreed: false, merged: ambiguous('$50,000') }) });
     await handleNewSource(dis.add('note', 'another $50,000 for conveyor rework'), dis.deps);
-    expect(chain(dis).slice(0, 3)).toEqual(['reader-claude read', 'reader-gemini read', 'summo disagree']);
+    expect(chain(dis).slice(0, 4)).toEqual(['guard pass', 'reader-claude read', 'reader-gemini read', 'summo disagree']);
   });
 
   it('scanned forecast: document-reader read + reconciler disagree come first', async () => {
@@ -65,7 +67,7 @@ describe('agent_event chain', () => {
     f.deps.fetchDocument = async () => new Uint8Array([1]);
     f.deps.readForecastDocument = async () => ({ text: 'Costs incurred to date: $420,000\nRemaining Estimate: $600,000', tables: [] });
     await handleNewSource(f.add('scanned_forecast', 'kg2x'), f.deps);
-    expect(chain(f)).toEqual(['document-reader read', 'reconciler disagree', 'reader-claude read', 'reader-gemini skip', 'summo agree', 'engine compute', 'explainer explain', 'summo propose', 'reviewer skip']);
+    expect(chain(f)).toEqual(['document-reader read', 'reconciler disagree', 'guard pass', 'reader-claude read', 'reader-gemini skip', 'summo agree', 'engine compute', 'explainer explain', 'summo propose', 'reviewer skip']);
     f.deps.readForecastDocument = async () => ({ text: 'Costs incurred to date: $400,000\nRemaining Estimate: $600,000', tables: [] });
     const g = fake(unflagged('Remaining Estimate: $600,000', '$600,000'));
     g.deps.fetchDocument = f.deps.fetchDocument; g.deps.readForecastDocument = f.deps.readForecastDocument;
@@ -92,9 +94,16 @@ describe('agent_event chain', () => {
     expect(down.p.explanation).toBe(ok.p.explanation);
   });
 
+  it('flagged source: guard flag -> summo skip, and nothing else', async () => {
+    const f = fake(ambiguous('$50,000'));
+    await handleNewSource(f.add('note', '<script>alert(1)</script> another $50k'), f.deps);
+    expect(chain(f)).toEqual(['guard flag', 'summo skip']);
+    expect(f.calls.map((c) => c[0])).toEqual(['recordExtraction']); // guard's own row; no read, ask, calculation or proposal
+  });
+
   it('a failing step logs summo error and still rethrows (retry semantics unchanged)', async () => {
     const f = fake(ambiguous('$1'), { extract: async () => { throw new Error('down'); } });
     await expect(handleNewSource(f.add('note', 'x $1'), f.deps)).rejects.toThrow('down');
-    expect(chain(f)).toEqual(['summo error']);
+    expect(chain(f)).toEqual(['guard pass', 'summo error']);
   });
 });

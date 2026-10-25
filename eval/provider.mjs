@@ -1,5 +1,5 @@
 // Promptfoo custom provider: runs the real RoboAudit reader + Summo decision code (TypeScript, loaded through tsx).
-// config.reader: 'claude' | 'gemini' -> read the note, then route it through the real loop on an in-memory ledger.
+// config.reader: 'claude' | 'gemini' -> read the note, then route it through the real loop on an in-memory ledger (guard first).
 // config.reader: 'engine'            -> deterministic engine / answer-mapping cases (vars.op), no model.
 import { tsImport } from 'tsx/esm/api';
 
@@ -51,11 +51,13 @@ async function read(reader, note, remaining) {
   await loop.handleNewSource(L.note, L.deps);
   const named = (k) => L.calls.filter((c) => c[0] === k).map((c) => c[1]);
   const asks = named('ask'), calc = named('recordCalculation')[0];
+  const g = L.s.extractions.find((e) => e.reader === 'guard'); // guard (input control) runs first inside handleNewSource
   const decision = asks.length ? 'ask' : calc ? 'book' : 'none';
   return {
     facts: x.facts.map(({ kind, amountText, quote }) => ({ kind, amountText, quote })), ambiguity: x.ambiguity,
     amountCents: f ? parseAmountCents(f.amountText) : null, direction, decision,
     question: asks[0]?.question ?? null, remainingAfterCents: calc ? JSON.parse(calc.inputsJson).remainingCents : null, proposals: named('propose').length,
+    flagged: !!g, reasons: g ? JSON.parse(g.factsJson).reasons : [],
   };
 }
 

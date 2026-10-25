@@ -11,6 +11,7 @@ import { readerClaude, READER } from './reader-claude.js';
 import { readerGemini } from './reader-gemini.js';
 import { fieldLiaison } from './field-liaison.js';
 import { reviewer } from './reviewer.js';
+import { guard, GUARD_READER } from './guard.js';
 
 // Summo, the coordinator (seat: project accountant). Watches the ledger, routes each source through the other agents,
 // and is the only agent that writes calculations and proposals. It never posts: a human approves.
@@ -47,6 +48,7 @@ function amountFact(facts: Extraction['facts'], noteText: string, additive: bool
 /** Downstream state exists for this source, so it was fully handled (an extraction row alone does not count). */
 function handled(s: LedgerState, src: SourceRow): boolean {
   if (s.calculations.some((c) => c.forecastSourceId === src.id) || s.clarificationRefs.some((c) => c.sourceId === src.id)) return true;
+  if (s.extractions.some((e) => e.sourceId === src.id && e.reader === GUARD_READER)) return true; // flagged by guard earlier
   return src.kind === 'commissioning_log' && s.milestones.some((m) => m.projectId === src.projectId && m.name === 'acceptance' && m.status === 'met');
 }
 
@@ -66,6 +68,7 @@ async function route(src: SourceRow, deps: Deps): Promise<void> {
   // ponytail: text swap means a clarification on a scanned forecast reads amounts from the fact quote only (note.text is the storageId)
   let disagreement: Disagreement | undefined;
   if (src.kind === 'scanned_forecast') ({ src, disagreement } = await documentReader.handlers.read(src, deps));
+  if (await guard.handlers.check(deps, src)) return skip(deps, src, 'flagged by guard'); // untrusted text: no read, ask, compute or proposal
   log(`source ${src.id} (${src.kind}) -> extract`);
   const both = deps.extractBoth
     ? await deps.extractBoth(src.text, Number(src.id))

@@ -14,9 +14,10 @@ module.exports = (output, { vars }) => {
       if (!kinds.includes(w.kind)) bad.push(`no ${w.kind} fact [${kinds}]`);
     }
   }
+  if (w.reasons) for (const r of w.reasons) if (!o.reasons.includes(r)) bad.push(`no guard rule ${r} [${o.reasons}]`); // expected rules must all fire
   if (w.question && !new RegExp(w.question).test(o.question ?? '')) bad.push(`question "${o.question}" !~ /${w.question}/`);
   for (const [k, v] of Object.entries(w)) {
-    if (['flag', 'kind', 'question'].includes(k)) continue;
+    if (['flag', 'kind', 'question', 'reasons'].includes(k)) continue;
     if (String(o[k]) !== String(v)) bad.push(`${k} ${o[k]} != ${v}`);
   }
   return { pass: !bad.length, score: bad.length ? 0 : 1, reason: bad.length ? bad.join('; ') : 'all expected values match' };
