@@ -98,6 +98,17 @@ describe.skipIf(!up)('ledger controls (live SpacetimeDB)', () => {
     expect([...agent.db.proposal.iter()].filter((p) => p.workItemId === w.id).length).toBe(1);
   });
 
+  it('addSource: invoice proposal (calculationId 0) survives, revenue proposal goes stale', async () => {
+    const inv = await newWorkItem();
+    const rev = await newWorkItem();
+    const pi = await proposeOn(inv.id, 0n);
+    const pr = await proposeOn(rev.id, (await newCalculation(rev.id)).id);
+    await agent.reducers.addSource({ projectId, kind: 'forecast', text: 'forecast v4', parentSourceId: 0n, version: 4 });
+    expect(agent.db.proposal.id.find(pi.id)!.status).toBe('open');
+    expect(agent.db.workItem.id.find(inv.id)!.status).not.toBe('stale');
+    expect(agent.db.proposal.id.find(pr.id)!.status).toBe('stale');
+  });
+
   it('closePeriod then post -> period_closed', async () => {
     const p = await approvedProposal();
     await controller.reducers.closePeriod({ projectId });

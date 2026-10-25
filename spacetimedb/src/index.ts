@@ -59,10 +59,11 @@ export const addSource = spacetimedb.reducer(
     const s = ctx.db.source.insert({ id: 0n, projectId, kind, version, text, parentSourceId, hash: hash(text), createdAt: ctx.timestamp });
     log(ctx, projectId, 'source_added', s.id, `${kind} v${version} added`);
     // New evidence invalidates any open proposal on this project.
-    for (const w of ctx.db.workItem.iter()) {
+    for (const w of [...ctx.db.workItem.iter()]) {
       if (w.projectId !== projectId) continue;
-      for (const p of ctx.db.proposal.by_work_item.filter(w.id)) {
-        if (p.status !== 'open') continue;
+      // Only revenue proposals (calculationId != 0) go stale: a forecast change invalidates revenue estimates, not a met billing milestone.
+      for (const p of [...ctx.db.proposal.by_work_item.filter(w.id)]) {
+        if (p.status !== 'open' || p.calculationId === 0n) continue;
         ctx.db.proposal.id.update({ ...p, status: 'stale' });
         ctx.db.workItem.id.update({ ...w, status: 'stale' });
         log(ctx, projectId, 'proposal_stale', p.id, `Proposal rev ${p.revision} stale: new ${kind} source ${s.id}`);
@@ -133,6 +134,7 @@ export const propose = spacetimedb.reducer(
   },
   (ctx, { workItemId, calculationId, entryJson, explanation, evidenceSourceIdsCsv, pendingConventionJson }) => {
     requireRole(ctx, 'agent');
+    if (calculationId !== 0n && ctx.db.calculation.id.find(calculationId)?.workItemId !== workItemId) fail('not_found', 'calculation');
     const existing = [...ctx.db.proposal.by_work_item.filter(workItemId)];
     if (existing.some((p) => p.calculationId === calculationId)) return; // idempotent retry
     for (const p of existing) if (p.status === 'open') ctx.db.proposal.id.update({ ...p, status: 'stale' });
@@ -151,7 +153,7 @@ export const decide = spacetimedb.reducer(
   (ctx, { proposalId, revision, decision, reason }) => {
     const u = requireRole(ctx, 'controller');
     const status = ({ approve: 'approved', return: 'returned', hold: 'held' } as Record<string, string>)[decision]
-      ?? fail('revision', `unknown decision ${decision}`);
+      ?? fail('bad_input', 'unknown decision');
     const p = currentProposal(ctx, proposalId, revision);
     if (p.status !== 'open') fail('revision', `proposal ${proposalId} already ${p.status}`);
     ctx.db.proposal.id.update({ ...p, status });
@@ -159,7 +161,8 @@ export const decide = spacetimedb.reducer(
     ctx.db.approval.insert({ id: 0n, proposalId, revision, decision, by: u.name, reason, at: ctx.timestamp });
     log(ctx, w.projectId, `decision_${decision}`, proposalId, `Rev ${revision} ${status} by ${u.name}${reason ? ': ' + reason : ''}`);
     if (decision === 'approve' && p.pendingConventionJson) {
-      const c = JSON.parse(p.pendingConventionJson) as { template: string; key: string; value: string };
+      let c: { template: string; key: string; value: string };
+      try { c = JSON.parse(p.pendingConventionJson); } catch { return fail('bad_input', 'pendingConventionJson is not valid JSON'); }
       const conv = saveConventionRow(ctx, c.template, c.key, c.value, p.evidenceSourceIds,
         ctx.db.policy.iter().next().value?.version ?? 0, u.name);
       log(ctx, w.projectId, 'convention_saved', conv.id, `${c.template}.${c.key} = ${c.value}`);
