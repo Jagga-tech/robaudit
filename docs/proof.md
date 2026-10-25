@@ -102,7 +102,7 @@ On the real Azure OCR sheet run, OCR took about 5.3 s, Claude extraction 3.3 s a
 
 ## 5. Benchmarks
 
-There is no public benchmark for this task, and we report no benchmark score. Our measures are the planted-error answer key in section 2 and the 20-phrase set in section 3.
+There is no public benchmark for this task, and we report no benchmark score. Our measures are the planted-error answer key in section 2 and the 20-phrase set in section 3. They were also run through an independent harness and grader, Promptfoo, against real Claude and real Gemini: 51 of 51 cases pass on two consecutive runs (see docs/eval-promptfoo.md, `pnpm eval`). The internal benchmark harness (`pnpm bench`, docs/benchmark.md) replays the planted errors through the live multi-agent system and reports per-agent latency.
 
 ## 6. Reproduce in 5 minutes
 
