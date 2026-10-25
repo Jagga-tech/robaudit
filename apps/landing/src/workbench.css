@@ -88,7 +88,7 @@ h3{font-size:14px;font-weight:600;margin:20px 0 8px}
 
 /* ---- project tabs ---- */
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:-12px 0 24px}
-.tabs a{padding:10px 14px;text-decoration:none;font-size:14px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a{white-space:nowrap;padding:10px 14px;text-decoration:none;font-size:14px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
 .tabs a.on{color:var(--hero);border-bottom-color:var(--hero)}
 .ovgrid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:44px;align-items:start}
 
