@@ -7,7 +7,9 @@
 *{box-sizing:border-box}
 html,body{margin:0}
 a{color:inherit}
-.wordmark{font-family:var(--display);font-weight:800;font-size:24px;letter-spacing:-.02em;text-decoration:none}
+.wordmark{display:inline-flex;flex-direction:column;align-items:center;text-decoration:none}
+.brand-logo{display:block;width:132px;height:auto;margin-bottom:-24px}
+.brand-name{font-family:var(--display);font-weight:800;font-size:24px;line-height:1;letter-spacing:-.02em}
 .pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 26px;border-radius:999px;font:600 16px var(--body);text-decoration:none;cursor:pointer;border:1px solid transparent;color:var(--ink);background:transparent}
 .pill.dark{background:var(--rust);color:var(--paper)}
 .pill.outline{border-color:var(--rust)}
