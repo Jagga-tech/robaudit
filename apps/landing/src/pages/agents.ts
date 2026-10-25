@@ -36,6 +36,35 @@ const STRIP = `<div class="arch" aria-label="Architecture: sources flow through 
 </div>
 <p class="arch-line">One coordinator, nine specialists, one human. No agent can post.</p>`;
 
+// Session latency: split each project's events (id order) into runs (a read after a compute starts a new run), then diff stage timestamps.
+type Ev = { id: bigint; projectId: bigint; agent: string; kind: string; refTable: string; refId: bigint; at: { toDate(): Date } };
+const pct = (xs: number[], q: number) => { const a = [...xs].sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.ceil(q * a.length) - 1)]; };
+function latency(evs: Ev[], srcAt: (id: bigint) => number | undefined) {
+  const m: Record<'readers' | 'ask' | 'human' | 'ttn' | 'explain' | 'review', number[]> = { readers: [], ask: [], human: [], ttn: [], explain: [], review: [] };
+  const byP = new Map<bigint, Ev[]>();
+  for (const e of [...evs].sort((a, b) => (a.id < b.id ? -1 : 1))) (byP.get(e.projectId) ?? byP.set(e.projectId, []).get(e.projectId)!).push(e);
+  let runs = 0;
+  for (const list of byP.values()) {
+    const groups: Ev[][] = [];
+    for (const e of list) { const g = groups[groups.length - 1]; if (!g || (e.kind === 'read' && g.some((x) => x.agent === 'engine' && x.kind === 'compute'))) groups.push([e]); else g.push(e); }
+    for (const g of groups) {
+      const t = (agent: string, kind: string) => { const e = g.find((x) => x.agent === agent && x.kind === kind); return e ? e.at.toDate().getTime() : undefined; };
+      const compute = t('engine', 'compute'); if (compute === undefined) continue;
+      runs++;
+      const reads = g.filter((x) => x.kind === 'read' && (x.agent === 'reader-claude' || x.agent === 'reader-gemini'));
+      const t0 = srcAt(reads.find((r) => r.refTable === 'source')?.refId ?? 0n) ?? Math.min(...g.map((x) => x.at.toDate().getTime()));
+      const ask = t('field-liaison', 'ask'), ans = t('field-liaison', 'answer'), exp = t('explainer', 'explain'), rev = t('reviewer', 'review');
+      const add = (k: keyof typeof m, a?: number, b?: number) => { if (a !== undefined && b !== undefined && b >= a) m[k].push((b - a) / 1000); };
+      for (const r of reads) add('readers', t0, r.at.toDate().getTime());
+      add('ask', t0, ask); add('human', ask, ans);
+      add('ttn', ans ?? Math.max(...reads.map((r) => r.at.toDate().getTime())), compute);
+      add('explain', compute, exp); add('review', exp, rev);
+    }
+  }
+  return { runs, m };
+}
+const tile = (label: string, xs: number[], hero = false) => `<div class="lat${hero ? ' hero' : ''}"><span class="muted">${label}</span><b>${xs.length ? pct(xs, 0.5).toFixed(1) + 's' : '—'}</b><small class="muted">${xs.length >= 4 ? `p95 ${pct(xs, 0.95).toFixed(1)}s` : xs.length ? `n=${xs.length}` : ''}</small></div>`;
+
 const page: Page = {
   route: /^\/workbench\/agents$/,
   title: 'Agents',
@@ -84,8 +113,12 @@ const page: Page = {
       }).join('');
       const opt = (v: string, label: string, cur: string) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label)}</option>`;
 
+      const L = latency(evs, (id) => d.source.id.find(id)?.createdAt.toDate().getTime());
+      const lat = `<h2>This session</h2>${state !== 'ok' || !L.runs ? '<p class="empty">No runs yet in this session.</p>' : `<div class="lats">${tile('Readers', L.m.readers)}${tile('Ask', L.m.ask)}${tile('Human', L.m.human)}${tile('Time to numbers', L.m.ttn, true)}${tile('Explain', L.m.explain)}${tile('Review', L.m.review)}<div class="lat"><span class="muted">Runs</span><b>${L.runs}</b></div></div>`}`;
+
       root.innerHTML = `<div class="pg">
         ${STRIP}
+        ${lat}
         <h2>Roster</h2>
         <p class="muted split">Claude: reader, explainer, learner · Gemini: reader, reviewer · code: Summo, reconciler, engine, field liaison, posting guard · Azure: document reader</p>
         <div class="tbl-wrap"><table class="roster">
