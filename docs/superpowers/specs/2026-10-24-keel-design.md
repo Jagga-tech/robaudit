@@ -97,8 +97,9 @@ Tests assert the answer key exactly:
 | Margin | 200,000 (20%) | 0 (0%) loss warning | 400,000 (40%) |
 | Adjustment | — | −100,000 | +166,667 |
 
-Rounding: progress to 4 decimal places (basis points), revenue rounded half-up to the
-dollar; the "new total" branch must produce exactly 666,667 and +166,667.
+Rounding: cumulative revenue = round-half-up(contractValue × incurred ÷ estTotal) to the
+whole dollar, computed on the exact ratio in bigint. Basis points are display only and never
+feed revenue. The "new total" branch must produce exactly 666,667 and +166,667.
 
 Month 3 case: "another $50,000 for conveyor rework" with saved convention `additional`
 → remaining 650,000, total 1,050,000, progress 38.10%, cum revenue 380,952,
@@ -141,6 +142,25 @@ Reducers (each throws `SenderError` on violation; every state change writes `his
   project period open; debits = credits; `postingRef` unique. Writes `posting`; never
   updates an existing posting.
 - `saveConvention(...)` (controller role) and `applyConvention` is a pure read by the agent.
+- `closePeriod(projectId)` (controller role) exists so the period check is testable.
+
+Decisions pinned after builder review:
+
+- **Convention lifecycle.** S0 seeds one approved convention for a different key
+  (`remaining_estimate_means = future_costs_only`, learned from the six closes). The
+  `another_means` convention is not seeded. When a clarification is confirmed, the agent's
+  `propose` carries `pendingConventionJson` (`{template:'forecast', key:'another_means',
+  value:'additional'}`). `decide(approve)` saves that convention as approved by the
+  controller in the same reducer. Month 3 finds it and asks no question.
+- **Who posts.** There is no `posting_service` role. `decide(approve)` and `post` are two
+  reducers; the controller's client calls them back to back (one Approve button in the UI).
+  `post` is where the five checks run and is what rejects wrong role / duplicate / stale.
+- **Commissioning log.** `contract_milestone` table seeded with `acceptance` =
+  20,000,000 cents, status `pending`. A `commissioning_log` source → extraction fact
+  `milestone` → agent opens work item "Milestone invoice: acceptance" and proposes entry
+  Dr AccountsReceivable 200,000 / Cr ContractAsset 200,000 with the log as evidence.
+  `EntryLine.account` therefore includes `AccountsReceivable`. Billed-to-date changes
+  only when that proposal is posted (not needed in the three minutes).
 
 Clients subscribe with `spacetimedb` TS SDK; bindings generated into
 `packages/bindings` via `spacetime generate --lang typescript`.
@@ -172,10 +192,17 @@ confirmed | declined | unconfirmed | fallback_text, answer, speaker, questionAud
 answerAudioId), `transcriptSegments` (clarificationId, seq, text, isFinal).
 
 Functions: mutation `ask` (schedules `speakQuestion`), action `speakQuestion` (Cartesia
-`POST /tts/bytes`, `sonic-3.6`, wav → file storage), mutation `startAnswer`, action
-`transcribe` (reads uploaded answer audio from storage, streams to
+`POST /tts/bytes`, `sonic-3.6`, wav → file storage), mutation `startAnswer`, mutation
+`submitAnswerAudio({id, storageId})` (schedules `transcribe`), action `transcribe` (reads
+the uploaded WAV, strips the 44-byte header, streams PCM to
 `wss://api.cartesia.ai/stt/websocket?model=ink-2`, writes segments), mutation `confirm`,
 mutation `fallbackText`, query `active` (phone page), query `byWorkItem` (workbench pane).
+
+**Audio contract with the phone page (Tanush):** record with an AudioWorklet or
+ScriptProcessor into 16 kHz mono PCM16 and upload a WAV (44-byte header + PCM) via
+`generateUploadUrl`, then call `submitAnswerAudio`. No webm/opus: Convex actions cannot
+transcode. If the mic path fails, the page falls back to the browser `SpeechRecognition`
+API and calls `confirm` with that text; the agent still records the answer as evidence.
 
 ### 5. Dev harness (`apps/harness`)
 

@@ -79,11 +79,12 @@ README.md, docs/devpost.md
 export type Cents = bigint; export type Bp = number; // 0..10000
 export const dollars = (n: number | string): Cents       // "1,000,000" | 1000000 → 100000000n
 export function progressBp(incurred: Cents, remaining: Cents): Bp  // round half-up to bp; 0 if total 0
-export function cumulativeRevenue(progress: Bp, contractValue: Cents): Cents // half-up to whole dollar (cents % 100 === 0)
+export function cumulativeRevenue(contractValue: Cents, incurred: Cents, estTotal: Cents): Cents // round-half-up(contract*incurred/estTotal) to whole dollar on exact bigint ratio; bp never used here
 export function contractAsset(cumRevenue: Cents, billed: Cents): Cents
 export function expectedMargin(contractValue: Cents, estTotal: Cents): { amount: Cents; bp: Bp; lossWarning: boolean }
 export function adjustment(prevCumRevenue: Cents, newCumRevenue: Cents): Cents
-export type EntryLine = { account: 'Revenue' | 'ContractAsset'; debit: Cents; credit: Cents }
+export type EntryLine = { account: 'Revenue' | 'ContractAsset' | 'AccountsReceivable'; debit: Cents; credit: Cents }
+export function buildInvoiceEntry(amount: Cents): EntryLine[]  // Dr AccountsReceivable / Cr ContractAsset
 export function buildEntry(adj: Cents): EntryLine[]      // balanced; [] when adj === 0n
 export type Convention = 'additional' | 'new_total'
 export function applyUpdate(remaining: Cents, updateAmount: Cents, convention: Convention): Cents // new remaining
@@ -93,7 +94,7 @@ export function compute(s: Snapshot): { estTotal: Cents; progressBp: Bp; cumReve
 
 - [ ] **Step 1: Failing tests.** In `engine.test.ts` assert the full answer key from the spec table (Before; After "additional"; After "new total") and Month 3 (remaining 650,000 → progressBp 3810, cumRevenue 380,952, adjustment −19,048, margin −50,000 lossWarning true). Also: `buildEntry(dollars(-100000))` → `[{Revenue, debit 100000}, {ContractAsset, credit 100000}]`; `buildEntry(dollars(166667))` reversed; debits === credits for both; `compute` with incurred 0 and remaining 0 → progressBp 0, no throw.
 - [ ] **Step 2:** `pnpm --filter @keel/engine test` → fails (module missing).
-- [ ] **Step 3:** Implement. Rounding helper `divRoundHalfUp(n: bigint, d: bigint): bigint` in `money.ts`; `cumulativeRevenue` = `divRoundHalfUp(progress * contractValue, 10000n)` then round half-up to whole dollars.
+- [ ] **Step 3:** Implement. Rounding helper `divRoundHalfUp(n: bigint, d: bigint): bigint` in `money.ts`; `cumulativeRevenue` = `divRoundHalfUp(contractValue * incurred, estTotal * 100n) * 100n` (whole dollars, exact ratio). `progressBp` is display only.
 - [ ] **Step 4:** Tests pass. Commit `feat(engine): cost-to-cost engine with answer-key tests`.
 
 ---
@@ -109,6 +110,8 @@ Reference for module syntax: `/private/tmp/claude-501/-Users-chanpreetsingh-robo
 - `user.identity: t.identity().primaryKey()`, `user.role: t.string()`.
 - `work_item.status`, `proposal.status`, `source.kind`, `clarification_ref.status`: `t.string()` with the spec's enumerated values.
 - `posting.postingRef: t.string().unique()`.
+- `contract_milestone` (id, projectId, name, amountCents, status: pending | met | invoiced); seed `acceptance` 20,000,000 pending.
+- `proposal.pendingConventionJson: t.string()` ('' when none).
 - `proposal` index `by_work_item` on `workItemId`; `source` index on `projectId`.
 - `t.timestamp()` for `*At` columns, set from `ctx.timestamp`.
 
@@ -133,9 +136,12 @@ recordExtraction(sourceId, reader: string, factsJson: string, ambiguityFlag: boo
 openClarification(workItemId, convexId: string, question: string)  // role agent; work_item → awaiting_clarification
 resolveClarification(clarificationId, answer: string, speaker: string, audioStorageId: string) // role agent; inserts source kind clarification (parent = clarification's source), clarification_ref → confirmed, work_item → open
 recordCalculation(workItemId, forecastSourceId, inputsJson, progressBp: u32, cumRevenueCents: i64, contractAssetCents: i64, marginCents: i64, lossWarning: bool) → id
-propose(workItemId, calculationId, entryJson, explanation, evidenceSourceIdsCsv)   // role agent; idempotent: if a proposal exists with same workItemId+calculationId return; else revision = max+1, older open → stale; work_item → proposed
-decide(proposalId, revision: u32, decision: 'approve'|'return'|'hold', reason)      // role controller; reject if revision mismatch or status stale; approve → work_item approved
-post(proposalId, revision, postingRef)   // role controller|posting_service; checks in spec order; inserts posting; work_item → posted; proposal unchanged except status approved→posted? NO: proposal status stays approved; posting row is the record
+propose(workItemId, calculationId, entryJson, explanation, evidenceSourceIdsCsv, pendingConventionJson)   // role agent; idempotent: if a proposal exists with same workItemId+calculationId return; else revision = max+1, older open → stale; work_item → proposed
+decide(proposalId, revision: u32, decision: 'approve'|'return'|'hold', reason)      // role controller; reject if revision mismatch or status stale; approve → work_item approved AND if pendingConventionJson non-empty → insert convention approvedBy controller
+post(proposalId, revision, postingRef)   // role controller; checks in spec order (role, approved, revision current, period open, balanced, unique ref); inserts posting; work_item → posted; proposal status stays approved
+openWorkItem(projectId, title, assignedRole) → id   // role agent (used for milestone invoice)
+markMilestoneMet(milestoneId, evidenceSourceId)     // role agent
+closePeriod(projectId)                              // role controller
 saveConvention(template, key, value, exampleSourceIdsCsv, policyVersion: u32)    // role controller
 ```
 Errors are `throw new SenderError('<code>: <message>')` with codes: `role`, `revision`, `stale`, `period_closed`, `unbalanced`, `duplicate_posting`, `not_approved`.
@@ -183,6 +189,7 @@ mutation clarifications.confirm({ id, answer: string, speaker: string }) → sta
 mutation clarifications.decline({ id, reason }) → unconfirmed
 mutation clarifications.fallbackText({ id }) → status fallback_text
 mutation clarifications.generateUploadUrl() → string
+mutation clarifications.submitAnswerAudio({ id, storageId }) → schedules voice.transcribe; phone page uploads 16 kHz mono PCM16 WAV
 action   voice.speakQuestion({ id }) → Cartesia POST https://api.cartesia.ai/tts/bytes, header Cartesia-Version: 2026-08-14, model sonic-3.6, voice id from env CARTESIA_VOICE_ID (default "694f9389-aac1-45b6-b726-9d9369183238"), wav pcm_s16le 24000 → storage.store → patch questionAudioId
 action   voice.transcribe({ id, storageId }) → reads blob, opens wss://api.cartesia.ai/stt/websocket?model=ink-2&encoding=pcm_s16le&sample_rate=16000&cartesia_version=2026-08-14 with X-API-Key, sends 100ms chunks, 'finalize', 'close'; inserts transcriptSegments rows {clarificationId, seq, text, isFinal}; patches answerAudioId
 query    transcript.byClarification({ id }) → ordered segments
@@ -232,9 +239,9 @@ Mock mode: `ANTHROPIC_API_KEY` unset → `extract` returns the canned ambiguous 
 export function handleNewSource(src: SourceRow, deps: Deps): Promise<void>   // Deps = { ledger: DbConnection(agent), convex: ConvexHttpClient, extract, explain, engine }
 export function startLoop(deps: Deps): () => void                            // subscribes to source inserts; dedupes by source id in a Set; also polls convex clarifications status confirmed every 1s → resolveClarification once (tracks handled convexIds)
 ```
-Flow per spec §3 steps 1–6. Convention lookup: `convention` rows where `template === 'forecast'` and `key === 'another_means'`; if value present → apply without clarification and put `Convention v{policyVersion}: another_means = {value}` first in `evidenceSourceIdsCsv`/explanation. Loss warning → `history_event` kind `escalation` with reasoning text via `recordCalculation` + a `propose` whose explanation starts with `ESCALATION:`.
+Flow per spec §3 steps 1–6. Commissioning log: source kind `commissioning_log` → `extract` fact kind `milestone` → `markMilestoneMet` → `openWorkItem("Milestone invoice: acceptance")` → `propose` with `buildInvoiceEntry(20,000,000n)` and the log as evidence. Convention lookup: `convention` rows where `template === 'forecast'` and `key === 'another_means'`; if value present → apply without clarification and put `Convention v{policyVersion}: another_means = {value}` first in `evidenceSourceIdsCsv`/explanation. Loss warning → `history_event` kind `escalation` with reasoning text via `recordCalculation` + a `propose` whose explanation starts with `ESCALATION:`.
 
-- [ ] **Step 1: Failing tests** with fake `Deps` (in-memory ledger stub implementing the reducer calls as functions): (a) ambiguous note → `openClarification` called, `propose` not called; (b) confirmed clarification → `resolveClarification` then `recordCalculation` 4000 bp and `propose` with entry −100,000; (c) convention saved → month-3 note → no `openClarification`, `propose` with progress 3810 and explanation containing `another_means`; (d) same source delivered twice → one `propose`.
+- [ ] **Step 1: Failing tests** with fake `Deps` (in-memory ledger stub implementing the reducer calls as functions): (a) ambiguous note → `openClarification` called, `propose` not called; (b) confirmed clarification → `resolveClarification` then `recordCalculation` 4000 bp and `propose` with entry −100,000 and `pendingConventionJson` = another_means/additional; (e) commissioning log → `markMilestoneMet`, new work item, `propose` with Dr AccountsReceivable 200,000; (c) convention saved → month-3 note → no `openClarification`, `propose` with progress 3810 and explanation containing `another_means`; (d) same source delivered twice → one `propose`.
 - [ ] **Step 2:** Implement; `main.ts` wires real deps from env and runs until SIGINT.
 - [ ] **Step 3:** Tests pass. Commit `feat(agent): orchestration loop and Convex bridge`.
 
