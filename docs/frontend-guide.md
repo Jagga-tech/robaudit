@@ -39,13 +39,13 @@ The UI never calls any agent reducer. The workbench calls `decide`, `post`, `res
 | SpacetimeDB db | `keel` (dashboard https://spacetimedb.com/keel) |
 | Convex | prod `https://hushed-shrimp-24.convex.cloud` (dev, for rehearsal: `https://lovely-squirrel-569.convex.cloud`) |
 | Summo | Azure Container Apps `keel-agent`, resource group `keel-rg` |
-| Workbench + phone page | Azure Static Web Apps, HTTPS. URL **TBD**. The phone page must be HTTPS (mic and camera need a secure context). |
+| Workbench + phone page | Azure Static Web App `roboaudit-web`, https://kind-river-0eb9d010f.5.azurestaticapps.net (HTTPS). The phone page must be HTTPS (mic and camera need a secure context). |
 
 ### Azure Static Web Apps deployment
 
 - One Vite app under `apps/` serving two routes: `/` (workbench) and `/phone` (phone page). The QR on the workbench encodes `${location.origin}/phone`.
-- Environment variables (Azure Static Web Apps project settings, Production): `VITE_CONVEX_URL=https://hushed-shrimp-24.convex.cloud`, `VITE_STDB_URI=wss://maincloud.spacetimedb.com`, `VITE_STDB_DB=keel`. Vite inlines them at build time, so changing one needs a redeploy.
-- Monorepo: set the Azure Static Web Apps root directory to the repo root, install command `pnpm install`, build command `pnpm --filter <your-app> build`, output directory `apps/<your-app>/dist`. Add an SPA rewrite (`vercel.json`: `{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }`) so `/phone` loads on a cold open.
+- Build-time environment variables (set in `.github/workflows/deploy-web.yml`): `VITE_CONVEX_URL=https://hushed-shrimp-24.convex.cloud`, `VITE_STDB_URI=wss://maincloud.spacetimedb.com`, `VITE_STDB_DB=keel`. Vite inlines them at build time, so changing one needs a redeploy.
+- Monorepo: the workflow runs `pnpm install` then `pnpm --filter @keel/web build` and uploads `apps/web/dist`; name the package `@keel/web` in `apps/web`. Add an SPA rewrite (`apps/web/public/staticwebapp.config.json`: `{ "navigationFallback": { "rewrite": "/index.html" } }`) so `/phone` loads on a cold open.
 - No model or voice key is ever a `VITE_*` variable. The browser holds none.
 - Fallback without a redeploy (suggested): let `?convex=<url>` and `?stdb=<uri>` override the env values, and encode them into the QR, so switching to the Convex dev deployment is a URL change.
 
