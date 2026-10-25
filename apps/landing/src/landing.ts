@@ -106,7 +106,7 @@ fly.addEventListener("click", closePoster);
 document.getElementById("scrim")!.addEventListener("click", closePoster);
 document.getElementById("closeBtn")!.addEventListener("click", closePoster);
 document.addEventListener("keydown", function(e: KeyboardEvent){ if (e.key === "Escape") closePoster(); });
-setTimeout(openPoster, 2600); // play the moment once on load
+// no autoplay: the moment is driven by scroll (and the join button / Summo as a manual fallback)
 // Scroll also drives it: down past the hero opens, back to the top closes.
 var scrollTick = false;
 addEventListener("scroll", function(){

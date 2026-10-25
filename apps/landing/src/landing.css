@@ -1,5 +1,6 @@
 /* Static design: Figma file 8gPKZCS1U6j1LiL5fiGmTX, page "07 — Landing Page", frame "Landing / Hero 1440 — v2 suit". */
-body{background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.45;padding:0 max(16px,env(safe-area-inset-left,0px)) 64px max(16px,env(safe-area-inset-right,0px))}
+/* page background: cream to sage, top to bottom, fixed to the viewport (recreated in CSS from the reference gradient) */
+body{background:linear-gradient(180deg,#F7E7CD 0%,#F1E4C9 25%,#D1D1B1 50%,#AAB58A 75%,#839666 100%) fixed;color:var(--ink);font-family:var(--body);line-height:1.45;padding:0 max(16px,env(safe-area-inset-left,0px)) 64px max(16px,env(safe-area-inset-right,0px))}
 .wrap{max-width:1312px;margin:0 auto}
 
 nav{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:26px 0;flex-wrap:wrap}
@@ -31,9 +32,9 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(44px,6vw,84px);lin
 .summo{width:150px;height:auto;display:block;cursor:pointer;transform-origin:50% 100%;filter:drop-shadow(0 14px 18px rgba(38,51,54,.22))}
 .agent small{font:500 11px var(--mono);letter-spacing:.04em;color:var(--rust)}
 @media (prefers-reduced-motion:no-preference){
-  .summo{animation:bob 3.2s ease-in-out infinite}
+  .summo{animation:sway 2.8s ease-in-out infinite} /* leans with the flow, left tiles -> right feed; feet stay put */
 }
-@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes sway{0%,100%{transform:rotate(-4deg) translateX(-4px) scaleX(.985)}50%{transform:rotate(7deg) translateX(8px) translateY(-6px) scaleX(1.015)}}
 
 /* feed */
 .feed{height:calc(5*var(--card-h) + 4*var(--gap));overflow:hidden;position:relative;min-width:0;
@@ -48,8 +49,8 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(44px,6vw,84px);lin
 .stage{position:fixed;inset:0;z-index:20;display:grid;place-items:center;pointer-events:none}
 .stage[hidden]{display:none}
 .stage.on{pointer-events:auto}
-.scrim{position:absolute;inset:0;background:rgba(244,245,243,0);transition:background .5s ease}
-.stage.on .scrim{background:rgba(244,245,243,.45)}
+.scrim{position:absolute;inset:0;background:rgba(247,231,205,0);transition:background .5s ease}
+.stage.on .scrim{background:rgba(247,231,205,.45)}
 .summo-stage{position:absolute;left:50%;top:50%;width:220px;height:257px;z-index:1;cursor:pointer;
   transform:translate(calc(-50% + var(--dx,0px)),calc(-50% + var(--dy,0px))) scale(var(--s,1))}
 .summo-stage i{position:absolute;inset:0;display:block;background:url("/summo-suit.png") center/contain no-repeat;transform-origin:50% 100%}

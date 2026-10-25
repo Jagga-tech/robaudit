@@ -22,7 +22,7 @@ const TABLES = [
 
 const readIds = (): Record<string, string> => (existsSync(IDS_FILE) ? JSON.parse(readFileSync(IDS_FILE, 'utf8')) : {});
 
-/** Connect with the role's saved token (created and saved on first connect), subscribe to all tables, register the user if missing. */
+/** Connect with the role's saved token (created and saved on first connect), subscribe to all tables, register the user only if missing or name/role differ (registerDemoUser logs a history_event each call). */
 export async function connectAs(role: Role, opts: { uri?: string; db?: string } = {}): Promise<DbConnection> {
   // container mode: STDB_AGENT_TOKEN supplies the agent identity; no file read/write
   const envTok = role === 'agent' ? process.env.STDB_AGENT_TOKEN : undefined;
@@ -50,7 +50,7 @@ export async function connectAs(role: Role, opts: { uri?: string; db?: string } 
       .subscribe(TABLES.map((t) => `SELECT * FROM ${t}`));
   });
   const me = conn.db.user.identity.find(conn.identity!);
-  if (!me || me.role !== role) await conn.reducers.registerDemoUser({ name: NAMES[role], role });
+  if (!me || me.role !== role || me.name !== NAMES[role]) await conn.reducers.registerDemoUser({ name: NAMES[role], role });
   return conn;
 }
 
