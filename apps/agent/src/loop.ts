@@ -6,7 +6,7 @@ import type { Review, ReviewInput } from './agents/reviewer.js';
 // Structural row types: only the fields the agent reads (real binding rows are supersets).
 export type SourceRow = { id: bigint; projectId: bigint; kind: string; text: string };
 type ConventionRow = { template: string; key: string; value: string; policyVersion: number };
-type WorkItemRow = { id: bigint; projectId: bigint; title: string };
+type WorkItemRow = { id: bigint; projectId: bigint; title: string; status?: string };
 type CalculationRow = { id: bigint; workItemId: bigint; inputsJson: string; forecastSourceId: bigint };
 type ExtractionRow = { sourceId: bigint; reader: string; factsJson: string; ambiguityFlag: boolean };
 type ProposalRow = { id?: bigint; workItemId?: bigint; revision?: number; calculationId: bigint; status: string };
@@ -34,13 +34,16 @@ export type Ledger = {
   propose(a: { workItemId: bigint; calculationId: bigint; entryJson: string; explanation: string; evidenceSourceIdsCsv: string; pendingConventionJson: string }): Promise<void>;
   openWorkItem(a: { projectId: bigint; title: string; assignedRole: string }): Promise<void>;
   markMilestoneMet(a: { milestoneId: bigint; evidenceSourceId: bigint }): Promise<void>;
+  /** Onboarding figure (source kind 'intake', text `${field}=${cents} | ${speaker}: ${text}`); idempotent per (project, field). */
+  recordIntake?(a: { projectId: bigint; field: string; cents: bigint; speaker: string; text: string }): Promise<void>;
   /** agent_event row (one per agent action). Optional so partial test ledgers still work; absent = not logged. */
   logAgentEvent?(a: { projectId: bigint; agent: string; kind: string; summary: string; refTable: string; refId: bigint }): Promise<void>;
 };
-export type ConvexClarification = { _id: string; status: string; answer?: string; speaker?: string; answerAudioId?: string };
+export type AnswerType = 'choice' | 'amount';
+export type ConvexClarification = { _id: string; status: string; answer?: string; speaker?: string; answerAudioId?: string; answerType?: AnswerType };
 export type Deps = {
   ledger: Ledger;
-  convex: { ask(a: { workItemId: string; question: string; options: string[] }): Promise<string>; byWorkItem(workItemId: string): Promise<ConvexClarification[]>; fallbackText(id: string): Promise<unknown> };
+  convex: { ask(a: { workItemId: string; question: string; options: string[]; answerType?: AnswerType }): Promise<string>; byWorkItem(workItemId: string): Promise<ConvexClarification[]>; fallbackText(id: string): Promise<unknown> };
   extract(text: string, sourceId: number): Promise<Extraction>;
   /** Two-reader extraction (Claude + Gemini). Absent = `extract` as the only reader. */
   extractBoth?(text: string, sourceId: number): Promise<{ claude: Extraction; gemini: Extraction | null; agreed: boolean; merged: Extraction }>;

@@ -1,6 +1,7 @@
 // Judge's phone page: docs/frontend-guide.md §8 (screens, audio contract), docs/demo-flow.md steps 1, 2, 4, 6.
 import { DbConnection } from '@keel/bindings';
 import { api, convex, getAuthState, sessionId, signInAnonymously } from './lib/convex';
+import { usd } from './lib/ledger';
 import type { Doc, Id } from '../../../convex/_generated/dataModel';
 
 const STDB_URI = import.meta.env.VITE_STDB_URI ?? 'wss://maincloud.spacetimedb.com';
@@ -10,6 +11,8 @@ const MIC_SVG = '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11
 
 type Me = { id: Id<'managers'>; name: string };
 type Row = Doc<'clarifications'>;
+// After Join: pick a path; 'intake' = onboarded project waiting for Summo's questions, 'project' = onboarded and answered.
+type Mode = 'oakland' | 'onboard' | 'intake' | 'project';
 type Sent = { text: string; at: number };
 type Answer = 'additional' | 'new_total';
 // One screen state machine for the call, kept locally so live updates don't wipe a recording or an edit in progress.
@@ -25,6 +28,23 @@ type Call = {
 const MIN_HOLD = 400, MAX_HOLD = 8000, TRANSCRIPT_WAIT = 12_000, CELEBRATE = 2200;
 const UPLOAD_FAILED = "The recording didn't send. Tap your answer.";
 const STALE = 'That question was answered. Waiting for the next one.';
+const NO_FIGURE = "I didn't catch a figure. Type it or try again.";
+const IDLE_MS = 20 * 60 * 1000;
+
+// Verbatim copy of parseAmountCents (and NUM, WORD_MULT) from apps/agent/src/extract.ts: keep in sync.
+const NUM = String.raw`(\d[\d,]*(?:\.\d+)?)(?:\s?([kKmM]))?(?![A-Za-z\d])`;
+const WORD_MULT = /^\s*(million|billion|thousand|mm|bn)\b/i;
+export function parseAmountCents(amountText: string): bigint | null {
+  const neg = /^\s*(-|\u2212|minus\b)/i.test(amountText);
+  const m = amountText.includes("$")
+    ? amountText.match(new RegExp(String.raw`\$\s?` + NUM))
+    : amountText.match(new RegExp(NUM));
+  const rest = m ? amountText.slice(m.index! + m[0].length) : "";
+  if (!m || WORD_MULT.test(rest)) return null;
+  const mult = { k: 1e3, m: 1e6 }[m[2]?.toLowerCase() as "k" | "m"] ?? (!m[2] && /^\s*grand\b/i.test(rest) ? 1e3 : 1);
+  const n = Number(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) ? BigInt(Math.round(n * mult * 100)) * (neg ? -1n : 1n) : null;
+}
 
 // Same rule the agent applies to the confirmed answer: regexes copied verbatim from normalizeAnswer in
 // apps/agent/src/loop.ts (keep in sync). Both or neither -> null -> the phone asks which one; never confirms a guess.
@@ -116,6 +136,9 @@ function boot() {
 
   let me = load<Me | null>('keel-manager', null);
   let sent = load<Sent[]>('keel-sent', []);
+  let mode = load<Mode | null>('keel-mode', null);
+  let project = load<string>('keel-project', 'Oakland deployment'); // the project Home sends to; ids change after reset, names don't
+  const setMode = (m: Mode | null) => { mode = m; sessionStorage.setItem('keel-mode', JSON.stringify(m)); };
   let ledger: DbConnection | undefined;
   let ledgerState = 'offline';
   let convexErr = false;
@@ -123,6 +146,8 @@ function boot() {
   let call: Call | undefined;
   let doneUntil = 0;
   let homeNote = '';
+  let endedUntil = 0, idleTimer: ReturnType<typeof setTimeout> | undefined;
+  const idleMs = Number(new URLSearchParams(location.search).get('idle')) * 1000 || IDLE_MS; // ?idle=<seconds> for tests
 
   const $ = <T extends HTMLElement>(sel: string) => app.querySelector(sel) as T;
   const showErr = (msg: string) => { const e = $('.err'); if (e) e.textContent = msg; };
@@ -206,12 +231,16 @@ function boot() {
   const ensureLedger = () => { if (me && !ledger && ledgerState !== 'connecting') retryLedger(); };
 
   /** addSource as the deployment manager. Project looked up at send time: ids change after reset (docs/demo-flow.md, reset). */
-  async function addSource(kind: string, text: string) {
+  async function ready(): Promise<DbConnection> {
     // Fresh join or a dropped socket: wait for the (re)connection rather than failing the tap.
     for (let t = 0; !ledger && t < 50; t++) { ensureLedger(); await new Promise((r) => setTimeout(r, 200)); }
     if (!ledger) throw new Error('Not connected to the ledger yet. Try again in a moment.');
+    return ledger;
+  }
+  async function addSource(kind: string, text: string) {
+    const ledger = await ready();
     const projects = [...ledger.db.project.iter()];
-    const p = projects.find((x) => x.name === 'Oakland deployment') ?? projects[0];
+    const p = projects.find((x) => x.name === project) ?? projects[0];
     if (!p) throw new Error('No project on the ledger yet.');
     const version = [...ledger.db.source.iter()].filter((s) => s.projectId === p.id).length + 1;
     await ledger.reducers.addSource({ projectId: p.id, kind, text, parentSourceId: 0n, version });
@@ -240,17 +269,22 @@ function boot() {
     }
     c.unsub = watch<Doc<'transcriptSegments'>[]>((cb, er) => convex.onUpdate(api.transcript.byClarification, { id: row._id }, cb, er), (segs) => {
       c.segs = segs.length;
-      const waiting = c.phase === 'sending' || c.phase === 'transcribing' || (c.phase === 'choose' && c.note === TIMEOUT_NOTE);
+      const waiting = c.phase === 'sending' || c.phase === 'transcribing' || ((c.phase === 'choose' || c.phase === 'ask') && c.note === TIMEOUT_NOTE);
       if (segs.length <= c.waitFrom || !waiting || c.busy) return;
       c.waitFrom = segs.length;
       c.transcript = segs.sort((a, b) => a._creationTime - b._creationTime).at(-1)!.text.trim();
       lastTranscript.push(c.transcript);
-      go(c, matchAnswer(c.transcript, row.options) ? 'heard' : 'choose', c.transcript ? '' : "Summo didn't hear an answer. Tap your answer.");
+      go(c, ...next(row, c.transcript, "Summo didn't hear an answer. Tap your answer."));
     });
     save(c);
     return c;
   }
   const TIMEOUT_NOTE = 'Summo is still listening. Tap your answer.';
+  const isAmount = (row: Row) => row.answerType === 'amount';
+  /** Where an answer text leads: amount -> heard (parsed) | ask with the catch line; choice -> heard (matched) | choose. */
+  const next = (row: Row, text: string, empty = ''): [Phase, string] => isAmount(row)
+    ? (parseAmountCents(text) === null ? ['ask', NO_FIGURE] : ['heard', ''])
+    : [matchAnswer(text, row.options) ? 'heard' : 'choose', text ? '' : empty];
   const lastTranscript: string[] = ((window as any).__phoneTranscripts = []); // read by tests/phone.e2e.mjs
   function armTimeout(c: Call) {
     clearTimeout(c.timer);
@@ -268,16 +302,66 @@ function boot() {
     const done = Date.now() < doneUntil;
     summo.classList.toggle('bounce', done && !calm);
     document.body.classList.toggle('celebrate', done && !calm);
+    if (Date.now() < endedUntil) return renderEnded();
     if (!me) return renderJoin();
     if (active && call?.id === active._id) return renderCall(active, call);
     if (done) return renderDone();
+    if (!mode) return renderPick();
+    if (mode === 'onboard') return renderOnboard();
     renderHome();
+  }
+
+  function renderEnded() {
+    const mins = idleMs / 60_000;
+    app.innerHTML = `<h1>Session ended after ${mins >= 1 ? `${mins} minutes` : `${idleMs / 1000} seconds`} of inactivity.</h1>`;
+  }
+
+  function renderPick() {
+    app.innerHTML = `
+      <p class="eyebrow">RoboAudit</p>
+      <h1>Hi ${esc(me!.name)}. What are you here for?</h1>
+      <button class="pill dark big" id="oak" type="button">Join the Oakland deployment</button>
+      <button class="pill outline big" id="onb" type="button">Onboard a new project</button>`;
+    $<HTMLButtonElement>('#oak').onclick = () => { project = 'Oakland deployment'; sessionStorage.setItem('keel-project', JSON.stringify(project)); setMode('oakland'); render(); };
+    $<HTMLButtonElement>('#onb').onclick = () => { setMode('onboard'); render(); };
+  }
+
+  function renderOnboard() {
+    app.innerHTML = `
+      <p class="eyebrow">RoboAudit · New project</p>
+      <h1>Onboard a new project.</h1>
+      <form class="stack" id="onboard">
+        <label for="pname">Project name</label>
+        <input id="pname" type="text" maxlength="60" required value="Riverside installation">
+        <label for="cust">Customer</label>
+        <input id="cust" type="text" maxlength="60" required value="Aster Robotics">
+        <p class="err" role="alert"></p>
+        <button class="pill dark" type="submit">Create project</button>
+      </form>
+      <button class="pill quiet" id="back" type="button">Back</button>`;
+    $<HTMLButtonElement>('#back').onclick = () => { setMode(null); render(); };
+    let creating = false;
+    $<HTMLFormElement>('#onboard').onsubmit = async (ev) => {
+      ev.preventDefault();
+      if (creating) return; // double tap
+      const name = $<HTMLInputElement>('#pname').value.trim(), customer = $<HTMLInputElement>('#cust').value.trim();
+      if (!name || !customer) return showErr('Fill in the project and the customer.');
+      creating = true;
+      const btn = $<HTMLButtonElement>('#onboard button'); btn.disabled = true; btn.textContent = 'Creating…';
+      try {
+        // TODO: type this call once the createProject bindings are in every deployed @keel/bindings (idempotent per name).
+        await within(ready().then((l) => (l.reducers as any).createProject({ name, customer })), 15_000, 'Create project');
+      } catch (e) { creating = false; btn.disabled = false; btn.textContent = 'Create project'; return showErr(`Not created: ${plain(e)}`); }
+      if (mode !== 'onboard') return; // reset or idle-out while waiting
+      project = name; sessionStorage.setItem('keel-project', JSON.stringify(project));
+      setMode('intake'); render();
+    };
   }
 
   function renderJoin() {
     app.innerHTML = `
-      <p class="eyebrow">RoboAudit · Oakland</p>
-      <h1>You are the deployment manager for the Oakland deployment.</h1>
+      <p class="eyebrow">RoboAudit</p>
+      <h1>You are the deployment manager.</h1>
       <form class="stack" id="join">
         <label for="name">Your first name</label>
         <input id="name" type="text" autocomplete="given-name" autocapitalize="words" maxlength="40" required>
@@ -294,7 +378,7 @@ function boot() {
       const btn = $<HTMLButtonElement>('button'); btn.disabled = true; btn.textContent = 'Joining…';
       try {
         const id = await convex.mutation(api.managers.join, { name });
-        me = { id, name }; sessionStorage.setItem('keel-manager', JSON.stringify(me));
+        me = { id, name }; sessionStorage.setItem('keel-manager', JSON.stringify(me)); poke();
       } catch (e) {
         joining = false; btn.disabled = false; btn.textContent = 'Join'; return showErr(`Couldn't join: ${plain(e)}`);
       }
@@ -305,7 +389,7 @@ function boot() {
 
   function renderHome() {
     app.innerHTML = `
-      <h1>Hi ${esc(me!.name)}. Send Summo a site update.</h1>
+      <h1>${mode === 'intake' ? 'Summo will call you with a few questions.' : mode === 'project' ? 'Anything changed on site this week? Send it.' : `Hi ${esc(me!.name)}. Send Summo a site update.`}</h1>
       <div class="field">
         <textarea id="text" aria-label="Site update" placeholder="e.g. conveyor rework is going to run another 80 grand"></textarea>
         <button class="mic" id="mic" type="button" aria-label="Speak the update" ${SR ? '' : 'hidden'}>${MIC_SVG}</button>
@@ -356,13 +440,32 @@ function boot() {
   }
 
   function renderCall(row: Row, c: Call) {
-    if (row.status === 'fallback_text' && (c.phase === 'ask' || c.phase === 'heard')) { c.phase = 'choose'; c.note ||= "Summo didn't catch that. Tap your answer."; }
+    const amt = isAmount(row);
+    // Amount questions have no option buttons: every "tap your answer" fallback lands on the typed field instead.
+    if (amt && (c.phase === 'choose' || c.phase === 'edit')) c.phase = 'ask';
+    if (!amt && row.status === 'fallback_text' && (c.phase === 'ask' || c.phase === 'heard')) { c.phase = 'choose'; c.note ||= "Summo didn't catch that. Tap your answer."; }
     const m = matchAnswer(c.transcript, row.options);
     const options = row.options.map((o, i) => `<button class="pill ${i ? 'outline' : 'dark'}" data-opt="${esc(o)}" type="button">${esc(label(o))}</button>`).join('');
     const againBtn = c.micFailed ? (SR ? '<button class="pill quiet" id="dictate" type="button">Say it instead</button>' : '') : '<button class="pill quiet" id="again" type="button">Say it again</button>';
     let body: string;
     if (c.phase === 'sending' || c.phase === 'transcribing') {
       body = `<p class="lede" id="wait">${c.phase === 'sending' ? 'Sending your answer' : 'Transcribing'}${calm ? '…' : DOTS}</p>`;
+    } else if (amt && c.phase === 'heard') {
+      body = `
+        <p class="lede" id="heard">I heard ${usd(parseAmountCents(c.transcript) ?? 0n)}. Is that right?</p>
+        <button class="pill dark" id="yes" type="button">That's right</button>
+        <button class="pill outline" id="edit" type="button">Edit</button>`;
+    } else if (amt) {
+      body = `
+        <p class="note">${esc(c.note.replace('Tap your answer.', 'Type it instead.'))}</p>
+        <button class="pill willow" id="play" type="button" hidden>Play question</button>
+        ${c.micFailed ? '' : `<button class="talk${calm ? '' : ' asking'}" id="talk" type="button">${MIC_SVG}<span>Hold to answer</span></button>`}
+        <form class="stack" id="amt">
+          <label for="amount">Or type the figure</label>
+          <div class="money"><span aria-hidden="true">$</span><input id="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="400,000" value="${esc(c.transcript)}"></div>
+          <button class="pill dark" type="submit">Check figure</button>
+        </form>
+        <p class="note small">Your spoken answer is recorded, transcribed by Cartesia and kept as evidence on the ledger with your name.</p>`;
     } else if (c.phase === 'heard') {
       body = `
         <div class="card transcript">${heardHtml(c.transcript, m)}</div>
@@ -401,6 +504,7 @@ function boot() {
       try {
         await authed(() => convex.mutation(api.clarifications.confirm, { id: row._id, answer, speaker: me!.name })); // no-op if already confirmed
         if (call === c) endCall();
+        if (mode === 'intake') setMode('project');
         doneUntil = Date.now() + CELEBRATE; setTimeout(render, CELEBRATE + 50); render();
       } catch (e) { c.busy = false; lock(false); showErr(/^Could not confirm/.test(plain(e)) ? plain(e) : `Not saved: ${plain(e)}`); }
     };
@@ -413,13 +517,20 @@ function boot() {
     };
     const yes = $<HTMLButtonElement>('#yes');
     if (yes) yes.onclick = () => {
+      if (amt) { const cents = parseAmountCents(c.transcript); return cents === null ? go(c, 'ask', NO_FIGURE) : confirm(String(cents)); }
       if (c.phase === 'edit') c.transcript = $<HTMLTextAreaElement>('#fix').value.trim();
       const hit = matchAnswer(c.transcript, row.options);
       if (hit) return confirm(hit);
       go(c, 'choose'); // edited text still ambiguous: the options are the only way through
     };
     const edit = $<HTMLButtonElement>('#edit');
-    if (edit) edit.onclick = () => { go(c, 'edit'); $<HTMLTextAreaElement>('#fix').focus(); };
+    if (edit) edit.onclick = () => { go(c, amt ? 'ask' : 'edit'); $<HTMLElement>(amt ? '#amount' : '#fix').focus(); };
+    const form = $<HTMLFormElement>('#amt');
+    if (form) {
+      const field = $<HTMLInputElement>('#amount');
+      field.oninput = () => { c.transcript = field.value; }; // a live re-render keeps what was typed
+      form.onsubmit = (ev) => { ev.preventDefault(); c.transcript = field.value.trim(); go(c, ...next(row, c.transcript)); };
+    }
     const again = $<HTMLButtonElement>('#again');
     if (again) again.onclick = () => { c.transcript = ''; go(c, 'ask'); };
     const tap = $<HTMLButtonElement>('#tap');
@@ -429,7 +540,7 @@ function boot() {
       dict.textContent = 'Listening… tap to stop';
       let text = '';
       try {
-        const stop = dictate((t) => { text = t; dict.textContent = t; }, () => { if (text) { c.transcript = text; c.micFailed = false; go(c, matchAnswer(text, row.options) ? 'heard' : 'choose'); } });
+        const stop = dictate((t) => { text = t; dict.textContent = t; }, () => { if (text) { c.transcript = text; c.micFailed = false; go(c, ...next(row, text)); } });
         dict.onclick = stop;
       } catch { dict.hidden = true; }
     };
@@ -456,6 +567,7 @@ function boot() {
       c.micFailed = true; go(c, 'choose', "The mic isn't available. Tap your answer.");
       convex.mutation(api.clarifications.fallbackText, { id: row._id }).catch(() => {});
     };
+    if (c.micFailed) return; // amount screen without a talk button
     if (!navigator.mediaDevices?.getUserMedia) return micFail();
     const talk = $<HTMLButtonElement>('#talk');
     const span = talk.querySelector('span')!;
@@ -507,19 +619,35 @@ function boot() {
       if (stale) homeNote = STALE;
       else if (!row) return; // our own confirm/decline renders its next screen
     }
-    if (row && !call) call = startCall(row);
+    if (row && !call) { call = startCall(row); poke(); } // a new question counts as activity
     if (call && (call.phase === 'recording' || call.phase === 'edit') && row?.status !== 'fallback_text') return; // don't wipe the user's hands
     render();
   });
   watch<{ _id: Id<'managers'> } | null>((cb, er) => convex.onUpdate(api.managers.current, {}, cb, er), (cur) => {
     if (!me || cur?._id === me.id) return;
     // Reset (null) or someone else joined: back to screen 1 (docs/frontend-guide.md §8).
-    me = null; sessionStorage.removeItem('keel-manager'); sessionStorage.removeItem('keel-sent'); sent = [];
-    endCall(); const old = ledger; ledger = undefined; old?.disconnect(); ledgerState = 'offline'; paintConn(); render();
+    dropMe(); render();
   });
+  function dropMe() {
+    me = null; sent = []; mode = null; project = 'Oakland deployment';
+    for (const k of ['keel-manager', 'keel-sent', 'keel-mode', 'keel-project']) sessionStorage.removeItem(k);
+    endCall(); clearTimeout(idleTimer);
+    const old = ledger; ledger = undefined; old?.disconnect(); ledgerState = 'offline'; paintConn();
+  }
+
+  // ---- idle timeout: no tap, keystroke or new question for idleMs -> leave, forget the tab, back to Join ----
+  function poke() { clearTimeout(idleTimer); if (me) idleTimer = setTimeout(idleOut, idleMs); }
+  for (const ev of ['pointerdown', 'keydown', 'input']) addEventListener(ev, poke, true);
+  function idleOut() {
+    if (!me) return;
+    const id = me.id;
+    dropMe(); sessionStorage.clear();
+    convex.mutation(api.managers.leave, { id }).catch(() => {}); // managers.current -> null clears the laptop presence line
+    endedUntil = Date.now() + 3000; setTimeout(render, 3050); render();
+  }
 
   render();
   signInAnonymously().then(paintConn); // never rejects, never blocks Join/Send; call mutations need the session; queries work without it
   connLine.onclick = () => { const sid = sessionId(); if (sid) alert(`Convex Auth session ${sid}: your answers are recorded against this session, not just your name.`); };
-  if (me) connectLedger(me.name).catch(() => retryLedger());
+  if (me) { poke(); connectLedger(me.name).catch(() => retryLedger()); }
 }

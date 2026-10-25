@@ -2,14 +2,13 @@
 // Overview = figures + margin + the proposal panel + activity; Sources; Calculations; Proposals (+ "break it").
 import type { Page } from '../lib/app';
 import { connect, call, subscribeExtra, codeOf, ids, type DbConnection } from '../lib/ledger';
-import { esc, clip, all, byId, last, sleep, reduceMotion, usd, dollars, pct, card, tag, sourceLabel, KIND, READER, ACCOUNT, project, proposalStatus, statusTone, live, head, setHtml, disagreement, disagreeLine, DISAGREE, decisionOf, decisionText, guardFlag, jiraFor, jiraChip, jiraEvents, jiraKey, jiraUrl } from '../lib/ui';
+import { esc, clip, all, byId, last, sleep, reduceMotion, usd, dollars, pct, card, tag, sourceLabel, KIND, READER, project, proposalStatus, statusTone, live, head, setHtml, disagreement, disagreeLine, DISAGREE, decisionOf, decisionText, guardFlag, jiraFor, jiraChip, jiraEvents, jiraKey, jiraUrl, customerOf, lines as entryLines, tAccount } from '../lib/ui';
 import './pages.css';
 
 declare const qrcode: any; // qrcode-generator 1.4.4, classic script from cdnjs (workbench.html)
 
 type M = NonNullable<ReturnType<typeof project>>;
-type Line = { account: string; debit: string; credit: string };
-const TABS = ['overview', 'sources', 'calculations', 'proposals', 'jira'] as const;
+const TABS = ['overview', 'wip', 'sources', 'calculations', 'proposals', 'jira'] as const;
 // post() checks in its own order (spacetimedb/src/index.ts); a refusal code maps to the check that failed.
 const CHECK_OF: Record<string, number> = { role: 0, not_approved: 1, revision: 1, stale: 1, period_closed: 2, unbalanced: 3, bad_input: 3, duplicate_posting: 4 };
 
@@ -21,7 +20,7 @@ let asking: { pid: bigint; decision: 'return' | 'hold'; draft: string } | null =
 let priya: Promise<DbConnection> | undefined; // second connection, opened only for "Approve as the accountant"
 
 const page: Page = {
-  route: /^\/workbench\/projects\/(\d+)(?:\/(overview|sources|calculations|proposals|jira))?\/?$/,
+  route: /^\/workbench\/projects\/(\d+)(?:\/(overview|wip|sources|calculations|proposals|jira))?\/?$/,
   title: 'Project',
   render(root, ctx, [idText, tabArg]) {
     const pid = BigInt(idText), tab = (tabArg ?? 'overview') as (typeof TABS)[number];
@@ -32,7 +31,7 @@ const page: Page = {
       root.innerHTML = '<p class="empty">This project is not in the ledger. <a href="/workbench/projects">See all projects</a>.</p>';
       return;
     }
-    root.innerHTML = `<nav class="tabs">${TABS.map((t) => `<a href="/workbench/projects/${pid}${t === 'overview' ? '' : '/' + t}" class="${t === tab ? 'on' : ''}">${t === 'jira' ? 'Jira' : t[0].toUpperCase() + t.slice(1)}</a>`).join('')}</nav><div class="tabbody"></div>`;
+    root.innerHTML = `<nav class="tabs">${TABS.map((t) => `<a href="/workbench/projects/${pid}${t === 'overview' ? '' : '/' + t}" class="${t === tab ? 'on' : ''}">${t === 'jira' ? 'Jira' : t === 'wip' ? 'WIP' : t[0].toUpperCase() + t.slice(1)}</a>`).join('')}</nav><div class="tabbody"></div>`;
     const body = root.querySelector<HTMLElement>('.tabbody')!;
     const $ = (sel: string) => body.querySelector<HTMLElement>(sel)!;
     const m = () => project(d, pid);
@@ -44,7 +43,7 @@ const page: Page = {
       const x = m();
       if (!x) return;
       const pol = last(all(d.policy.iter()));
-      head({ title: x.proj.name, sub: `Aster Robotics · contract ${usd(x.proj.contractValueCents)} · policy v${pol?.version ?? ''} · period ${x.proj.periodOpen ? 'open' : 'closed'}`, actions: x.main ? jiraChip(jiraFor(ctx.conn, x.main.id)) : '' });
+      head({ title: x.proj.name, sub: `${customerOf(x.proj) ? customerOf(x.proj) + ' · ' : ''}contract ${usd(x.proj.contractValueCents)} · policy v${pol?.version ?? ''} · period ${x.proj.periodOpen ? 'open' : 'closed'}`, actions: x.main ? jiraChip(jiraFor(ctx.conn, x.main.id)) : '' });
     }
 
     // ---------- Overview ----------
@@ -171,9 +170,9 @@ const page: Page = {
     function panel(x: M, p: M['proposals'][number], withActions: boolean) {
       const pg = x.postingOf(p.id);
       const decidable = withActions && x.latestOf(p.workItemId)?.id === p.id;
-      let lines: Line[] = [];
-      try { lines = JSON.parse(p.entryJson); } catch {}
-      const dr = lines.reduce((n, l) => n + BigInt(l.debit), 0n), cr = lines.reduce((n, l) => n + BigInt(l.credit), 0n);
+      const lines = entryLines(p.entryJson);
+      const dr = lines.reduce((n, l) => n + l.debit, 0n), cr = lines.reduce((n, l) => n + l.credit, 0n);
+      const pol = last(all(d.policy.iter()));
       const expl = p.explanation.split('\n').filter(Boolean);
       const pending = p.pendingConventionJson ? (JSON.parse(p.pendingConventionJson) as { template: string; key: string; value: string }) : null;
       const saved = pending && all(d.convention.iter()).find((c) => c.template === pending.template && c.key === pending.key && c.value === pending.value);
@@ -205,7 +204,8 @@ const page: Page = {
       const wi = x.items.find((w) => w.id === p.workItemId);
       return `<article class="proposal${decidable && !pg && p.status === 'open' ? ' open' : ''}">` +
         `<h3>Proposal rev ${p.revision} ${t}</h3>${no ? `<p class="small amber">${esc(decisionText({ by: no.by, reason: no.reason, held: no.decision === 'hold' }))}</p>` : ''}${x.items.length > 1 && wi ? `<p class="small">${esc(wi.title)}</p>` : ''}` +
-        `<div class="entry">${lines.map((l) => { const isDr = BigInt(l.debit) > 0n; return `<div class="${isDr ? 'dr' : 'cr'}"><span>${isDr ? 'Dr' : 'Cr'}</span><span>${esc(ACCOUNT[l.account] ?? l.account)}</span><span>${usd(isDr ? BigInt(l.debit) : BigInt(l.credit))}</span></div>`; }).join('')}</div>` +
+        tAccount(lines) +
+        `<p class="policyline">Booked under policy v${pol?.version ?? ''}: cost-to-cost, single performance obligation, fixed price</p>` +
         `<div class="expl">${expl.map((y) => `<p class="${y.startsWith('ESCALATION:') ? 'esc' : ''}">${esc(y)}</p>`).join('')}</div>` + rv +
         (evidence.length ? `<p class="small">Evidence</p><div class="evid">${evidence.join('')}</div>` : '') +
         (saved ? `<p class="saved">Convention saved: ${esc(saved.key.replace(/_/g, ' '))} ${esc(saved.value)}</p>`
@@ -214,6 +214,28 @@ const page: Page = {
         (acts ? `<div class="acts">${acts}</div>` : '') +
         (decidable && (canPost || ui.checks[0]) ? `<ul class="checks">${checks.map((c, i) => `<li class="${ui.checks[i]}">${esc(c)}</li>`).join('')}</ul>` : '') +
         `</article>`;
+    }
+
+    // ---------- WIP schedule: one row per calculation revision on the revenue work item ----------
+    function wip() {
+      body.innerHTML = `<p class="small wiplede">Work-in-progress schedule, cost-to-cost. Over/(under) billing = billed − revenue earned: under billing is a contract asset, over billing a contract liability.</p>
+        <table class="tbl wip"><thead><tr><th>Rev</th><th class="num">Contract value</th><th class="num">Costs to date</th><th class="num">Est. total cost</th><th class="num">Est. gross margin</th><th class="num">% complete</th><th class="num">Revenue earned</th><th class="num">Billed to date</th><th class="num">Over/(under) billing</th></tr></thead><tbody data-f="rows"></tbody></table>`;
+      return () => {
+        const x = m();
+        if (!x) return;
+        const calcs = x.calcs.filter((c) => c.workItemId === x.main?.id);
+        const big = (v: unknown, dflt: bigint) => { try { return v == null ? dflt : BigInt(String(v)); } catch { return dflt; } };
+        setHtml($('[data-f=rows]'), calcs.map((c, i) => {
+          let j: any = {};
+          try { j = JSON.parse(c.inputsJson) ?? {}; } catch {}
+          const contract = big(j.contractValueCents, x.proj.contractValueCents), inc = big(j.incurredCents, 0n), rem = big(j.remainingCents, 0n), billed = big(j.billedCents, 0n);
+          const est = inc + rem, gm = contract - est, ob = billed - c.cumRevenueCents;
+          const obTxt = ob < 0n ? `(${usd(-ob)})` : usd(ob), obNote = ob < 0n ? 'contract asset' : ob > 0n ? 'contract liability' : '';
+          return `<tr class="${i === calcs.length - 1 ? 'cur' : ''}"><td class="mono">v${i + 1}</td><td class="num">${usd(contract)}</td><td class="num">${usd(inc)}</td><td class="num">${usd(est)}</td>` +
+            `<td class="num${gm <= 0n ? ' amber' : ''}">${usd(gm)}</td><td class="num">${pct(c.progressBp)}</td><td class="num">${usd(c.cumRevenueCents)}</td><td class="num">${usd(billed)}</td>` +
+            `<td class="num">${obTxt}${obNote ? `<small class="obnote">${obNote}</small>` : ''}</td></tr>`;
+        }).join('') || '<tr><td colspan="9" class="empty">No calculations yet.</td></tr>');
+      };
     }
 
     // ---------- Sources ----------
@@ -393,7 +415,7 @@ const page: Page = {
     root.addEventListener('submit', onSubmit);
     root.addEventListener('input', onInput);
 
-    const tabDraw = { overview, sources, calculations, proposals, jira }[tab]();
+    const tabDraw = { overview, wip, sources, calculations, proposals, jira }[tab]();
     const draw = () => {
       const had = document.activeElement?.closest('form.why') != null;
       header(); tabDraw();

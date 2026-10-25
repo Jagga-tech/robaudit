@@ -265,3 +265,29 @@ export const saveConvention = spacetimedb.reducer(
     log(ctx, 0n, 'convention_saved', c.id, `${template}.${key} = ${value}`);
   }
 );
+
+export const createProject = spacetimedb.reducer(
+  { name: t.string(), customer: t.string() },
+  (ctx, { name, customer }) => {
+    requireRole(ctx, 'accountant', 'deployment_manager', 'controller', 'agent');
+    for (const p of ctx.db.project.iter()) if (p.name === name) return; // idempotent per name
+    const p = ctx.db.project.insert({ id: 0n, name, customer, contractValueCents: 0n, periodOpen: true });
+    ctx.db.workItem.insert({ id: 0n, projectId: p.id, title: 'Onboarding intake', status: 'intake', assignedRole: 'agent' });
+    log(ctx, p.id, 'project_created', p.id, `${name} created for ${customer}`);
+  }
+);
+
+export const recordIntake = spacetimedb.reducer(
+  { projectId: t.u64(), field: t.string(), cents: t.i64(), speaker: t.string(), text: t.string() },
+  (ctx, { projectId, field, cents, speaker, text }) => {
+    requireRole(ctx, 'agent');
+    if (!['contract', 'incurred', 'remaining', 'billed'].includes(field)) fail('bad_input', `unknown intake field ${field}`);
+    const proj = ctx.db.project.id.find(projectId) ?? fail('not_found', `project ${projectId}`);
+    const body = `${field}=${cents} | ${speaker}: ${text}`;
+    const prev = [...ctx.db.source.projectId.filter(projectId)].find((s) => s.kind === 'intake' && s.text.startsWith(`${field}=`));
+    const row = { projectId, kind: 'intake', version: 1, text: body, parentSourceId: 0n, hash: hash(body), createdAt: ctx.timestamp };
+    const s = prev ? ctx.db.source.id.update({ ...prev, ...row }) : ctx.db.source.insert({ id: 0n, ...row }); // idempotent per (project, field)
+    if (field === 'contract') ctx.db.project.id.update({ ...proj, contractValueCents: cents });
+    log(ctx, projectId, 'intake', s.id, `${field} ${cents} from ${speaker}`);
+  }
+);

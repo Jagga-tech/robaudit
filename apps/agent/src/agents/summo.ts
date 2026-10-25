@@ -12,6 +12,7 @@ import { readerGemini } from './reader-gemini.js';
 import { fieldLiaison } from './field-liaison.js';
 import { reviewer } from './reviewer.js';
 import { guard, GUARD_READER } from './guard.js';
+import { intake } from './intake.js';
 
 // Summo, the coordinator (seat: project accountant). Watches the ledger, routes each source through the other agents,
 // and is the only agent that writes calculations and proposals. It never posts: a human approves.
@@ -181,7 +182,7 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   log(`proposal on work item ${workItemId}: adjustment ${usd(adj)}${escalation ? ' (ESCALATION)' : ''}`);
 }
 
-async function waitFor<T>(what: string, f: () => T | undefined, ms: number): Promise<T> {
+export async function waitFor<T>(what: string, f: () => T | undefined, ms: number): Promise<T> {
   for (const deadline = Date.now() + ms; ; await new Promise((r) => setTimeout(r, 50))) {
     const v = f();
     if (v !== undefined) return v;
@@ -231,7 +232,7 @@ export function start(deps: Deps, opts: { isSeed?: (s: SourceRow) => boolean; po
   const seen = new Set<string>(), handledConvex = new Set<string>(), attempts = new Map<string, number>();
   const bus = createBus();
   bus.on('source', (e) => attempt(e.key, seen, attempts, () => handleNewSource(e.source, deps)));
-  bus.on('poll', () => fieldLiaison.handlers.poll(deps, handledConvex, attempts));
+  bus.on('poll', async () => { await fieldLiaison.handlers.poll(deps, handledConvex, attempts); await intake.handlers.tick(deps); });
   bus.on('approval', (e) => handleDecision(e.approval, deps));
   deps.ledger.onApprovalInsert?.((a) => { bus.emit({ kind: 'approval', approval: a }); });
   const onSource = (s: SourceRow) => {

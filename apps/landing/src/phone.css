@@ -79,3 +79,9 @@ header{position:relative;isolation:isolate}
 @keyframes dot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
 @keyframes bounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-16px) scale(1.08)}}
 @keyframes glow{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
+/* ---- onboarding + amount answers (2026-10-25) ---- */
+.pill.big{min-height:88px;border-radius:28px;font-size:20px}
+.money{display:flex;align-items:center;background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:0 16px}
+.money:focus-within{border-color:var(--rust)}
+.money span{font:600 22px var(--body);color:var(--rust)}
+.money input[type=text]{border:0;background:transparent;padding:14px 8px;font-size:22px}

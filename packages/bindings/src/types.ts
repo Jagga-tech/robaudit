@@ -127,6 +127,7 @@ export const Project = __t.object("Project", {
   name: __t.string(),
   contractValueCents: __t.i64(),
   periodOpen: __t.bool(),
+  customer: __t.string(),
 });
 export type Project = __Infer<typeof Project>;
 

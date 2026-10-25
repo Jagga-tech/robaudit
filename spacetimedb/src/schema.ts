@@ -13,6 +13,7 @@ const project = table({ name: 'project', public: true }, {
   name: t.string(),
   contractValueCents: t.i64(),
   periodOpen: t.bool(),
+  customer: t.string().default(''),
 });
 
 const policy = table({ name: 'policy', public: true }, {
@@ -37,7 +38,7 @@ const convention = table({ name: 'convention', public: true }, {
 const source = table({ name: 'source', public: true }, {
   id: id(),
   projectId: t.u64().index('btree'),
-  kind: t.string(), // contract | cost_export | forecast | note | clarification | commissioning_log | invoice
+  kind: t.string(), // contract | cost_export | forecast | note | clarification | commissioning_log | invoice | intake
   version: t.u32(),
   text: t.string(),
   parentSourceId: t.u64(), // 0 = none
@@ -71,7 +72,7 @@ const workItem = table({ name: 'work_item', public: true }, {
   id: id(),
   projectId: t.u64(),
   title: t.string(),
-  status: t.string(), // open | awaiting_clarification | proposed | approved | posted | returned | held | stale
+  status: t.string(), // intake | open | awaiting_clarification | proposed | approved | posted | returned | held | stale
   assignedRole: t.string(),
 });
 

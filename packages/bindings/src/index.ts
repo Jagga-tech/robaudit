@@ -36,6 +36,7 @@ import {
 // Import all reducer arg schemas
 import AddSourceReducer from "./add_source_reducer";
 import ClosePeriodReducer from "./close_period_reducer";
+import CreateProjectReducer from "./create_project_reducer";
 import DecideReducer from "./decide_reducer";
 import LogAgentEventReducer from "./log_agent_event_reducer";
 import MarkMilestoneMetReducer from "./mark_milestone_met_reducer";
@@ -45,6 +46,7 @@ import PostReducer from "./post_reducer";
 import ProposeReducer from "./propose_reducer";
 import RecordCalculationReducer from "./record_calculation_reducer";
 import RecordExtractionReducer from "./record_extraction_reducer";
+import RecordIntakeReducer from "./record_intake_reducer";
 import RecordRejectionReducer from "./record_rejection_reducer";
 import RegisterDemoUserReducer from "./register_demo_user_reducer";
 import ResetDemoReducer from "./reset_demo_reducer";
@@ -262,6 +264,7 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema("add_source", AddSourceReducer),
   __reducerSchema("close_period", ClosePeriodReducer),
+  __reducerSchema("create_project", CreateProjectReducer),
   __reducerSchema("decide", DecideReducer),
   __reducerSchema("log_agent_event", LogAgentEventReducer),
   __reducerSchema("mark_milestone_met", MarkMilestoneMetReducer),
@@ -271,6 +274,7 @@ const reducersSchema = __reducers(
   __reducerSchema("propose", ProposeReducer),
   __reducerSchema("record_calculation", RecordCalculationReducer),
   __reducerSchema("record_extraction", RecordExtractionReducer),
+  __reducerSchema("record_intake", RecordIntakeReducer),
   __reducerSchema("record_rejection", RecordRejectionReducer),
   __reducerSchema("register_demo_user", RegisterDemoUserReducer),
   __reducerSchema("reset_demo", ResetDemoReducer),

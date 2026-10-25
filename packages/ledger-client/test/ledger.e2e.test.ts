@@ -165,4 +165,50 @@ describe.skipIf(!up)('ledger controls (live SpacetimeDB)', () => {
     expect(rows[0]).toMatchObject({ projectId, agent: 'summo', kind: 'read', refTable: 'source', refId: 7n });
     await expect(accountant.reducers.logAgentEvent({ projectId, agent: 'x', kind: 'read', summary: 'n', refTable: '', refId: 0n })).rejects.toThrow(/role: requires agent/);
   });
+  it('createProject is idempotent per name and opens an intake work item', async () => {
+    const name = `Intake ${Math.random()}`;
+    await accountant.reducers.createProject({ name, customer: 'Acme' });
+    await accountant.reducers.createProject({ name, customer: 'Acme' });
+    const ps = [...accountant.db.project.iter()].filter((p) => p.name === name);
+    expect(ps.length).toBe(1);
+    expect(ps[0]).toMatchObject({ customer: 'Acme', contractValueCents: 0n, periodOpen: true });
+    const ws = [...accountant.db.workItem.iter()].filter((w) => w.projectId === ps[0].id);
+    expect(ws.length).toBe(1);
+    expect(ws[0]).toMatchObject({ title: 'Onboarding intake', status: 'intake', assignedRole: 'agent' });
+    expect([...accountant.db.project.iter()].find((p) => p.name === 'Oakland deployment')!.customer).toBe('Aster Robotics');
+  });
+
+  it('recordIntake x4 + repeat; bad field; accountant -> role; propose on intake item -> proposed', async () => {
+    const name = `Intake ${Math.random()}`;
+    await agent.reducers.createProject({ name, customer: 'Acme' });
+    const pid = [...agent.db.project.iter()].find((p) => p.name === name)!.id;
+    const w = [...agent.db.workItem.iter()].find((x) => x.projectId === pid)!;
+    const rec = (field: string, cents: bigint) => agent.reducers.recordIntake({ projectId: pid, field, cents, speaker: 'owner', text: `${field} said` });
+    await rec('contract', 100000000n);
+    await rec('incurred', 40000000n);
+    await rec('remaining', 40000000n);
+    await rec('billed', 30000000n);
+    await rec('contract', 120000000n); // repeat updates in place
+    const intake = [...agent.db.source.iter()].filter((s) => s.projectId === pid && s.kind === 'intake');
+    expect(intake.length).toBe(4);
+    expect(intake.find((s) => s.text.startsWith('contract='))!.text).toBe('contract=120000000 | owner: contract said');
+    expect(agent.db.project.id.find(pid)!.contractValueCents).toBe(120000000n);
+    await expect(rec('bogus', 1n)).rejects.toThrow(/bad_input/);
+    await expect(accountant.reducers.recordIntake({ projectId: pid, field: 'billed', cents: 1n, speaker: 'x', text: '' })).rejects.toThrow(/role: requires agent/);
+    await agent.reducers.addSource({ projectId: pid, kind: 'note', text: 'intake note', parentSourceId: 0n, version: 1 });
+    expect(agent.db.workItem.id.find(w.id)!.status).toBe('intake');
+    await proposeOn(w.id, (await newCalculation(w.id)).id);
+    expect(agent.db.workItem.id.find(w.id)!.status).toBe('proposed');
+  });
+
+  it('resetDemo removes created projects, work items and sources', async () => {
+    const name = `Intake ${Math.random()}`;
+    await agent.reducers.createProject({ name, customer: 'Acme' });
+    const pid = [...agent.db.project.iter()].find((p) => p.name === name)!.id;
+    await agent.reducers.recordIntake({ projectId: pid, field: 'billed', cents: 1n, speaker: 'x', text: '' });
+    await agent.reducers.resetDemo({});
+    expect([...agent.db.project.iter()].map((p) => p.name)).toEqual(['Oakland deployment']);
+    expect([...agent.db.workItem.iter()].some((w) => w.projectId === pid)).toBe(false);
+    expect([...agent.db.source.iter()].some((s) => s.projectId === pid)).toBe(false);
+  });
 });

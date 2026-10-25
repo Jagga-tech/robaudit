@@ -4,7 +4,7 @@ import { connect, onChange, call, subscribeExtra, STDB_URI, type DbConnection } 
 import { convex, api } from './lib/convex';
 import type { Ctx } from './lib/app';
 import { NAV, resolve, navKey } from './router';
-import { esc, all, byId, last, inbox } from './lib/ui';
+import { esc, all, byId, last, inbox, onboarding } from './lib/ui';
 
 type Summo = Parameters<Ctx['summo']>[0];
 const $ = (id: string) => document.getElementById(id)!;
@@ -47,7 +47,7 @@ function renderSide() {
   $('badge').classList.toggle('refused', state === 'refused');
   const posted = new Set(all(d.posting.iter()).map((p) => p.proposalId));
   const counts: Record<string, number> = {
-    inbox: inbox(d, manager?.name).length,
+    inbox: inbox(d, manager?.name).filter(({ w }) => !onboarding(d, w)).length + all(d.workItem.iter()).filter((w) => onboarding(d, w)).length,
     agents: all(d.agentEvent.iter()).filter((e) => Date.now() - e.at.toDate().getTime() < 600_000).length,
     projects: all(d.project.iter()).length,
     close: all(d.proposal.iter()).filter((p) => (p.status === 'open' || p.status === 'approved') && !posted.has(p.id)).length,

@@ -24,7 +24,7 @@ export const KIND: Record<string, string> = {
   clarification: 'Clarification', commissioning_log: 'Commissioning log', scanned_forecast: 'Forecast sheet (photo)',
 };
 export const READER: Record<string, string> = { claude: 'Claude', gemini: 'Gemini', 'azure-di': 'Azure Document Intelligence' };
-export const ACCOUNT: Record<string, string> = { Revenue: 'Revenue', ContractAsset: 'Contract asset', AccountsReceivable: 'Accounts receivable' };
+export const ACCOUNT: Record<string, string> = { Revenue: 'Revenue', ContractAsset: 'Contract asset', AccountsReceivable: 'Accounts receivable', ContractLiability: 'Contract liability' };
 
 /** Ruled activity row (icon, title, sub line, tag). */
 export function card(ic: string, title: string, sub: string, tag: string, tone = '') {
@@ -157,3 +157,42 @@ export function jiraFor(conn: DbConnection, workItemId: bigint) {
 }
 export const jiraChip = (j: { key: string; url: string } | null) =>
   j ? `<a class="jira" href="${esc(j.url)}" target="_blank" rel="noopener" title="Open ${esc(j.key)} in Jira">${esc(j.key)} ↗</a>` : '';
+
+// ---------- accounting views (Books, WIP, T-account, intake) ----------
+/** project.customer lands with the ledger's intake work; '' until the bindings carry it. */
+export const customerOf = (p: object) => String((p as { customer?: unknown }).customer ?? '');
+
+export type Entry = { account: string; debit: bigint; credit: bigint };
+/** Entry lines from entryJson/linesJson; [] when unparsable, amounts as bigint. */
+export function lines(json: string): Entry[] {
+  try {
+    const xs = JSON.parse(json);
+    return Array.isArray(xs) ? xs.filter((l) => l && typeof l.account === 'string').map((l) => ({ account: l.account, debit: BigInt(l.debit ?? 0), credit: BigInt(l.credit ?? 0) })) : [];
+  } catch { return []; }
+}
+
+/** The entry as a T-account: Dr lines left, Cr lines right, equal totals underneath. */
+export function tAccount(ls: Entry[], cls = '') {
+  const side = (xs: Entry[], dr: boolean) => xs.map((l) => `<div><span>${esc(ACCOUNT[l.account] ?? l.account)}</span><span>${usd(dr ? l.debit : l.credit)}</span></div>`).join('') || '<div class="none"><span>—</span></div>';
+  const dr = ls.filter((l) => l.debit > 0n), cr = ls.filter((l) => l.credit > 0n);
+  const sum = (xs: Entry[], k: 'debit' | 'credit') => xs.reduce((n, l) => n + l[k], 0n);
+  return `<div class="taccount ${cls}"><div class="tside"><p class="th">Dr</p>${side(dr, true)}</div><div class="tside"><p class="th">Cr</p>${side(cr, false)}</div>` +
+    `<div class="ttot"><span>Total</span><span>${usd(sum(dr, 'debit'))}</span></div><div class="ttot"><span>Total</span><span>${usd(sum(cr, 'credit'))}</span></div></div>`;
+}
+
+export const INTAKE_FIELDS = ['contract', 'incurred', 'remaining', 'billed'] as const;
+/** Answers Summo recorded during onboarding (source kind 'intake', text `${field}=${cents} | ${speaker}: ${text}`). */
+export function intakeOf(d: Db, projectId: bigint) {
+  const got: Partial<Record<(typeof INTAKE_FIELDS)[number], { cents: bigint; speaker: string }>> = {};
+  for (const s of all(d.source.iter()).filter((x) => x.projectId === projectId && x.kind === 'intake').sort(byId)) {
+    const m = /^(\w+)=(-?\d+)\s*\|\s*([^:]*):?/.exec(s.text);
+    if (m && (INTAKE_FIELDS as readonly string[]).includes(m[1])) got[m[1] as (typeof INTAKE_FIELDS)[number]] = { cents: BigInt(m[2]), speaker: m[3].trim() };
+  }
+  const next = INTAKE_FIELDS.find((f) => !got[f]);
+  return { got, n: Object.keys(got).length, next };
+}
+export const intakeChips = (got: ReturnType<typeof intakeOf>['got']) =>
+  INTAKE_FIELDS.filter((f) => got[f]).map((f) => `<span class="chip static">${f} ${usd(got[f]!.cents)}</span>`).join('');
+/** An onboarding work item still collecting figures (status 'intake', or 'Onboarding intake' while Summo's question is out). */
+export const onboarding = (d: Db, w: { projectId: bigint; title: string; status: string }) =>
+  (w.status === 'intake' || w.title === 'Onboarding intake') && intakeOf(d, w.projectId).n < INTAKE_FIELDS.length;

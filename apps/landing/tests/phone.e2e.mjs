@@ -40,11 +40,17 @@ async function phone({ proxyWs = false, ...opts } = {}) {
   return { ctx, page, sent, drop };
 }
 const shot = (page, name) => page.screenshot({ path: `${SHOTS}ph2-${name}.png` });
-async function join(page, name) {
+async function join(page, name, path = '#oak') {
   await page.fill('#name', name);
   await page.click('form button');
-  await page.waitForSelector('#send');
+  await page.click(path); // after Join: Oakland (today's flow) or Onboard
+  if (path === '#oak') await page.waitForSelector('#send');
 }
+const sqlRows = async (q) => { // SpacetimeDB HTTP SQL: Node 20 can't load the TS ledger-client
+  const r = await fetch(`${(process.env.STDB_URI ?? env.STDB_URI ?? 'ws://127.0.0.1:3000').replace(/^ws/, 'http')}/v1/database/${process.env.STDB_DB ?? env.STDB_DB ?? 'keel'}/sql`, { method: 'POST', body: q });
+  return (await r.json())[0].rows;
+};
+async function signedIn() { if (!signedIn.done) { const r = await cvx.action(api.auth.signIn, { provider: 'anonymous' }); cvx.setAuth(r.tokens.token); signedIn.done = true; } }
 async function ask(question = 'Is the $200,000 additional, or is it the new total?') {
   await cvx.mutation(api.clarifications.resetOpen, {});
   return cvx.mutation(api.clarifications.ask, { workItemId: WI, question, options: ['additional', 'new_total'] });
@@ -68,6 +74,7 @@ async function celebrateThenHome(page, name, motion, shotName) {
 }
 
 async function scenario(key, fn) {
+  if (process.env.ONLY && !process.env.ONLY.includes(key)) return; // e.g. ONLY=hij
   try { await fn(); results[key] = 'PASS'; } catch (e) { results[key] = `FAIL: ${e.message.split('\n')[0]}`; }
   console.log(key, results[key]);
 }
@@ -121,6 +128,7 @@ await scenario('c', async () => {
   const { ctx, page, sent } = await phone();
   await page.fill('#name', 'Cy');
   await page.evaluate(() => { const f = document.getElementById('join'); f.requestSubmit(); f.requestSubmit(); });
+  await page.click('#oak');
   await page.waitForSelector('#send');
   await page.waitForTimeout(800);
   assert(sent['managers:join'] === 1, `join mutations sent: ${sent['managers:join']}`);
@@ -179,7 +187,7 @@ await scenario('f', async () => {
   const neg = await new ConvexHttpClient(cvx.url).mutation(api.clarifications.confirm, { id, answer: 'additional', speaker: 'anon' }).then(() => null, (e) => String(e.message));
   console.log('negative confirm error:', neg);
   assert(neg && /nauthenticated|Server Error/.test(neg), `unauthenticated confirm should be rejected, got: ${neg}`);
-  const r = await cvx.action(api.auth.signIn, { provider: 'anonymous' }); cvx.setAuth(r.tokens.token);
+  await signedIn();
   await cvx.mutation(api.clarifications.confirm, { id, answer: 'additional', speaker: 'Node script' });
   await page.waitForSelector('#send', { timeout: 10_000 });
   const note = await page.textContent('.note');
@@ -201,6 +209,73 @@ await scenario('g', async () => {
   await celebrateThenHome(page, 'Gus', false, 'g1-thanks-reduced');
   const r = await row(id);
   assert(r.status === 'confirmed' && r.speaker === 'Gus', 'confirmed under reduced motion');
+  await ctx.close();
+});
+
+async function askAmount(question = "What's the total contract value?") {
+  await cvx.mutation(api.clarifications.resetOpen, {});
+  await signedIn();
+  return cvx.mutation(api.clarifications.ask, { workItemId: WI, question, options: [], answerType: 'amount' });
+}
+
+await scenario('h', async () => {
+  const { ctx, page } = await phone();
+  await join(page, 'Onb', '#onb');
+  const name = `Riverside test ${Date.now() % 100000}`;
+  await page.fill('#pname', name);
+  await page.fill('#cust', 'Aster Robotics');
+  await shot(page, 'h1-onboard');
+  await page.click('#onboard button');
+  await page.waitForFunction(() => document.querySelector('h1')?.textContent === 'Summo will call you with a few questions.', null, { timeout: 15_000 });
+  const rows = await sqlRows('SELECT * FROM project');
+  assert(rows.some((r) => r[1] === name), `project row "${name}" on the ledger`);
+  // A running agent asks its own intake question within a few seconds (Ringing takes over); seed ours after it so ours is the newest.
+  await page.waitForSelector('#amount', { timeout: 8000 }).catch(() => {});
+  const id = await askAmount('Seeded: what is the contract worth?');
+  await page.waitForFunction(() => document.querySelector('h1.q')?.textContent === 'Seeded: what is the contract worth?' && document.getElementById('amount'), null, { timeout: 15_000 });
+  assert(await page.locator('[data-opt]').count() === 0, 'no option buttons for an amount question');
+  assert(await page.getAttribute('#amount', 'inputmode') === 'decimal', 'decimal keypad');
+  await page.fill('#amount', '400k');
+  await page.click('#amt button');
+  await page.waitForSelector('#heard');
+  const t = await page.textContent('#heard');
+  assert(t.includes('I heard $400,000. Is that right?'), `heard: ${t}`);
+  await shot(page, 'h2-heard-amount');
+  await page.click('#yes');
+  await celebrateThenHome(page, 'Onb', true, 'h3-thanks');
+  const h1 = await page.evaluate(() => [...document.querySelectorAll('h1')].map((x) => x.className + ':' + x.textContent));
+  assert(h1.includes(':Anything changed on site this week? Send it.'), 'post-intake Home prompt');
+  const r = await row(id);
+  assert(r.status === 'confirmed' && r.answer === '40000000' && r.speaker === 'Onb', `convex row ${JSON.stringify({ s: r.status, a: r.answer, sp: r.speaker })}`);
+  await ctx.close();
+});
+
+await scenario('i', async () => {
+  const { ctx, page } = await phone();
+  await join(page, 'Ivy');
+  await askAmount();
+  await page.waitForSelector('#amount', { timeout: 15_000 });
+  await page.fill('#amount', 'about four hundred');
+  await page.click('#amt button');
+  await page.waitForFunction(() => document.querySelector('.note')?.textContent === "I didn't catch a figure. Type it or try again.", null, { timeout: 5000 });
+  assert(await page.locator('#heard').count() === 0, 'no confirm for an unparseable figure');
+  await shot(page, 'i1-no-figure');
+  await ctx.close();
+});
+
+await scenario('j', async () => {
+  await cvx.mutation(api.clarifications.resetOpen, {});
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => pageErrors.push(e.message));
+  await page.goto(`${BASE}/phone?idle=5`);
+  await join(page, 'Jo');
+  assert((await cvx.query(api.managers.current, {}))?.name === 'Jo', 'Jo is current');
+  await page.waitForFunction(() => /^Session ended after 5 seconds of inactivity\.$/.test(document.querySelector('h1')?.textContent ?? ''), null, { timeout: 7000 });
+  await shot(page, 'j1-session-ended');
+  await page.waitForSelector('#name', { timeout: 4000 }); // 3 s message, then Join
+  assert(await page.evaluate(() => sessionStorage.getItem('keel-manager')) === null, 'sessionStorage cleared');
+  assert((await cvx.query(api.managers.current, {})) === null, 'managers.current is null');
   await ctx.close();
 });
 

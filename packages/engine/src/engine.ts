@@ -20,12 +20,24 @@ export function expectedMargin(contractValue: Cents, estTotal: Cents) {
 
 export const adjustment = (prev: Cents, next: Cents): Cents => next - prev
 
-export type EntryLine = { account: 'Revenue' | 'ContractAsset' | 'AccountsReceivable'; debit: Cents; credit: Cents }
+export type EntryLine = { account: 'Revenue' | 'ContractAsset' | 'ContractLiability' | 'AccountsReceivable'; debit: Cents; credit: Cents }
 
 export const buildInvoiceEntry = (amount: Cents): EntryLine[] => [
   { account: 'AccountsReceivable', debit: amount, credit: 0n },
   { account: 'ContractAsset', debit: 0n, credit: amount },
 ]
+
+// Opening balance for a mid-life project: recognize revenue to date against billings.
+export function buildOpeningEntry(cumRevenue: Cents, billed: Cents): EntryLine[] {
+  if (cumRevenue === 0n && billed === 0n) return []
+  const diff = cumRevenue - billed
+  const lines: EntryLine[] = []
+  if (billed !== 0n) lines.push({ account: 'AccountsReceivable', debit: billed, credit: 0n })
+  if (diff > 0n) lines.push({ account: 'ContractAsset', debit: diff, credit: 0n })
+  if (diff < 0n) lines.push({ account: 'ContractLiability', debit: 0n, credit: -diff })
+  if (cumRevenue !== 0n) lines.push({ account: 'Revenue', debit: 0n, credit: cumRevenue })
+  return lines
+}
 
 export function buildEntry(adj: Cents): EntryLine[] {
   if (adj === 0n) return []

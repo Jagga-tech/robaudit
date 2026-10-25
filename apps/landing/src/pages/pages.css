@@ -133,3 +133,18 @@ a.jira:focus-visible{outline:2px solid #000;outline-offset:2px}
 .pg.jtab{padding:0;background:transparent}
 .pg .jline{margin:0 0 14px;color:var(--pg-strong);max-width:760px}
 .pg .jira-err td{color:var(--pg-red)}
+
+/* ---- Books ---- */
+.books .bbar{display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:0 0 8px;font-size:13px;color:var(--muted)}
+.books select{font:500 13px var(--body);border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff;color:var(--ink);margin-left:6px}
+.books .tgl{display:flex;gap:6px;align-items:center;cursor:pointer}
+.books .tbl.tb{max-width:760px}
+.books .tbl tr.total td{font-weight:700;border-top:1.5px solid var(--ink);border-bottom:2px double var(--ink)}
+.books .grey,.books tr.grey td{color:#9AA4A6}
+.books .balcheck{font:600 13px var(--mono);margin:12px 0 4px}
+.books .balcheck.ok{color:var(--teal)}
+.books .balcheck.bad{color:var(--danger)}
+.books .memo{max-width:760px}
+.books .journal td{padding:7px 10px;vertical-align:top}
+.books .journal tr.first td{border-top:1.5px solid var(--line)}
+.books .journal td.cracct{padding-left:30px}

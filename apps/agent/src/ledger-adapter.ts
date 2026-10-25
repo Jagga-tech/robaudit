@@ -24,6 +24,7 @@ export function ledgerDeps(conn: DbConnection): Ledger {
     resolveClarification: (a) => r.resolveClarification(a), recordCalculation: (a) => r.recordCalculation(a),
     propose: (a) => r.propose(a), openWorkItem: (a) => r.openWorkItem(a), markMilestoneMet: (a) => r.markMilestoneMet(a),
     logAgentEvent: (a) => r.logAgentEvent(a),
+    recordIntake: (a) => (r as any).recordIntake(a), // ponytail: loose until the bindings export it typed
   };
 }
 

@@ -13,9 +13,10 @@ import { explainer } from '../src/agents/explainer';
 import { learner } from '../src/agents/learner';
 import { reviewer } from '../src/agents/reviewer';
 import { guard } from '../src/agents/guard';
+import { intake } from '../src/agents/intake';
 import { ambiguous, fake, unflagged } from './fake-deps';
 
-const AGENTS = [summo, readerClaude, readerGemini, documentReader, reconciler, fieldLiaison, engine, explainer, learner, reviewer, guard];
+const AGENTS = [summo, readerClaude, readerGemini, documentReader, reconciler, fieldLiaison, engine, explainer, learner, reviewer, guard, intake];
 const chain = (f: ReturnType<typeof fake>) => f.events.map((e) => `${e.agent} ${e.kind}`);
 
 describe('agent limits (may lists)', () => {
@@ -24,6 +25,7 @@ describe('agent limits (may lists)', () => {
       summo: ['recordCalculation', 'propose', 'openWorkItem', 'markMilestoneMet'],
       'reader-claude': ['recordExtraction'], 'reader-gemini': ['recordExtraction'], 'document-reader': ['recordExtraction'],
       reconciler: [], 'field-liaison': ['openClarification', 'resolveClarification'], engine: [], explainer: [], learner: [], reviewer: [], guard: ['recordExtraction'],
+      intake: ['recordIntake', 'recordCalculation', 'propose'],
     });
   });
 

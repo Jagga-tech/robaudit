@@ -33,11 +33,11 @@ export function createBus() {
 }
 
 // ---- agents: a name, a seat, the reducers it may call, its handlers; every action is logged to agent_event ----
-export type Kind = 'read' | 'agree' | 'disagree' | 'reconcile' | 'ask' | 'answer' | 'compute' | 'explain' | 'propose' | 'review' | 'learn' | 'skip' | 'error' | 'flag' | 'pass' | 'rework';
+export type Kind = 'read' | 'agree' | 'disagree' | 'reconcile' | 'ask' | 'answer' | 'compute' | 'explain' | 'propose' | 'review' | 'learn' | 'skip' | 'error' | 'flag' | 'pass' | 'rework' | 'intake' | 'handoff';
 export type Agent<H> = { name: string; seat: string; may: readonly string[]; handlers: H };
 
 /** Every ledger reducer an agent could reach for, `post` included (a human approval; no agent may call it). */
-const REDUCERS = ['recordExtraction', 'openClarification', 'resolveClarification', 'recordCalculation', 'propose', 'openWorkItem', 'markMilestoneMet', 'post'] as const;
+const REDUCERS = ['recordExtraction', 'openClarification', 'resolveClarification', 'recordCalculation', 'propose', 'openWorkItem', 'markMilestoneMet', 'recordIntake', 'post'] as const;
 
 /** The ledger as one agent sees it: reads and logAgentEvent always, reducers only from its `may` list (anything else throws). */
 export function guardedLedger(ledger: Ledger, agent: string, may: readonly string[]): Ledger {

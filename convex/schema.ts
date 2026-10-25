@@ -16,6 +16,7 @@ export default defineSchema({
     workItemId: v.string(),
     question: v.string(),
     options: v.array(v.string()),
+    answerType: v.optional(v.union(v.literal("choice"), v.literal("amount"))), // amount: answer is a cents decimal string
     status,
     answer: v.optional(v.string()),
     speaker: v.optional(v.string()),

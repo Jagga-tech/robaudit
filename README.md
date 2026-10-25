@@ -16,6 +16,10 @@ Built at Cal Hacks 13.0. Design: `docs/superpowers/specs/2026-10-24-keel-design.
 
 The company (Aster Robotics), its Oakland project and its data are fictional and seeded from `demo/seed.json`.
 
+## How we use Convex
+
+Convex runs the voice call between Summo and the manager's phone. The `clarifications` table and its mutations move a call through ringing, answering and confirmed; the `@convex-dev/action-retrier` component runs the Cartesia TTS and STT actions with retries; Convex Auth (anonymous) gives each phone a session, and `confirm` and `decline` require it; file storage holds the audio; the landing, workbench and phone pages subscribe live. Convex never touches money. Files, features and the commit log: [hackathon.md](hackathon.md).
+
 ## Architecture
 
 Language, arithmetic and permission to write are kept apart. Each agent is an object with a name, a seat and a `may` list of ledger reducers (`apps/agent/src/bus.ts`); calling anything outside the list throws, and `post` is on no agent's list.

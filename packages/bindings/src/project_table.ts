@@ -15,4 +15,5 @@ export default __t.row({
   name: __t.string(),
   contractValueCents: __t.i64().name("contract_value_cents"),
   periodOpen: __t.bool().name("period_open"),
+  customer: __t.string(),
 });

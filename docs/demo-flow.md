@@ -45,6 +45,35 @@ cumulative revenue $500,000, billed $300,000, contract asset $200,000, margin $2
 One work item "Oakland deployment" status `posted`, one proposal rev 1 `posted` as `OAK-2026-09-R1`.
 Seeded convention `forecast.remaining_estimate_means = future_costs_only`.
 
+## Opening flow: onboarding a new project by phone (first-time vendor)
+
+Added 2026-10-25. The judge now meets Summo as a vendor would on day one: there is no history, so Summo
+asks for the four figures it needs and builds the opening position from the answers. The seeded Oakland
+flow below stays as the fallback (Reset returns to it).
+
+| # | Judge does | Phone shows | Laptop shows | Backend | Expected |
+|---|---|---|---|---|---|
+| A1 | Joins, taps "Onboard a new project", keeps or edits the name ("Riverside installation") and customer ("Aster Robotics") | "Summo will call you with a few questions." | Projects: new row with the customer; Inbox: "Summo is onboarding Riverside installation" (tag `intake`); Workflow → Intake: four questions, all "waiting" | phone `createProject({ name, customer })` → project (contract 0) + work item 'Onboarding intake' status `intake` | history `project_created` |
+| A2 | Phone rings: "Welcome. What is this contract worth in total?" Says or types "one million" / "1,000,000"; sees "I heard $1,000,000. Is that right?"; taps That's right | amount answer screen (no option buttons) | Intake step fills in: contract $1,000,000 from <Name> | Convex `clarifications.ask` with `answerType: 'amount'`; `confirm({ answer: '100000000' })`; agent `recordIntake(projectId, 'contract', 100000000n, …)` | source kind `intake` "contract=100000000 \| <Name>: …"; project contract value set |
+| A3 | "What have you spent on it so far?" → $400,000 | same | incurred $400,000 | `recordIntake(… 'incurred' …)` | |
+| A4 | "What will it take to finish from here?" → $400,000 | same | remaining $400,000 | `recordIntake(… 'remaining' …)` | |
+| A5 | "What have you billed the customer to date?" → $300,000 | same; then Home: "Anything changed on site this week? Send it." | Compute: 50.00%, revenue $500,000, asset $200,000, margin $200,000. Proposal rev 1 with the **opening entry** as the hero: Dr Accounts receivable 300,000 / Dr Contract asset 200,000 / Cr Revenue 500,000. Books: trial balance balanced once posted. WIP: one row | `recordIntake(… 'billed' …)`, `recordCalculation` (forecastSourceId = remaining intake source), `propose` with `buildOpeningEntry(500,000, 300,000)` | work item `proposed`; agent_event `propose` "opening revenue recognition", `handoff` |
+| A6 | Dana approves and posts (ref `RIV-WI<n>-R1`) | | Posted; Books show AR 300,000 Dr, Contract asset 200,000 Dr, Revenue 500,000 Cr | `decide`, `post` | |
+| A7 | Judge sends "we need another 200k to finish" | the normal flow from step 2 below, on the new project | 40.00% etc. (same answer key as Oakland, because the figures are S0) | | WIP gains a second row |
+
+Billed ahead of revenue (e.g. billed $600,000 on the same figures) books Cr Contract liability 100,000
+instead of Dr Contract asset. An amount Summo cannot parse ("a lot") is re-asked: "I didn't catch the
+figure. Say it as a number, like 1,000,000."
+
+The phone ends its session after 20 minutes without a tap or a send (`managers.leave`, back to Join),
+so a judge who walks away does not stay "joined" on the laptop.
+
+### Pages that make the accounting visible
+
+- **Books** (`/workbench/books`): trial balance per project from posted entries, balanced check, and the journal.
+- **WIP** (Project → WIP): contract value, costs to date, estimated total, margin, % complete, revenue earned, billed, over/(under) billing, one row per calculation revision.
+- **Workflow** (`/workbench/workflow`): the internal pipeline as nine sub-pages for the selected project: Intake, Sources & guard, Reading, Reconcile, Ask, Compute, Explain & review, Approve & post, Mirror & audit.
+
 ## The flow
 
 Expected values assume the judge's update is read as "another $200,000" and answered "additional".

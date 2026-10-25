@@ -50,6 +50,13 @@ export function fake(extraction: Extraction, opts: { remaining?: bigint; convent
       openWorkItem: rec('openWorkItem', (a) => s.workItems.push({ id: nid(), projectId: a.projectId, title: a.title })),
       markMilestoneMet: rec('markMilestoneMet', (a) => { s.milestones.find((m) => m.id === a.milestoneId)!.status = 'met'; }),
       logAgentEvent: async (a) => { events.push(a); },
+      // like the real reducer: one intake source per (project, field); contract also sets the project's value
+      recordIntake: rec('recordIntake', (a) => {
+        const text = `${a.field}=${a.cents} | ${a.speaker}: ${a.text}`;
+        const prev = s.sources.find((x) => x.projectId === a.projectId && x.kind === 'intake' && x.text.startsWith(`${a.field}=`));
+        if (prev) prev.text = text; else s.sources.push({ id: nid(), projectId: a.projectId, kind: 'intake', text, parentSourceId: 0n });
+        if (a.field === 'contract') s.projects.find((p) => p.id === a.projectId)!.contractValueCents = a.cents;
+      }),
     },
     convex: {
       ask: async (a) => { calls.push(['ask', a]); return 'cvx1'; },

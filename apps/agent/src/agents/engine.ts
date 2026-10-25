@@ -1,4 +1,4 @@
-import { applyUpdate, adjustment, buildEntry, buildInvoiceEntry, compute, type Convention, type EntryLine } from '@keel/engine';
+import { applyUpdate, adjustment, buildEntry, buildInvoiceEntry, buildOpeningEntry, compute, type Convention, type EntryLine } from '@keel/engine';
 import { say, type Agent } from '../bus.js';
 import type { Deps, LedgerState } from '../loop.js';
 
@@ -37,5 +37,6 @@ async function forecast(deps: Deps, projectId: bigint, sourceId: bigint, snap: S
 
 export const engine = {
   name: NAME, seat: 'calculator', may: MAY,
-  handlers: { forecast, revenueEntry: (adj: bigint) => entryJson(buildEntry(adj)), invoiceEntry: (amount: bigint) => entryJson(buildInvoiceEntry(amount)) },
+  handlers: { forecast, revenueEntry: (adj: bigint) => entryJson(buildEntry(adj)), invoiceEntry: (amount: bigint) => entryJson(buildInvoiceEntry(amount)),
+    openingEntry: (cumRevenue: bigint, billed: bigint) => entryJson(buildOpeningEntry(cumRevenue, billed)) },
 } satisfies Agent<unknown>;

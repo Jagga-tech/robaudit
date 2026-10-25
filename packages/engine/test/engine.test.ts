@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dollars, compute, adjustment, buildEntry, applyUpdate, progressBp, buildInvoiceEntry } from '../src/index.js'
+import { dollars, compute, adjustment, buildEntry, applyUpdate, progressBp, buildInvoiceEntry, buildOpeningEntry } from '../src/index.js'
 
 describe('engine answer key', () => {
   it('dollars parses', () => {
@@ -76,6 +76,23 @@ describe('engine answer key', () => {
     expect(up[0]).toEqual({ account: 'ContractAsset', debit: 16_666_700n, credit: 0n })
     expect(up[1]).toEqual({ account: 'Revenue', debit: 0n, credit: 16_666_700n })
     expect(buildEntry(0n)).toEqual([])
+  })
+  it('opening entry', () => {
+    const s0 = buildOpeningEntry(50_000_000n, 30_000_000n)
+    expect(s0).toEqual([
+      { account: 'AccountsReceivable', debit: 30_000_000n, credit: 0n },
+      { account: 'ContractAsset', debit: 20_000_000n, credit: 0n },
+      { account: 'Revenue', debit: 0n, credit: 50_000_000n },
+    ])
+    bal(s0)
+    const ahead = buildOpeningEntry(30_000_000n, 45_000_000n)
+    expect(ahead).toEqual([
+      { account: 'AccountsReceivable', debit: 45_000_000n, credit: 0n },
+      { account: 'ContractLiability', debit: 0n, credit: 15_000_000n },
+      { account: 'Revenue', debit: 0n, credit: 30_000_000n },
+    ])
+    bal(ahead)
+    expect(buildOpeningEntry(0n, 0n)).toEqual([])
   })
   it('zero case', () => {
     expect(compute({ contractValue: 100_000_000n, incurred: 0n, remaining: 0n, billed: 0n }).progressBp).toBe(0)

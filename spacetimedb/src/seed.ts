@@ -10,7 +10,7 @@ export function seedS0(ctx: Ctx) {
     d.calculation, d.proposal, d.approval, d.posting, d.contractMilestone, d.historyEvent, d.agentEvent]) tbl.clear();
 
   const now = ctx.timestamp;
-  const p = d.project.insert({ id: 0n, name: S.project.name, contractValueCents: BigInt(S.project.contractValueCents), periodOpen: S.project.periodOpen });
+  const p = d.project.insert({ id: 0n, name: S.project.name, contractValueCents: BigInt(S.project.contractValueCents), periodOpen: S.project.periodOpen, customer: COMPANY });
   d.policy.insert({ id: 0n, version: S.policy.version, text: S.policy.text, approvedBy: S.policy.approvedBy, approvedAt: now });
 
   const srcIds: Record<string, bigint> = {};

@@ -1,7 +1,7 @@
 // Inbox (/workbench): work items waiting on a person. Default route.
 import type { Page } from '../lib/app';
 import { ids, subscribeExtra } from '../lib/ledger';
-import { esc, all, ago, tag, inbox, live, head, disagreement, decisionOf, decisionText, guardFlag, jiraFor, jiraChip } from '../lib/ui';
+import { esc, all, byId, ago, tag, inbox, live, head, disagreement, decisionOf, decisionText, guardFlag, jiraFor, jiraChip, intakeOf, intakeChips, onboarding } from '../lib/ui';
 import './pages.css';
 
 const LABEL: Record<string, string> = { awaiting_clarification: 'awaiting answer', proposed: 'proposed', held: 'held', returned: 'returned', stale: 'stale' };
@@ -12,7 +12,7 @@ const page: Page = {
   render(root, ctx) {
     const d = ctx.conn.db;
     const draw = () => {
-      const rows = inbox(d, ctx.judge()?.name);
+      const rows = inbox(d, ctx.judge()?.name).filter(({ w }) => !onboarding(d, w)); // onboarding gets its own row below
       const n = all(d.project.iter()).length;
       // one sub line per row: why it was returned/held, or how many sources disagree behind an open proposal
       const sub = (w: (typeof rows)[number]['w']) => {
@@ -26,10 +26,18 @@ const page: Page = {
       const props = all(d.proposal.iter());
       const flags = all(d.source.iter()).map((s) => ({ s, g: guardFlag(d, s.id) })).filter(({ s, g }) => g && !props.some((p) => ids(p.evidenceSourceIds).includes(s.id))).reverse();
       const flagRow = ({ s, g }: (typeof flags)[number]) => `<tr data-href="/workbench/projects/${s.projectId}/sources"><td><a href="/workbench/projects/${s.projectId}/sources">Flagged input · ${esc(g!.reasons[0] ?? 'flagged')}</a><p class="small amber">Summo did not act on it. Dana decides.</p></td><td>Dana</td><td class="mono">${ago(s.createdAt.toDate())}</td><td>${tag('flagged', 'amber')}</td></tr>`;
-      const total = rows.length + flags.length;
+      // onboarding: Summo is asking the intake questions for a new project (work item status 'intake')
+      const intakes = all(d.workItem.iter()).filter((w) => onboarding(d, w)).sort(byId).reverse();
+      const intakeRow = (w: (typeof intakes)[number]) => {
+        const pj = d.project.id.find(w.projectId), q = intakeOf(d, w.projectId);
+        const at = all(d.historyEvent.iter()).filter((e) => e.projectId === w.projectId).sort(byId).pop()?.at.toDate();
+        return `<tr data-href="/workbench/projects/${w.projectId}"><td><a href="/workbench/projects/${w.projectId}">Summo is onboarding ${esc(pj?.name ?? 'a new project')}${q.next ? ` · asked ${q.next}` : ' · all answered'}</a>` +
+          `${q.n ? `<div class="chips intake">${intakeChips(q.got)}</div>` : ''}<p class="small">${q.n} of 4 answered</p></td><td>waiting on ${esc(ctx.judge()?.name ?? 'the site lead')}</td><td class="mono">${ago(at)}</td><td>${tag('intake', 'amber')}</td></tr>`;
+      };
+      const total = rows.length + flags.length + intakes.length;
       head({ sub: total ? `${total} ${total === 1 ? 'item waits' : 'items wait'} on a person.` : 'Everything Summo proposes lands here first.' });
       root.innerHTML = total
-        ? `<table class="tbl rows"><thead><tr><th>Work item</th><th>Waiting on</th><th>Age</th><th>Status</th></tr></thead><tbody>${flags.map(flagRow).join('')}${rows.map(({ w, who, at }) => { const a = decisionOf(d, w), line = sub(w); return (
+        ? `<table class="tbl rows"><thead><tr><th>Work item</th><th>Waiting on</th><th>Age</th><th>Status</th></tr></thead><tbody>${intakes.map(intakeRow).join('')}${flags.map(flagRow).join('')}${rows.map(({ w, who, at }) => { const a = decisionOf(d, w), line = sub(w); return (
             `<tr data-href="/workbench/projects/${w.projectId}"><td><a href="/workbench/projects/${w.projectId}">${esc(w.title)}</a>${jiraChip(jiraFor(ctx.conn, w.id))}${line ? `<p class="small${a ? ' amber' : ''}">${esc(line)}</p>` : ''}</td><td>${a ? 'waiting for new evidence' : `waiting on ${esc(who)}`}</td><td class="mono">${ago(at)}</td>` +
             `<td>${tag(LABEL[w.status] ?? w.status, w.status === 'proposed' ? '' : 'amber')}</td></tr>`); }).join('')}</tbody></table>`
         : `<p class="empty big">Nothing waits on a person. Summo is watching ${n} project${n === 1 ? '' : 's'}.</p>`;

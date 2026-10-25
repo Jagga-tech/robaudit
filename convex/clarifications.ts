@@ -11,7 +11,7 @@ const id = v.id("clarifications");
 const OPEN = ["ringing", "answering", "fallback_text"];
 
 export const ask = mutation({
-  args: { workItemId: v.string(), question: v.string(), options: v.array(v.string()) },
+  args: { workItemId: v.string(), question: v.string(), options: v.array(v.string()), answerType: v.optional(v.union(v.literal("choice"), v.literal("amount"))) },
   handler: async (ctx, args) => {
     const cid = await ctx.db.insert("clarifications", { ...args, status: "ringing" });
     await retrier.run(ctx, api.voice.speakQuestion, { id: cid });
