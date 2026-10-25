@@ -4,6 +4,7 @@ import { anyApi } from 'convex/server';
 import type { DbConnection } from '@keel/ledger-client';
 import { extract, extractBoth } from './extract.js';
 import { explain } from './explain.js';
+import { readForecastDocument } from './azure-di.js';
 import type { Deps, Ledger, SourceRow } from './loop.js';
 
 // The stage agent's real wiring, shared by main.ts and scripts/demo.ts. No connections at import time.
@@ -30,7 +31,14 @@ export function agentDeps(conn: DbConnection, cvx: ConvexHttpClient): Deps {
       byWorkItem: (workItemId) => cvx.query(anyApi.clarifications.byWorkItem, { workItemId }),
       fallbackText: (id) => cvx.mutation(anyApi.clarifications.fallbackText, { id }),
     },
-    extract, extractBoth, explain,
+    extract, extractBoth, explain, readForecastDocument,
+    fetchDocument: async (storageId) => {
+      const url: string | null = await cvx.query(anyApi.clarifications.audioUrl, { storageId }); // any storageId, despite the name
+      if (!url) throw new Error(`convex storage ${storageId} not found`);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`convex storage ${storageId}: HTTP ${res.status}`);
+      return new Uint8Array(await res.arrayBuffer());
+    },
   };
 }
 

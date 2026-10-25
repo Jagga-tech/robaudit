@@ -43,6 +43,8 @@ export function mockExtract(noteText: string): Extraction {
     };
   }
   const none = { flag: false, kind: "none" as const, question: "", options: [] };
+  const re = noteText.match(/Remaining Estimate:?\s*\$\s?\d[\d,]*(?:\.\d+)?/i);
+  if (re) return { facts: [{ kind: "remaining_update", amountText: re[0], quote: re[0], charStart: re.index!, charEnd: re.index! + re[0].length }], ambiguity: none };
   const ms = noteText.match(/\bacceptance\b/i);
   if (ms && /commission|accept(ed|ance) (test|sign)/i.test(noteText)) {
     return { facts: [{ kind: "milestone", amountText: "", quote: ms[0], charStart: ms.index!, charEnd: ms.index! + ms[0].length }], ambiguity: none };

@@ -3,6 +3,7 @@ import { parseAmountCents } from './extract.js';
 import type { Extraction, Explanation } from './schemas.js';
 import type { ExplainInput } from './explain.js';
 import { pollConfirmed } from './bridge.js';
+import { ocrNote, type ForecastDoc } from './azure-di.js';
 
 // Structural row types: only the fields the agent reads (real binding rows are supersets).
 export type SourceRow = { id: bigint; projectId: bigint; kind: string; text: string };
@@ -40,6 +41,9 @@ export type Deps = {
   /** Two-reader extraction (Claude + Gemini). Absent = `extract` as the only reader. */
   extractBoth?(text: string, sourceId: number): Promise<{ claude: Extraction; gemini: Extraction | null; agreed: boolean; merged: Extraction }>;
   explain(input: ExplainInput): Promise<Explanation>;
+  /** scanned_forecast only: bytes of a Convex storage object, and the OCR reader (Azure Document Intelligence). */
+  fetchDocument?(storageId: string): Promise<Uint8Array>;
+  readForecastDocument?(bytes: Uint8Array, contentType: string): Promise<ForecastDoc>;
 };
 
 export const log = (...a: unknown[]) => console.log(new Date().toISOString(), '[agent]', ...a);
@@ -70,10 +74,26 @@ function handled(s: LedgerState, src: SourceRow): boolean {
   return src.kind === 'commissioning_log' && s.milestones.some((m) => m.projectId === src.projectId && m.name === 'acceptance' && m.status === 'met');
 }
 
+/** OCR a scanned forecast once (the azure-di extraction row is the cache on retry); returns the source with its OCR note as text. */
+async function readScanned(src: SourceRow, deps: Deps): Promise<SourceRow> {
+  const prior = deps.ledger.state().extractions.find((e) => e.sourceId === src.id && e.reader === 'azure-di');
+  let doc = prior && (JSON.parse(prior.factsJson) as ForecastDoc);
+  if (!doc) {
+    if (!deps.fetchDocument || !deps.readForecastDocument) throw new Error('scanned_forecast needs fetchDocument + readForecastDocument deps');
+    const bytes = await deps.fetchDocument(src.text);
+    doc = await deps.readForecastDocument(bytes, 'application/octet-stream');
+    await deps.ledger.recordExtraction({ sourceId: src.id, reader: 'azure-di', factsJson: JSON.stringify(doc), ambiguityFlag: false, ambiguityText: '' });
+    log(`source ${src.id}: azure-di read ${bytes.length} bytes, ${doc.tables.length} table(s)`);
+  }
+  return { ...src, text: ocrNote(doc) };
+}
+
 export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void> {
   const { ledger } = deps;
-  if (!['note', 'forecast', 'commissioning_log'].includes(src.kind)) return;
+  if (!['note', 'forecast', 'commissioning_log', 'scanned_forecast'].includes(src.kind)) return;
   if (handled(ledger.state(), src)) return; // restart-safe
+  // ponytail: text swap means a clarification on a scanned forecast reads amounts from the fact quote only (note.text is the storageId)
+  if (src.kind === 'scanned_forecast') src = await readScanned(src, deps);
   log(`source ${src.id} (${src.kind}) -> extract`);
   const both = deps.extractBoth
     ? await deps.extractBoth(src.text, Number(src.id))
@@ -82,7 +102,11 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
   const x = both.merged;
   const fact = amountFact(x.facts, src.text, x.ambiguity.kind === 'additional_vs_total' || isAdditiveWording(src.text));
   const amount = factAmount(fact, src.text);
-  const claudeFlag = x.ambiguity.flag;
+  // Seeded convention remaining_estimate_means=future_costs_only: a "Remaining Estimate" figure is the new total remaining, no question.
+  const reConv = ledger.state().conventions.find((c) => c.template === 'forecast' && c.key === 'remaining_estimate_means');
+  const remainingEstimate = !!(reConv && fact && amount != null && both.agreed && !isAdditiveWording(src.text)
+    && /remaining estimate/i.test(`${src.text.slice(Math.max(0, fact.charStart - 40), Math.max(0, fact.charStart))} ${fact.quote}`));
+  const claudeFlag = x.ambiguity.flag && !remainingEstimate;
   const ambiguous = claudeFlag || (src.kind !== 'commissioning_log' && amount != null && isAdditiveWording(`${fact!.quote} ${src.text}`));
   const question = claudeFlag ? x.ambiguity.question : `Is the ${amount != null ? usd(amount) : 'amount'} additional to the current remaining forecast, or the new total remaining?`;
   const options = claudeFlag ? x.ambiguity.options : ['additional', 'new_total'];
@@ -94,6 +118,7 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
 
   if (src.kind === 'commissioning_log') return milestoneInvoice(src, x, deps);
   if (amount == null) return log(`source ${src.id}: no remaining_update amount, nothing to propose`);
+  if (remainingEstimate) return proposeForecast(src, amount, 'new_total', [`Convention v${reConv!.policyVersion}: remaining_estimate_means = ${reConv!.value} (a Remaining Estimate is the new total remaining)`], '', deps);
   if (!ambiguous) return proposeForecast(src, amount, 'new_total', [], '', deps);
   const conv = ledger.state().conventions.find((c) => c.template === 'forecast' && c.key === 'another_means');
   if (conv && both.agreed) { // readers disagreeing on the amount is not something a convention can answer
