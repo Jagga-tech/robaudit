@@ -122,3 +122,6 @@
 .pg .lat b{font:600 20px var(--mono);color:#000}
 .pg .lat small{font:500 10.5px var(--mono);min-height:13px}
 .pg .lat.hero{border-bottom:3px solid var(--pg-willow)}
+.pg .chain .ev.pass{font-size:11.5px;color:var(--pg-muted)}
+.pg .chain .ev.flagged .sum{color:var(--pg-amber)}
+.pg-sheet pre.raw{border-color:#C77A00;background:#FFF9EE}

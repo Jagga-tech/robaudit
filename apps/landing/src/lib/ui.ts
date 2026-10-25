@@ -132,3 +132,10 @@ export function decisionOf(d: Db, w: { id: bigint; status: string }) {
 }
 /** "Returned by Dana: <reason>" / "On hold by Dana: <reason>". */
 export const decisionText = (a: { by: string; reason: string; held: boolean }) => `${a.held ? 'On hold' : 'Returned'} by ${a.by}${a.reason ? ': ' + a.reason : ''}`;
+
+/** The input guard's flag on a source (extraction reader `guard`, factsJson { flagged, reasons }); null when not flagged. */
+export function guardFlag(d: Db, sourceId: bigint): { reasons: string[] } | null {
+  const x = all(d.extraction.iter()).filter((e) => e.sourceId === sourceId && e.reader === 'guard').sort(byId).pop();
+  if (!x) return null;
+  try { const f = JSON.parse(x.factsJson); return f?.flagged ? { reasons: Array.isArray(f.reasons) ? f.reasons.map(String) : [] } : null; } catch { return null; }
+}

@@ -2,7 +2,7 @@
 // Overview = figures + margin + the proposal panel + activity; Sources; Calculations; Proposals (+ "break it").
 import type { Page } from '../lib/app';
 import { connect, call, subscribeExtra, codeOf, ids, type DbConnection } from '../lib/ledger';
-import { esc, clip, all, byId, last, sleep, reduceMotion, usd, dollars, pct, card, tag, sourceLabel, KIND, READER, ACCOUNT, project, proposalStatus, statusTone, live, head, setHtml, disagreement, disagreeLine, DISAGREE, decisionOf, decisionText } from '../lib/ui';
+import { esc, clip, all, byId, last, sleep, reduceMotion, usd, dollars, pct, card, tag, sourceLabel, KIND, READER, ACCOUNT, project, proposalStatus, statusTone, live, head, setHtml, disagreement, disagreeLine, DISAGREE, decisionOf, decisionText, guardFlag } from '../lib/ui';
 
 declare const qrcode: any; // qrcode-generator 1.4.4, classic script from cdnjs (workbench.html)
 
@@ -131,6 +131,8 @@ const page: Page = {
           }
           case 'extraction': {
             const xr = d.extraction.id.find(e.refId);
+            const gf = xr?.reader === 'guard' ? guardFlag(d, xr.sourceId) : null;
+            if (gf) return card('readers', `Flagged input: ${gf.reasons.join('; ') || 'flagged'}`, 'Guard · Summo did not act on it', 'flagged input', 'amber');
             const ambiguous = xr?.ambiguityFlag ?? e.summary.includes('ambiguous');
             let amount = '';
             try { const f = JSON.parse(xr?.factsJson ?? '[]'); amount = Array.isArray(f) ? f[0]?.amountText ?? '' : ''; } catch {}
@@ -235,8 +237,8 @@ const page: Page = {
           const extra = ref?.audioStorageId ? `<button class="chip" type="button" data-audio="${esc(ref.audioStorageId)}">▶ voice</button>`
             : s.kind === 'scanned_forecast' ? `<button class="chip" type="button" data-src="${s.id}">image + OCR</button>` : '';
           const text = s.kind === 'scanned_forecast' ? 'Photographed forecast sheet' : clip(s.text, 90);
-          const g = disagreement(d, s.id);
-          return `<tr data-src="${s.id}"><td class="mono">#${s.id}</td><td>${esc(KIND[s.kind] ?? s.kind)}${past.has(String(s.id)) ? ' · past close' : ''}</td><td class="mono">v${s.version}</td><td>${esc(text)}${g ? ` ${tag(DISAGREE, 'amber')}<p class="small">${esc(disagreeLine(g))}</p>` : ''}</td><td>${extra}</td></tr>`;
+          const g = disagreement(d, s.id), gf = guardFlag(d, s.id);
+          return `<tr data-src="${s.id}"><td class="mono">#${s.id}</td><td>${esc(KIND[s.kind] ?? s.kind)}${past.has(String(s.id)) ? ' · past close' : ''}</td><td class="mono">v${s.version}</td><td>${esc(text)}${g ? ` ${tag(DISAGREE, 'amber')}<p class="small">${esc(disagreeLine(g))}</p>` : ''}${gf ? ` ${tag('flagged input', 'amber')}<ul class="small amber">${gf.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}</td><td>${extra}</td></tr>`;
         }).join('');
       };
     }

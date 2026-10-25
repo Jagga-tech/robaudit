@@ -1,6 +1,7 @@
 // Inbox (/workbench): work items waiting on a person. Default route.
 import type { Page } from '../lib/app';
-import { esc, all, ago, tag, inbox, live, head, disagreement, decisionOf, decisionText } from '../lib/ui';
+import { ids } from '../lib/ledger';
+import { esc, all, ago, tag, inbox, live, head, disagreement, decisionOf, decisionText, guardFlag } from '../lib/ui';
 
 const LABEL: Record<string, string> = { awaiting_clarification: 'awaiting answer', proposed: 'proposed', held: 'held', returned: 'returned', stale: 'stale' };
 
@@ -20,9 +21,14 @@ const page: Page = {
         const k = all(d.source.iter()).filter((s) => s.projectId === w.projectId && disagreement(d, s.id)).length;
         return k ? `${k} source disagreement${k === 1 ? '' : 's'}` : '';
       };
-      head({ sub: rows.length ? `${rows.length} ${rows.length === 1 ? 'item waits' : 'items wait'} on a person.` : 'Everything Summo proposes lands here first.' });
-      root.innerHTML = rows.length
-        ? `<table class="tbl rows"><thead><tr><th>Work item</th><th>Waiting on</th><th>Age</th><th>Status</th></tr></thead><tbody>${rows.map(({ w, who, at }) => { const a = decisionOf(d, w), line = sub(w); return (
+      // flagged input: a guard-flagged source no proposal cites; Summo took no action, so it is not a work item
+      const props = all(d.proposal.iter());
+      const flags = all(d.source.iter()).map((s) => ({ s, g: guardFlag(d, s.id) })).filter(({ s, g }) => g && !props.some((p) => ids(p.evidenceSourceIds).includes(s.id))).reverse();
+      const flagRow = ({ s, g }: (typeof flags)[number]) => `<tr data-href="/workbench/projects/${s.projectId}/sources"><td><a href="/workbench/projects/${s.projectId}/sources">Flagged input · ${esc(g!.reasons[0] ?? 'flagged')}</a><p class="small amber">Summo did not act on it. Dana decides.</p></td><td>Dana</td><td class="mono">${ago(s.createdAt.toDate())}</td><td>${tag('flagged', 'amber')}</td></tr>`;
+      const total = rows.length + flags.length;
+      head({ sub: total ? `${total} ${total === 1 ? 'item waits' : 'items wait'} on a person.` : 'Everything Summo proposes lands here first.' });
+      root.innerHTML = total
+        ? `<table class="tbl rows"><thead><tr><th>Work item</th><th>Waiting on</th><th>Age</th><th>Status</th></tr></thead><tbody>${flags.map(flagRow).join('')}${rows.map(({ w, who, at }) => { const a = decisionOf(d, w), line = sub(w); return (
             `<tr data-href="/workbench/projects/${w.projectId}"><td><a href="/workbench/projects/${w.projectId}">${esc(w.title)}</a>${line ? `<p class="small${a ? ' amber' : ''}">${esc(line)}</p>` : ''}</td><td>${a ? 'waiting for new evidence' : `waiting on ${esc(who)}`}</td><td class="mono">${ago(at)}</td>` +
             `<td>${tag(LABEL[w.status] ?? w.status, w.status === 'proposed' ? '' : 'amber')}</td></tr>`); }).join('')}</tbody></table>`
         : `<p class="empty big">Nothing waits on a person. Summo is watching ${n} project${n === 1 ? '' : 's'}.</p>`;

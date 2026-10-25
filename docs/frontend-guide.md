@@ -318,6 +318,10 @@ const url = await convex.query(api.clarifications.audioUrl, { storageId }); new 
 4. Find the `clarificationRef` with `sourceId === note.id`. It carries `speaker`, `confirmedAt` and `audioStorageId`.
 5. Pass `audioStorageId` to `audioUrl` and play the judge's voice. The Convex row (`convexId`) also has `questionAudioId` for the question.
 
+### Guard rows (flagged input)
+
+The `guard` agent screens every note before Summo reads it. When it flags one, the ledger holds an `extraction` row with `reader = 'guard'` and `factsJson = { flagged, reasons[], amounts[] }`, plus an `agent_event` of kind `flag` (or `pass`). Summo then asks nothing, calculates nothing and proposes nothing for that source. The UI renders it in four places, all through `guardFlag(d, sourceId)` in `src/lib/ui.ts`: the Inbox gets a row "Flagged input · <first reason>" (amber `flagged` tag, "Summo did not act on it. Dana decides.") that opens the project Sources tab; the Sources tab, the Overview activity and the Evidence table show an amber `flagged input` tag with the reasons; the Evidence side sheet adds the raw text in a monospace block labelled "Untrusted text, shown as received". Agents lists `guard` first, and the chain shows `flag` events in amber and `pass` events as small grey lines. The raw text is always escaped, never rendered as HTML.
+
 ## 8. Phone page (the judge)
 
 Served at `/phone` over HTTPS. It talks to Convex for presence and the call, and to SpacetimeDB (as `deployment_manager`) only to add sources.

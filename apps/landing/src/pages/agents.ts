@@ -7,6 +7,7 @@ import './pages.css';
 
 type Agent = { name: string; seat: string; tools: string; may: string[] };
 const ROSTER: Agent[] = [
+  { name: 'guard', seat: 'Input control · screens every note before Summo reads it', tools: 'Deterministic rules', may: ['record_extraction'] },
   { name: 'summo', seat: 'Coordinator · project accountant', tools: 'Claude Opus 5.5', may: ['record_calculation', 'propose', 'open_work_item', 'mark_milestone_met'] },
   { name: 'reader-claude', seat: 'Reader A · junior accountant reading the mail', tools: 'Claude Opus 5.5', may: ['record_extraction'] },
   { name: 'reader-gemini', seat: 'Reader B · junior accountant reading the mail', tools: 'Gemini 3.5 Flash Lite', may: ['record_extraction'] },
@@ -21,7 +22,7 @@ const ROSTER: Agent[] = [
 const NOTHING: Record<string, string> = { engine: 'nothing · returns numbers', explainer: 'nothing · text only', reviewer: 'nothing · writes only its log' };
 // review summaries start with "consistent:" (green) or "flag:" (amber)
 const sumHtml = (e: { kind: string; summary: string }) => { const m = e.kind === 'review' && /^(consistent|flag):/.exec(e.summary); return m ? `<b class="${m[1] === 'flag' ? 'amb' : 'ok'}">${m[1]}:</b>${esc(e.summary.slice(m[0].length))}` : esc(e.summary); };
-const TONE: Record<string, string> = { disagree: 'amb', ask: 'amb', skip: 'amb', error: 'err' };
+const TONE: Record<string, string> = { flag: 'amb', pass: 'muted', disagree: 'amb', ask: 'amb', skip: 'amb', error: 'err' };
 
 const STRIP = `<div class="arch" aria-label="Architecture: sources flow through readers, reconciler, Summo, engine, explainer, proposal and the posting guard to the ledger">
   <div class="n">Sources</div><i></i>
@@ -105,7 +106,7 @@ const page: Page = {
       const chain = shown.map((e, i) => {
         const t = e.at.toDate(), prev = shown[i - 1];
         const gap = prev && prev.at.toDate().getTime() - t.getTime() > 20_000; // newest first: a new run starts after a > 20 s pause
-        return `${gap ? '<li class="run" aria-hidden="true"></li>' : ''}<li class="ev">
+        return `${gap ? '<li class="run" aria-hidden="true"></li>' : ''}<li class="ev${e.kind === 'pass' ? ' pass' : ''}${e.kind === 'flag' ? ' flagged' : ''}">
           <span class="mono muted">${t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
           <span class="${e.agent === 'summo' ? 'summo' : ''}">${esc(e.agent)}</span>
           <span class="mono ${TONE[e.kind] ?? ''}">${esc(e.kind)}</span>
@@ -120,7 +121,7 @@ const page: Page = {
         ${STRIP}
         ${lat}
         <h2>Roster</h2>
-        <p class="muted split">Claude: reader, explainer, learner · Gemini: reader, reviewer · code: Summo, reconciler, engine, field liaison, posting guard · Azure: document reader</p>
+        <p class="muted split">Claude: reader, explainer, learner · Gemini: reader, reviewer · code: guard, Summo, reconciler, engine, field liaison, posting guard · Azure: document reader</p>
         <div class="tbl-wrap"><table class="roster">
           <thead><tr><th></th><th>Agent</th><th>Tools</th><th>May</th><th>Last event</th></tr></thead>
           <tbody>${ROSTER.map(row).join('')}
