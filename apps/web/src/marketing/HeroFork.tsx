@@ -104,7 +104,7 @@ export function HeroFork() {
         {wires && (
           <svg className="fork-wires" width={wires.w} height={wires.h} viewBox={`0 0 ${wires.w} ${wires.h}`} aria-hidden>
             <defs>
-              <linearGradient id="wire-open" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={wires.w} y2="0"><stop offset="0" stopColor="#8EA0FF" /><stop offset="1" stopColor="#F0A04B" /></linearGradient>
+              <linearGradient id="wire-open" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={wires.w} y2="0"><stop offset="0" stopColor="#FFFFFF" stopOpacity=".75" /><stop offset="1" stopColor="#F5A65B" /></linearGradient>
             </defs>
             {[wires.a, wires.b].map((w, i) => {
               const s = state(i === 0 ? 'additional' : 'new_total');
