@@ -1,59 +1,57 @@
 # Devpost submission: RoboAudit
 
-**Project name:** RoboAudit
+**Project name:** RoboAudit (Cal Hacks 13.0). The agent inside it is named Summo.
 
-**Tagline:** An accounting agent that keeps robotics project revenue current, asks the one question it needs by phone, and lets a controller post.
+**Tagline:** An accounting agent that keeps robotics project revenue current, asks the one question it needs by phone, and leaves posting to the controller.
 
-## Inspiration
+**Seats:** Fills the project accountant's revenue-close seat and the part of the controller's week spent chasing deployment managers. Never the approver's seat.
 
-Robotics companies that install million-dollar systems recognize revenue as work progresses. Every forecast change or field note ("we need another $200,000") moves revenue, and someone has to work out what the note means, recompute, and book an adjustment. One ambiguous word changes the answer by a quarter of a million dollars.
+## The moment
+
+A judge scans a QR code and sends a site update in their own words: "we need another 200k to finish."
+Two independent readers, Claude and Gemini, flag the same problem: "another" could mean added cost or a new total, and the answer moves revenue by $266,667.
+Summo rings the judge's phone and asks one question. The judge answers.
+Within about a second the books move: progress 50% to 40%, revenue $500,000 to $400,000, margin to $0 with a loss warning. The controller approves and posts.
+Two minutes later someone asks where $400,000 came from. One click on the figure plays the judge's own voice from the audit trail.
+Then we try to break it: approve as the accountant, change the forecast after approval, post the same entry twice. The ledger refuses each one and says why.
+
+## Is it real enough?
+
+**The company.** Aster Robotics is fictional and labelled as such. It is installing a warehouse robot system in Oakland under a $1,000,000 fixed-price contract, recognized with cost-to-cost under policy v3. The record holds six past closes, printed forecast sheets with four different figures, and commissioning logs that trigger a milestone invoice.
+
+**Real at judging:** the SpacetimeDB Maincloud ledger, the Convex production channel, Summo running on Azure Container Apps, Claude Opus 5.5 and Gemini 3.5 Flash Lite as readers, Cartesia Sonic and Ink for voice, and Azure Document Intelligence for OCR of photographed sheets.
+
+**Simulated:** the company and its data.
+
+**How we know it works:**
+- Engine answer key, to the dollar: the "additional" branch, the "new total" branch, and month 3.
+- 10 ledger control tests against a running ledger: wrong role, duplicate posting, stale proposal, closed period, idempotent proposals.
+- 20 freeform site-update phrasings, 20/20 on three real-API runs.
+- 7 phone-robustness scenarios (reload, dropped connection, double taps, failed upload, stale question, reduced motion) against real Convex and Cartesia.
+- The nine-beat demo script, which asserts every figure, run against production with all services real.
+- Azure Document Intelligence read all four printed sheets.
 
 Public evidence. Symbotic, a warehouse-automation company, disclosed a material weakness in controls over the timing of cost-of-revenue recognition, which also affected revenue timing, still described in its quarter ended June 27, 2026 (SEC filing); its auditor earlier called deployment revenue estimates a critical audit matter (10-K). This proves the accounting problem exists at a major robotics company; it does not prove Symbotic would buy this.
 
-## What it does
+## Would you hire it?
 
-RoboAudit is the platform; the agent inside it is named Summo.
+**Limits.** Summo holds the agent role and nothing else. The ledger refuses `post` from anyone but the controller. No model output is ever a posted amount: amounts come from a deterministic engine (integer cents) and from a parser that only accepts figures that appear in the source text.
 
-A deployment manager adds a note. RoboAudit reads it, sees that "another $200,000" could mean additional cost or a new total, and calls the manager. The question is spoken, the answer is transcribed and confirmed, and it is stored as evidence. RoboAudit recomputes: progress falls from 50% to 40%, cumulative revenue from $500,000 to $400,000, margin to $0 with a loss warning. It proposes Dr Revenue 100,000 / Cr Contract asset 100,000 with an explanation. The controller approves, the posting checks run, and the history shows v1 to v2. The next month, "another $50,000 for conveyor rework" is handled with no call, citing the saved convention.
+**Clean record.** Every row carries an actor, a time and its evidence. Posted entries are never edited; later evidence produces a new adjustment. The audit trail exports to CSV.
 
-## How we built it
+**Knows when to ask.** Summo stops and asks the deployment manager when the wording is ambiguous, when the two readers disagree on the amount, when the amount is spelled out in words, and when claimed savings are larger than the remaining forecast. Loss contracts are escalated to the controller with an explanation that starts with `ESCALATION:`.
 
-Language, arithmetic and permission to write are kept apart.
+**Handles a no.** The controller can Return or Hold a proposal with a reason. It stays unposted, and the reason is on the record.
 
-- **Claude Opus 5.5** (`claude-opus-5-5`, structured outputs via `messages.parse` with Zod schemas): reads notes into facts with source spans, writes the clarifying question, writes the explanation. It only reads, asks and explains. No schema on the posting path has a money field.
-- **Engine** (TypeScript, integer-cent `bigint`, no I/O): progress, revenue, contract asset, margin, adjustment and balanced entries.
-- **SpacetimeDB** (TypeScript module): the ledger. Reducers enforce roles, revisions, staleness, period open, debits = credits and unique posting refs, and write a history event on every change. Agent, harness and UI subscribe live.
-- **Convex**: the voice clarification channel. Live queries drive the phone page and call pane, mutations move the call through ringing, answering and confirmed, actions call Cartesia, file storage holds question and answer audio, and the scheduler chains them. Convex never touches money.
-- **Cartesia**: Sonic TTS speaks the question; Ink STT transcribes the recorded answer over WebSocket. The STT path (Ink over WebSocket) is implemented; the automated demo confirms answers by text, so STT is exercised only from the phone page. Claude and Cartesia TTS were verified end to end with real keys in `pnpm demo --require-real`.
-- **Gemini 3.5 Flash Lite**: an independent second reader on the same extraction schema. Gemini runs only when `GEMINI_API_KEY` is set (otherwise there is a single reader). When the readers disagree on the amount, RoboAudit asks instead of guessing; when a saved convention applies to the agreed readings, RoboAudit cites it instead of asking.
+**Segregation of duties.** In the demo one controller reviews and approves. In production those are two people, and the roles already exist in the ledger.
 
-## Challenges we ran into
+**Time.** A convention learned from the six past closes tells Summo how to read a "Remaining Estimate" on a forecast sheet. A convention saved when the controller approves an answer ("another means additional") is cited the next month, and Summo does not call again.
 
-- Rounding: revenue is computed on the exact ratio in `bigint` with round-half-up to the dollar. Computing from rounded basis points (66.67%) would give 666,700 instead of 666,667.
-- Staleness: any new evidence must invalidate an open revenue proposal without invalidating a milestone invoice.
-- Restart safety: the agent must never double-propose a source it has already handled.
-- Getting phone audio into a format a Convex action can stream to STT without transcoding.
+## Did we see something new?
 
-## Accomplishments that we're proud of
-
-- The numbers match an independent answer key to the dollar, in the engine tests; the end-to-end demo script asserts the same figures against the ledger.
-- Every control in the design is a test: duplicate posting, wrong role, stale proposal, closed period, idempotent propose. Control 6 ("new total") is engine-tested.
-- SpacetimeDB resets to the starting state in ~0.5 s; Convex open clarifications are cleared by `resetOpen`.
-
-## What we learned
-
-Most of the work in an accounting agent is deciding what the model is not allowed to do. RoboAudit learns conventions from confirmed answers, once the controller approves them, not model weights. S0 seeds one convention, learned from six past closes (seeded for the demo).
-
-## What's next
-
-Multiple performance obligations and variable consideration, ERP connectors, real authentication, and more convention types learned from historical closes.
-
-## Hyphenate: the four behaviors
-
-- **Learns:** conventions learned from confirmed answers and approved by the controller; here the manager's answer becomes the convention `another_means = additional`, saved when the controller approves rev 2.
-- **Runs:** the agent extracts, computes and proposes rev 2 on its own; nobody types a number.
-- **Escalates:** an ambiguous word triggers the phone call, and the loss warning (margin $0, then -$50,000) goes to the controller.
-- **Improves:** month 3 runs with no call and cites the saved convention.
+- An installed robot system produces its own acceptance evidence: the commissioning log marks the milestone met and Summo proposes the invoice.
+- The field channel is a phone call, and its transcript and recording become evidence on the entry.
+- Summo learns through scoped, versioned precedents approved by a person, not through retraining.
 
 ## Tracks
 
@@ -68,14 +66,13 @@ Multiple performance obligations and variable consideration, ERP connectors, rea
 
 ## Built with
 
-typescript, node.js, pnpm, spacetimedb, convex, cartesia, claude, anthropic, gemini, zod, vitest, vite
+typescript, node.js, pnpm, spacetimedb, convex, cartesia, claude, anthropic, gemini, azure-container-apps, azure-document-intelligence, azure-static-web-apps, zod, vitest, vite, playwright
 
 ## Submission checklist
 
 - [ ] Submit before Oct 25, 9:00 AM PDT
 - [ ] Project image uploaded
-- [ ] GitHub repo link: https://github.com/Jagga-tech/robaudit
-- [ ] Video demo linked
+- [ ] GitHub repo link: https://github.com/Jagga-tech/robaudit (make public first)
+- [ ] Video demo linked; it opens with the moment
 - [ ] Verify exact track names on Hive
 - [ ] MLH Commit Fellowship: opted in and supplemental form submitted
-- [x] Symbotic paragraph pasted verbatim (from team planning doc, 2026-10-24)
