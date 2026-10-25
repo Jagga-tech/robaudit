@@ -63,7 +63,7 @@ try {
 
   // 0. mode check (before any reset)
   const cvxEnv = spawnSync('npx', ['convex', 'env', 'list'], { cwd: root, encoding: 'utf8' }).stdout ?? '';
-  const realCartesia = /^CARTESIA_API_KEY=\S/m.test(cvxEnv); // never printed
+  const realCartesia = /^CARTESIA_API_KEY(=\S|\s*$)/m.test(cvxEnv); // never printed; CLI may list names only
   console.log(`modes: claude=${hasKey ? 'REAL' : 'MOCK'} cartesia=${realCartesia ? 'REAL' : 'MOCK'}`);
   if (args.includes('--require-real') && !(hasKey && realCartesia)) throw new Mismatch('--require-real: a mock is active');
 
