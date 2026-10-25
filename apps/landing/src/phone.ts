@@ -401,8 +401,10 @@ function boot() {
     $<HTMLFormElement>('#onboard').onsubmit = async (ev) => {
       ev.preventDefault();
       if (creating) return; // double tap
-      const name = $<HTMLInputElement>('#pname').value.trim(), customer = $<HTMLInputElement>('#cust').value.trim();
+      let name = $<HTMLInputElement>('#pname').value.trim(); const customer = $<HTMLInputElement>('#cust').value.trim();
       if (!name || !customer) return showErr('Fill in the project and the customer.');
+      // A repeated name is the same project to the ledger (no new questions): the next judge gets "Art installation 2", "… 3".
+      try { const taken = new Set([...(await ready()).db.project.iter()].map((p) => p.name)); const base = name; for (let n = 2; taken.has(name); n++) name = `${base} ${n}`; } catch { /* offline: let the ledger decide */ }
       creating = true;
       const btn = $<HTMLButtonElement>('#onboard button'); btn.disabled = true; btn.textContent = 'Creating…';
       try {
