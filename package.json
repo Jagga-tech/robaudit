@@ -10,15 +10,19 @@
     "stdb:gen": "spacetime generate --lang typescript --out-dir packages/bindings/src --module-path spacetimedb",
     "agent": "pnpm --filter @keel/agent start",
     "demo": "tsx scripts/demo.ts",
-    "test:convex": "vitest run convex/test"
+    "bench": "tsx scripts/bench.ts",
+    "test:convex": "vitest run convex/test",
+    "eval": "PROMPTFOO_DISABLE_TELEMETRY=1 promptfoo eval -c eval/promptfooconfig.yaml -o eval/results.json --no-cache --no-table",
+    "eval:view": "PROMPTFOO_DISABLE_TELEMETRY=1 promptfoo view"
   },
   "devDependencies": {
+    "@keel/ledger-client": "workspace:*",
     "@types/node": "^20.17.0",
     "@types/ws": "^8.18.2",
+    "promptfoo": "^0.121.20",
     "tsx": "^4.19.0",
     "typescript": "~5.6.2",
-    "vitest": "^2.1.0",
-    "@keel/ledger-client": "workspace:*"
+    "vitest": "^2.1.0"
   },
   "dependencies": {
     "convex": "^1.48.0",
