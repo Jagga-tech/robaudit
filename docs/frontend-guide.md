@@ -2,6 +2,8 @@
 
 For Tanush. Everything here was checked against the code as of 2026-10-24: `spacetimedb/src`, `packages/bindings/src`, `convex/`, `apps/agent/src/loop.ts`, `apps/harness/src/main.ts` and `scripts/demo.ts`. If something here disagrees with the code, the code is right.
 
+> Naming: the product is **Keel**; the agent service (the thing that reads, asks and proposes) is **Summo**. Label it "Summo" in the queue, workbench and history.
+
 ## 1. What the backend does
 
 An accountant adds evidence (a note, a forecast, a commissioning log) to the SpacetimeDB ledger. The agent (`pnpm agent`) is subscribed to `source` and runs Claude on each new source; Gemini runs as a second reader. If the wording is ambiguous ("another $200,000"), the agent asks the deployment manager a question through Convex. Convex speaks it with Cartesia TTS and the phone page rings. Once the manager confirms an answer, the agent writes a `clarification` source, does the arithmetic in `packages/engine` (bigint cents, never the model), and writes a `calculation` plus a `proposal` (journal lines, explanation, evidence ids). The controller approves (`decide`) and posts (`post`). The reducers enforce role, revision, staleness, period, balance and posting-ref uniqueness. Approving a proposal that carries a pending convention saves that convention, so the next "another $X" is handled with no call.

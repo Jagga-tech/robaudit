@@ -12,6 +12,8 @@ Public evidence. Symbotic, a warehouse-automation company, disclosed a material 
 
 ## What it does
 
+Keel is the product; the agent inside it is named Summo.
+
 A deployment manager adds a note. Keel reads it, sees that "another $200,000" could mean additional cost or a new total, and calls the manager. The question is spoken, the answer is transcribed and confirmed, and it is stored as evidence. Keel recomputes: progress falls from 50% to 40%, cumulative revenue from $500,000 to $400,000, margin to $0 with a loss warning. It proposes Dr Revenue 100,000 / Cr Contract asset 100,000 with an explanation. The controller approves, the posting checks run, and the history shows v1 to v2. The next month, "another $50,000 for conveyor rework" is handled with no call, citing the saved convention.
 
 ## How we built it

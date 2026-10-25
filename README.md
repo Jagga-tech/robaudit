@@ -4,6 +4,8 @@ Keel is a project-close accounting agent for robotics companies that install fix
 
 Built at Cal Hacks 13.0. Design: `docs/superpowers/specs/2026-10-24-keel-design.md`. Team source doc: `docs/one-pager.md`.
 
+> The agent service is called **Summo** internally; Keel is the product. UI labels use "Summo" for the agent.
+
 ## Architecture
 
 Three things are kept apart: language, arithmetic, and permission to write.
