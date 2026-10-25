@@ -436,6 +436,11 @@ function boot() {
       joining = true;
       const btn = $<HTMLButtonElement>('button'); btn.disabled = true; btn.textContent = 'Joining…';
       try {
+        // One deployment manager at a time: joining replaces whoever is on. Same name = same person on a new device, no prompt.
+        const cur = await convex.query(api.managers.current, {}).catch(() => null);
+        if (cur && cur.name.toLowerCase() !== name.toLowerCase() && !confirm(`${cur.name} is on the phone right now. Take over as the deployment manager?`)) {
+          joining = false; btn.disabled = false; btn.textContent = 'Join'; return;
+        }
         const id = await convex.mutation(api.managers.join, { name });
         me = { id, name }; sessionStorage.setItem('keel-manager', JSON.stringify(me)); poke();
       } catch (e) {
