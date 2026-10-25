@@ -29,16 +29,15 @@ Submission asks: video opens with the moment; live demo, judges may try their ow
 - [ ] Redeem promo code `CALHACKS13` on https://spacetimedb.com/keel so the Maincloud db stays live after demo day.
 - [ ] Devpost: name two or three reducers (decide, post, add_source) so judges see it is not "just chat".
 
-## Atlassian — Forge app built 2026-10-25 03:10 PDT, not yet deployed (Track 2: audit mirror)
+## Atlassian — Forge app DEPLOYED and verified 2026-10-25 03:35 PDT (Track 2: audit mirror)
 
-Code: `apps/jira-forge` (web trigger, one Jira issue per Summo work item; comments + column moves per status; secret header) and `apps/jira-bridge` (read-only ledger subscriber that POSTs changes; tested, typechecks). Setup in `apps/jira-forge/README.md`.
+Code: `apps/jira-forge` (web trigger) + `apps/jira-bridge` (ledger subscriber). App `summo-jira` installed on demo site https://one-atlas-udgh.atlassian.net (expires 2027-01-23). Trigger URL and secret are in `.env` (`JIRA_WEBTRIGGER_URL`, `SUMMO_WEBHOOK_SECRET`). Smoke test created ENGS-30 with create -> proposal comment (+loss-warning label) -> posted comment, all HTTP 200.
 
-- [ ] User: `forge login` (API token with Forge scopes), `forge site provision`, create Kanban project "Summo" key `SUMMO` on the demo site.
-- [ ] Then: `forge register`, `forge variables set --encrypt SUMMO_WEBHOOK_SECRET`, `forge deploy`, `forge install --demo-site --product jira`, `forge webtrigger -f main` -> `.env` `JIRA_WEBTRIGGER_URL` + `SUMMO_WEBHOOK_SECRET`.
-- [ ] Run `pnpm --filter @keel/jira-bridge start` next to the agent during the demo; run one beat and confirm the SUMMO issue appears, then the rev 2 comment.
-- [ ] Video: 3 min max, show the Jira issue updating as Summo works (Atlassian requires the video).
-- [ ] Devpost: say Track 2, "audit mirror: every Summo decision, return and post lands in Jira with its reasoning; Jira never posts to the ledger".
-- Ceiling: no replay on bridge restart; agent_event rows and rejected attempts not mirrored yet (would need work-item ids on them).
+- [ ] User: create Kanban project "Summo" key `SUMMO` on the demo site. Then: `cd apps/jira-forge && forge variables set JIRA_PROJECT_KEY SUMMO && forge deploy --non-interactive` (currently pointed at ENGS for the smoke test). Delete ENGS-30.
+- [ ] First rehearsal beat with the bridge running (`pnpm --filter @keel/jira-bridge start`, needs `demo/identities.json` = maincloud tokens and `STDB_URI` = Maincloud): confirm SUMMO-1 appears, then the rev 2 comment. Local SpacetimeDB is on an old module (no `agent_event`), so the bridge only works against a republished server.
+- [ ] Video: 3 min max; show the Jira card move as Summo works (Atlassian requires the video).
+- [ ] Devpost: Track 2 "audit mirror: every ask, proposal, return and post lands in Jira with its reasoning; Jira never posts to the ledger".
+- Ceiling: no replay on bridge restart; agent_event rows and rejected attempts not mirrored (no work-item id on them). `storage` from @forge/api is deprecated in favour of @forge/kvs (lint warning only).
 
 ## Microsoft Built for the Real World — eligible, 4 of 5 capabilities strong
 
