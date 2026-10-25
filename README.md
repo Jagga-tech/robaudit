@@ -155,6 +155,8 @@ Known gaps (two crash windows): a crash between `record_calculation` and `propos
 
 Also tested: `propose is idempotent per calculationId`, `closePeriod then post -> period_closed`, `addSource: invoice proposal (calculationId 0) survives, revenue proposal goes stale` (ledger e2e); `(d) same source delivered twice -> one propose`, `explain throws -> no calculation, no propose` (agent loop); `entries balance` (engine).
 
+Full proof (planted errors with answer key, test set, live runs): [docs/proof.md](docs/proof.md).
+
 ## Demo answer key
 
 Must match to the dollar.
