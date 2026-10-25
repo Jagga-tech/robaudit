@@ -33,7 +33,7 @@ Submission asks: video opens with the moment; live demo, judges may try their ow
 
 Code: `apps/jira-forge` (web trigger) + `apps/jira-bridge` (ledger subscriber). App `summo-jira` installed on demo site https://one-atlas-udgh.atlassian.net (expires 2027-01-23). Trigger URL and secret are in `.env` (`JIRA_WEBTRIGGER_URL`, `SUMMO_WEBHOOK_SECRET`). Smoke test created ENGS-30 with create -> proposal comment (+loss-warning label) -> posted comment, all HTTP 200.
 
-- [ ] User: create Kanban project "Summo" key `SUMMO` on the demo site. Then: `cd apps/jira-forge && forge variables set JIRA_PROJECT_KEY SUMMO && forge deploy --non-interactive` (currently pointed at ENGS for the smoke test). Delete ENGS-30.
+- [x] SUMMO project created; app pointed at SUMMO and redeployed 03:50 PDT. SUMMO-1 is a smoke issue (asked -> proposed -> posted, no transition warnings): delete it and ENGS-30 before the demo.
 - [ ] First rehearsal beat with the bridge running (`pnpm --filter @keel/jira-bridge start`, needs `demo/identities.json` = maincloud tokens and `STDB_URI` = Maincloud): confirm SUMMO-1 appears, then the rev 2 comment. Local SpacetimeDB is on an old module (no `agent_event`), so the bridge only works against a republished server.
 - [ ] Video: 3 min max; show the Jira card move as Summo works (Atlassian requires the video).
 - [ ] Devpost: Track 2 "audit mirror: every ask, proposal, return and post lands in Jira with its reasoning; Jira never posts to the ledger".
