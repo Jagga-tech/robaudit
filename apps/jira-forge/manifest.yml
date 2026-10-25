@@ -9,9 +9,18 @@ modules:
 app:
   runtime:
     name: nodejs22.x
-  id: REPLACED_BY_FORGE_REGISTER
+  id: ari:cloud:ecosystem::app/97774260-f991-4a12-b4ca-2c0835e67c16
 permissions:
   scopes:
     - read:jira-work
     - write:jira-work
     - storage:app
+    - read:issue:jira
+    - write:issue:jira
+    - read:comment:jira
+    - write:comment:jira
+    - read:project:jira
+    - read:issue-type:jira
+    - read:issue-status:jira
+    - read:issue.transition:jira
+    - read:label:jira

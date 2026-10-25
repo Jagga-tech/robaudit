@@ -1,4 +1,4 @@
-import api, { route, storage } from '@forge/api';
+import api, { assumeTrustedRoute as route, storage } from '@forge/api';
 
 // Web trigger: one Jira issue per Summo work item. First event creates the issue; every later event is a comment,
 // plus a column move. Jira is the controller's queue and the audit mirror; the ledger (SpacetimeDB) stays the system of record.
@@ -25,9 +25,14 @@ async function moveTo(issueKey, column) {
 }
 
 export async function handler(req) {
+  console.log('summo-jira v3', req.method, typeof req.body, (req.body || '').slice(0, 60));
   if (SECRET && req.headers?.['x-summo-secret']?.[0] !== SECRET) return { statusCode: 401, body: 'bad secret' };
   let ev;
   try { ev = JSON.parse(req.body || '{}'); } catch { return { statusCode: 400, body: 'bad json' }; }
+  if (ev.ping) { // diagnostic: which projects the app can see
+    const r = await jira('/rest/api/3/project/search');
+    return { statusCode: 200, body: JSON.stringify((r.values || []).map((x) => x.key)) };
+  }
   if (!ev.workItemId || !ev.title) return { statusCode: 400, body: 'workItemId and title required' };
 
   const lines = [ev.headline, ev.detail, ev.explanation && `Summo: ${ev.explanation}`, ev.actor && `By: ${ev.actor}`].filter(Boolean);
