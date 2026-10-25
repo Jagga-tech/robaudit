@@ -3,7 +3,7 @@
 - **Project:** RoboAudit (agent: Summo)
 - **Event:** Cal Hacks 13.0
 - **What it does:** Reads robotics project-close evidence, asks the deployment manager one clarifying question by voice, recomputes revenue, and proposes an adjusting entry that a controller approves and posts.
-- **Live app:** https://kind-river-0eb9d010f.5.azurestaticapps.net
+- **Live app:** https://www.robaudit.us
 - **Repo:** https://github.com/Jagga-tech/robaudit
 - **Frontend:** Other (Azure Static Web Apps, Vite MPA in `apps/landing`)
 - **Convex deployment:** https://hushed-shrimp-24.convex.cloud

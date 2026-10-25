@@ -15,7 +15,7 @@ Rule (Hyphenate): open with the moment, not the logo. Total 120 s. Narrator spea
 | 9 | 75-90 | Phone camera, then laptop: photograph the $550k printed sheet; Azure `azure-di` row | "When sources disagree, a printed sheet changes the figure." | Sheet in frame, `azure-di` row, figures moving (+$21,053) |
 | 10 | 90-100 | Laptop: month-3 note ("another $50,000 for conveyor rework") | "Month three: no question. It learned the convention." | No phone ring, explanation citing `another_means = additional` |
 | 11 | 100-115 | One static card: Real vs Simulated | "Real: ledger, Convex, Azure, Claude, Gemini, Cartesia. Simulated: the company, Aster Robotics." | Two columns, readable for 10+ s (copy from `docs/devpost.md` "Real at judging" / "Simulated") |
-| 12 | 115-120 | Card: URL + seats line: "Fills the project accountant's revenue-close seat and the part of the controller's week spent chasing deployment managers. Never the approver's seat." | "Try it: <Azure URL>. Seats at the table." | `https://kind-river-0eb9d010f.5.azurestaticapps.net` and the seats line |
+| 12 | 115-120 | Card: URL + seats line: "Fills the project accountant's revenue-close seat and the part of the controller's week spent chasing deployment managers. Never the approver's seat." | "Try it: <Azure URL>. Seats at the table." | `https://www.robaudit.us` and the seats line |
 
 Shots 1-5 are the moment (0-20 s needs trimming in edit: the cut from 6 to 16 can run faster than live).
 

@@ -39,7 +39,7 @@ The UI never calls any agent reducer. The workbench calls `decide`, `post`, `res
 | SpacetimeDB db | `keel` (dashboard https://spacetimedb.com/keel) |
 | Convex | prod `https://hushed-shrimp-24.convex.cloud` (dev, for rehearsal: `https://lovely-squirrel-569.convex.cloud`) |
 | Summo | Azure Container Apps `keel-agent`, resource group `keel-rg` |
-| Workbench + phone page | Azure Static Web App `roboaudit-web`, https://kind-river-0eb9d010f.5.azurestaticapps.net (HTTPS). The phone page must be HTTPS (mic and camera need a secure context). |
+| Workbench + phone page | Azure Static Web App `roboaudit-web`, https://www.robaudit.us (HTTPS). The phone page must be HTTPS (mic and camera need a secure context). |
 
 ### Azure Static Web Apps deployment
 
@@ -489,7 +489,7 @@ Ordering rules:
 
 ## Deploying the UI (Azure Static Web Apps)
 
-The app lives in `apps/web` with package name `@keel/web` and builds with `pnpm --filter @keel/web build` into `apps/web/dist`. Pushing to `summo` runs `.github/workflows/deploy-web.yml`, which builds with `VITE_CONVEX_URL`, `VITE_STDB_URI`, `VITE_STDB_DB` set to the production values and uploads `dist` to the Static Web App `roboaudit-web`. URL: https://kind-river-0eb9d010f.5.azurestaticapps.net (HTTPS, so the phone mic and camera work). For a SPA with a `/phone` route add `apps/web/public/staticwebapp.config.json`:
+The app lives in `apps/web` with package name `@keel/web` and builds with `pnpm --filter @keel/web build` into `apps/web/dist`. Pushing to `summo` runs `.github/workflows/deploy-web.yml`, which builds with `VITE_CONVEX_URL`, `VITE_STDB_URI`, `VITE_STDB_DB` set to the production values and uploads `dist` to the Static Web App `roboaudit-web`. URL: https://www.robaudit.us (HTTPS, so the phone mic and camera work). For a SPA with a `/phone` route add `apps/web/public/staticwebapp.config.json`:
 
 ```json
 { "navigationFallback": { "rewrite": "/index.html" } }

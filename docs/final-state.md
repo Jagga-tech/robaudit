@@ -6,7 +6,7 @@ One page of where everything lives. Open items are in `docs/track-todo.md`.
 
 | What | URL |
 |---|---|
-| Web app (landing, workbench, phone) | https://kind-river-0eb9d010f.5.azurestaticapps.net |
+| Web app (landing, workbench, phone) | https://www.robaudit.us |
 | Custom domain (DNS not set yet) | https://www.robaudit.us (Porkbun DNS: ALIAS @, CNAME www -> SWA host, TXT @ = `_3i24sgtlce8kd1mhd916uww5gbgkmj2`) |
 | Repo (public, default branch `summo`) | https://github.com/Jagga-tech/robaudit |
 | SpacetimeDB Maincloud db `keel` | https://spacetimedb.com/keel (redeem `CALHACKS13`) |
