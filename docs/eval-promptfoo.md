@@ -31,7 +31,7 @@ Each reader case does three things, with no mocks in the reading path:
 | D. Untrusted input | 14/14 | 14/14 | – |
 | **Total** | **36/36** | **36/36** | **7/7** |
 
-79/79 passed (51 earlier cases plus 28 in section D), with 0 failures and 0 errors, in one full run of 2 m 30 s on 2026-10-25 at 07:02 PDT, after row 8 changed to read number words. `eval/results.json` holds that run, `eval-14g-2026-10-25T13:52:18`. Before section D, sections A–C passed 51/51 on each of two consecutive runs.
+79/79 passed (51 earlier cases plus 28 in section D), with 0 failures and 0 errors, in one full run of 2 m 30 s on 2026-10-25 at 06:52 PDT, after row 8 changed to read number words. `eval/results.json` holds that run, `eval-14g-2026-10-25T13:52:18`. Before section D, sections A–C passed 51/51 on each of two consecutive runs.
 
 Latency per reader call (model plus loop):
 - Claude: median 2.3 s.
