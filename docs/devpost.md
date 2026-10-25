@@ -30,7 +30,7 @@ Then we try to break it: approve as the accountant, change the forecast after ap
 - 7 phone-robustness scenarios (reload, dropped connection, double taps, failed upload, stale question, reduced motion) against real Convex and Cartesia.
 - The nine-beat demo script, which asserts every figure, run against production with all services real.
 - Azure Document Intelligence read all four printed sheets.
-- Full evidence (planted errors with answer key, test set, live runs): [docs/proof.md](proof.md).
+- Full evidence (planted errors with answer key, test set, live runs): [docs/proof.md; independent Promptfoo run docs/eval-promptfoo.md (79/79 on Claude and Gemini); internal benchmark docs/benchmark.md](proof.md).
 
 Public evidence. Symbotic, a warehouse-automation company, disclosed a material weakness in controls over the timing of cost-of-revenue recognition, which also affected revenue timing, still described in its quarter ended June 27, 2026 (SEC filing); its auditor earlier called deployment revenue estimates a critical audit matter (10-K). This proves the accounting problem exists at a major robotics company; it does not prove Symbotic would buy this.
 
@@ -73,7 +73,7 @@ typescript, node.js, pnpm, spacetimedb, convex, cartesia, claude, anthropic, gem
 
 - [ ] Submit before Oct 25, 9:00 AM PDT
 - [ ] Project image uploaded
-- [ ] GitHub repo link: https://github.com/Jagga-tech/robaudit (make public first)
+- [ ] GitHub repo link: https://github.com/Jagga-tech/robaudit
 - [ ] Video demo linked; it opens with the moment
 - [ ] Verify exact track names on Hive
 - [ ] MLH Commit Fellowship: opted in and supplemental form submitted

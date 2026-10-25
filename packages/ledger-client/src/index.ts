@@ -9,6 +9,14 @@ export type Role = 'accountant' | 'deployment_manager' | 'controller' | 'agent';
 // ponytail: Node 20 has no global WebSocket; the SDK calls `new WebSocket(url, protocol)`, which `ws` satisfies.
 (globalThis as any).WebSocket ??= NodeWS;
 
+// ponytail: load repo-root .env before reading STDB_*; never overrides a real env var, never prints values.
+try {
+  const envFile = fileURLToPath(new URL('../../../.env', import.meta.url));
+  if (existsSync(envFile)) for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)=(.*)$/);
+    if (m && m[2] && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+} catch { /* no .env: keep defaults */ }
 export const STDB_URI = process.env.STDB_URI ?? 'http://127.0.0.1:3000';
 export const STDB_DB = process.env.STDB_DB ?? 'keel';
 const IDS_FILE = fileURLToPath(new URL('../../../demo/identities.json', import.meta.url));
