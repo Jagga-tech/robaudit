@@ -56,7 +56,8 @@ export function parseSpokenCents(text: string): bigint | null {
   if (/\bpercent\b|%|\bbetween\b/.test(t0)) return null; // a share or a range is not a figure
   const toks = t0.replace(/(\d),(?=\d)/g, '$1').replace(/(\d)([km])\b/g, '$1 $2').split(/[^a-z0-9./]+/).filter(Boolean);
   let total = 0, cur = 0, seen = false, lastBig = 0, prevDigits = false, point = 0;
-  for (const t of toks) {
+  const isNum = (x: string | undefined) => !!x && (/^\d/.test(x) || x in SMALL || x === 'a' || x === 'half');
+  for (const [i, t] of toks.entries()) {
     const frac = t.match(/^(\d+)\/(\d+)$/);
     if (frac) { cur += Number(frac[1]) / Number(frac[2]); seen = true; prevDigits = true; continue; } // "1/2 million"
     if (/^\d+(\.\d+)?$/.test(t)) {
@@ -72,7 +73,7 @@ export function parseSpokenCents(text: string): bigint | null {
     else if (t === 'half' || t === 'quarter') { const f = t === 'half' ? 0.5 : 0.25; if (!cur && lastBig) total += f * lastBig; else cur += f; seen = true; } // "half a million", "a million and a half"
     else if (t === 'hundred') { cur = (cur || 1) * 100; seen = true; }
     else if (t in BIG) { total += (cur || 1) * BIG[t]; lastBig = BIG[t]; cur = 0; point = 0; seen = true; }
-    else if ((t === 'to' || t === 'or') && seen) return null; // "2 to 3 million": a range, ask again
+    else if ((t === 'to' || t === 'or') && seen) { if (isNum(toks[i + 1])) return null; break; } // "2 to 3 million" is a range; "200k to finish" is not
     else if (!seen && /^(nothing|none|nil|zero|nada|haven)/.test(t)) { if (!/\d|hundred|thousand|million|billion/.test(t0)) return 0n; } // "nothing yet", "we haven't billed anything"
     else if (seen && t !== 'and' && t !== 'a' && t !== 'of') break;
   }
