@@ -83,7 +83,7 @@ on this subscription. The working path:
    with secrets anthropic-key, azure-di-endpoint, azure-di-key, stdb-agent-token and env
    STDB_URI=wss://maincloud.spacetimedb.com STDB_DB=keel CONVEX_URL=https://hushed-shrimp-24.convex.cloud.
 4. Roll a new image: rerun the workflow, then
-   `az containerapp update -n keel-agent -g keel-rg --image keelacr06512.azurecr.io/keel-agent:<sha>`.
+   `az containerapp update -n keel-agent -g keel-rg --image keelacr06512.azurecr.io/keel-agent:<full 40-char sha>` (or `:latest`). A short sha is NOT a tag: the revision fails to pull and sits Unhealthy with no agent (observed 2026-10-25).
 5. Logs: `az containerapp logs show -n keel-agent -g keel-rg --follow`.
 6. Stop the cloud agent (to run the laptop one instead): `az containerapp update -n keel-agent -g keel-rg --min-replicas 0 --max-replicas 0`; re-enable with 1/1. Never run both at once against the same ledger.
 7. The app is in **single revision mode** (`az containerapp revision set-mode --mode single`). Keep it that way: in multiple-revision mode an image update leaves the old revision active and two Summo instances run against one ledger (observed 2026-10-25; per-source idempotency held, but do not rely on it).
