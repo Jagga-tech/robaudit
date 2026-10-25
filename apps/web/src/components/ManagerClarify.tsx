@@ -104,8 +104,17 @@ export function ManagerClarify({ framed = false, onClose }: { framed?: boolean; 
           </div>
           <div className="mcard" style={{ textAlign: 'left', width: '100%', marginTop: 16 }}>
             <div className="over">What happens next</div>
-            <div className="fact" style={{ marginTop: 10, fontSize: 13 }}><Actor kind="engine" />Keel recalculates with the accounting engine</div>
-            <div className="fact" style={{ marginTop: 8, fontSize: 13 }}><Actor kind="ctrl" />The controller reviews before anything posts</div>
+            {ok ? (
+              <>
+                <div className="fact" style={{ marginTop: 10, fontSize: 13 }}><Actor kind="engine" />Keel recalculates with the accounting engine</div>
+                <div className="fact" style={{ marginTop: 8, fontSize: 13 }}><Actor kind="ctrl" />The controller reviews before anything posts</div>
+              </>
+            ) : (
+              <>
+                <div className="fact" style={{ marginTop: 10, fontSize: 13 }}><Actor kind="human" />Finance asks the site team for a cost-to-complete schedule</div>
+                <div className="fact" style={{ marginTop: 8, fontSize: 13 }}><Actor kind="ctrl" />No revenue entry can be proposed until then</div>
+              </>
+            )}
           </div>
           <div className="small faint mono" style={{ marginTop: 8 }}>Receipt {call.id.slice(-8)} · {call.confirmedAt ? time(new Date(call.confirmedAt)) : time(new Date())}</div>
         </div>
