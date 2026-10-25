@@ -19,7 +19,9 @@
 4. Push the branch when you're ready: `git push -u origin feat/keel-frontend-design`.
 5. Record the video (≤3:00) and add it to Devpost. Devpost deadline: **Oct 25, 2026, 9:00 am PDT**.
 6. Optional but valuable: run the 3-person comprehension test (protocol in the stage log) and fill in the table. Real numbers make a stronger "before/after" slide.
-7. Re-read the official challenge PDF. It wasn't available to me, so the requirements here come from your brief.
+7. **Naming decision.** Upstream `summo` now calls the platform **RoboAudit** and the agent **Summo** (commit `886e6bf`). The Figma file, the Slides deck and `apps/web` say **Keel**. Pick one name; renaming the UI labels is a small change.
+8. **Merging upstream.** A trial merge of `origin/summo` into this branch conflicts only in `pnpm-lock.yaml` (a generated file). Resolve it by taking upstream's lockfile and re-running `pnpm install`. After the merge, switch the live reset in `apps/web/src/data/liveBackend.ts` to the new `api.clarifications.resetOpen`.
+9. Re-read the official challenge PDF. It wasn't available to me, so the requirements here come from your brief.
 
 ## Video shot list (≤3:00)
 
