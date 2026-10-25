@@ -8,7 +8,7 @@ reset, and what the Azure additions change. Build nothing until this is agreed.
 | Component | Dev (today) | Demo / "prod" target | Why |
 |---|---|---|---|
 | SpacetimeDB ledger (`keel`) | local `spacetime start` :3000 | **SpacetimeDB Maincloud** (`spacetime publish keel --server maincloud`) | Phone + laptop + agent reach one URL; survives laptop sleep |
-| Convex clarification channel | cloud dev deployment `lovely-squirrel-569.convex.cloud` (already live) | **Convex production deployment** of project `keel` (`npx convex deploy`) | Prod URL is stable; dev deployment stays for rehearsals |
+| Convex clarification channel | cloud dev deployment `lovely-squirrel-569.convex.cloud` (already live) | **Convex production deployment** `hushed-shrimp-24.convex.cloud` (deployed 2026-10-24; `npx convex deploy`) | Prod URL is stable; dev deployment stays for rehearsals |
 | Agent service (`apps/agent`) | `pnpm agent` on the laptop | **Azure Container Apps** (one container, min 1 replica, restart-on-exit) with a laptop fallback | Keeps running when the laptop is busy with the UI; Microsoft track hosting story |
 | Document ingestion | none | **Azure AI Document Intelligence** (prebuilt-layout) called from the agent on `source.kind = scanned_forecast` | "Document-to-decision" for the Microsoft track; photo of a forecast sheet becomes forecast v2 |
 | Workbench + phone UI (Tanush) | Vite dev server | **Azure Static Web Apps** (or Vercel) serving the built UI over HTTPS | Phone mic needs HTTPS; one URL for judges' phone |
@@ -25,7 +25,7 @@ One `.env` shape everywhere (values differ):
 ```
 STDB_URI=            wss://maincloud.spacetimedb.com   | ws://127.0.0.1:3000
 STDB_DB=keel
-CONVEX_URL=          https://<prod>.convex.cloud        | https://lovely-squirrel-569.convex.cloud
+CONVEX_URL=          https://hushed-shrimp-24.convex.cloud        | https://lovely-squirrel-569.convex.cloud
 ANTHROPIC_API_KEY=   (agent only)
 GEMINI_API_KEY=      (agent only, optional)
 CARTESIA_API_KEY=    (Convex env only — set with `npx convex env set`)
