@@ -6,6 +6,10 @@ Built at Cal Hacks 13.0. Design: `docs/superpowers/specs/2026-10-24-keel-design.
 
 > The agent service is called **Summo** internally; RoboAudit is the platform. UI labels (`@keel/*` packages and database `keel` keep the internal codename) use "Summo" for the agent.
 
+## How we use Convex
+
+Convex runs the voice clarification call between Summo and the deployment manager's phone: the `clarifications` table and its mutations move a call through ringing, answering and confirmed; scheduled actions call Cartesia for TTS and STT; file storage holds the question and answer audio; and the landing, workbench and phone pages subscribe live, so the phone rings and the transcript streams in without a refresh. Convex never touches money. Details, file pointers and the commit log are in [hackathon.md](hackathon.md).
+
 ## Architecture
 
 Three things are kept apart: language, arithmetic, and permission to write.
@@ -88,6 +92,29 @@ pnpm test:convex                        # Convex channel; needs npx convex dev r
 
 The ledger and Convex e2e tests reset the shared `keel` database. Do not run them during a live demo.
 
+## Web app
+
+`apps/landing` is `@keel/web`, a Vite multi-page app:
+
+- `/` landing page with the QR handoff to the phone
+- `/workbench` sidebar app, client-routed: Inbox, Projects, Project, Close, Evidence, Audit trail, Policies, Connections, Team
+- `/phone` judge page
+
+Run locally (`.env.local` at the repo root):
+
+```sh
+VITE_STDB_URI=ws://127.0.0.1:3000
+VITE_CONVEX_URL=https://hushed-shrimp-24.convex.cloud
+```
+
+```sh
+pnpm --filter @keel/web dev        # dev server
+pnpm --filter @keel/web build      # outputs apps/landing/dist
+pnpm --filter @keel/web test:phone # phone page e2e (Playwright)
+```
+
+Deploy: push to branch `summo` -> GitHub Actions (`.github/workflows/deploy-web.yml`) builds with Maincloud and Convex prod URLs -> Azure Static Web App https://kind-river-0eb9d010f.5.azurestaticapps.net. SPA routes (`/workbench/*`, `/phone`) are rewritten by `apps/landing/public/staticwebapp.config.json`; dev and preview do the same in `vite.config.ts`.
+
 ## Stage runbook
 
 Deployments: Summo agent on Azure Container Apps `keel-agent` (resource group `keel-rg`, image from GitHub Actions → `keelacr06512.azurecr.io/keel-agent`); laptop `pnpm agent` is the fallback (never both at once). Convex dev `https://lovely-squirrel-569.convex.cloud` (rehearsal), Convex prod `https://hushed-shrimp-24.convex.cloud` (demo). SpacetimeDB Maincloud: database `keel` at `wss://maincloud.spacetimedb.com` (dashboard https://spacetimedb.com/keel); local `ws://127.0.0.1:3000` is the fallback. Role tokens differ per server: keep `demo/identities.local.json` and `demo/identities.maincloud.json` and copy the right one to `demo/identities.json`.
@@ -105,6 +132,14 @@ Reset between judges: `pnpm demo --reset-only`.
 If a beat stalls, restart the agent; recovery is restart-safe.
 
 Known gaps (two crash windows): a crash between `record_calculation` and `propose`, and between Convex `ask` and `open_clarification`.
+
+## Stage start order (day of)
+
+1. Check services: Azure agent healthy (`az containerapp revision list -n keel-agent -g keel-rg`), Maincloud answers (`spacetime sql keel "select count(*) from proposal" --server maincloud`), Convex prod reachable.
+2. Laptop opens the Azure URL, not localhost, so the QR encodes the public phone URL.
+3. Phone opens `/phone`.
+4. Reset between judges: `cp demo/identities.maincloud.json demo/identities.json`, then `pnpm demo --reset-only`.
+5. Fallbacks, in order: Convex dev URL (`https://lovely-squirrel-569.convex.cloud`); laptop agent `pnpm agent` (only after stopping the Azure one); local SpacetimeDB; the video.
 
 ## Controls that are tested
 
