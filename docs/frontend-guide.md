@@ -39,13 +39,13 @@ The UI never calls any agent reducer. The workbench calls `decide`, `post`, `res
 | SpacetimeDB db | `keel` (dashboard https://spacetimedb.com/keel) |
 | Convex | prod `https://hushed-shrimp-24.convex.cloud` (dev, for rehearsal: `https://lovely-squirrel-569.convex.cloud`) |
 | Summo | Azure Container Apps `keel-agent`, resource group `keel-rg` |
-| Workbench + phone page | Vercel, HTTPS. URL **TBD**. The phone page must be HTTPS (mic and camera need a secure context). |
+| Workbench + phone page | Azure Static Web Apps, HTTPS. URL **TBD**. The phone page must be HTTPS (mic and camera need a secure context). |
 
-### Vercel deployment
+### Azure Static Web Apps deployment
 
 - One Vite app under `apps/` serving two routes: `/` (workbench) and `/phone` (phone page). The QR on the workbench encodes `${location.origin}/phone`.
-- Environment variables (Vercel project settings, Production): `VITE_CONVEX_URL=https://hushed-shrimp-24.convex.cloud`, `VITE_STDB_URI=wss://maincloud.spacetimedb.com`, `VITE_STDB_DB=keel`. Vite inlines them at build time, so changing one needs a redeploy.
-- Monorepo: set the Vercel root directory to the repo root, install command `pnpm install`, build command `pnpm --filter <your-app> build`, output directory `apps/<your-app>/dist`. Add an SPA rewrite (`vercel.json`: `{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }`) so `/phone` loads on a cold open.
+- Environment variables (Azure Static Web Apps project settings, Production): `VITE_CONVEX_URL=https://hushed-shrimp-24.convex.cloud`, `VITE_STDB_URI=wss://maincloud.spacetimedb.com`, `VITE_STDB_DB=keel`. Vite inlines them at build time, so changing one needs a redeploy.
+- Monorepo: set the Azure Static Web Apps root directory to the repo root, install command `pnpm install`, build command `pnpm --filter <your-app> build`, output directory `apps/<your-app>/dist`. Add an SPA rewrite (`vercel.json`: `{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }`) so `/phone` loads on a cold open.
 - No model or voice key is ever a `VITE_*` variable. The browser holds none.
 - Fallback without a redeploy (suggested): let `?convex=<url>` and `?stdb=<uri>` override the env values, and encode them into the QR, so switching to the Convex dev deployment is a URL change.
 
@@ -478,3 +478,13 @@ Ordering rules:
 - When `CARTESIA_API_KEY` is not set in the Convex env, the question audio is 0.5 s of silence and the transcript is `MOCK: it's additional`. Keep the question text on screen.
 - A zero adjustment (e.g. the $600,000 sheet after an approved "additional") gets a calculation but no proposal. Show "No revenue change" (no Approve button) when the newest calculation has no proposal.
 - The "Change the forecast" button text is fixed so Summo reads it without a call (a "Remaining Estimate" figure). Do not change it to "another …" after a convention is saved unless you want the convention path.
+
+## Deploying the UI (Azure Static Web Apps)
+
+The app lives in `apps/web` with package name `@keel/web` and builds with `pnpm --filter @keel/web build` into `apps/web/dist`. Pushing to `summo` runs `.github/workflows/deploy-web.yml`, which builds with `VITE_CONVEX_URL`, `VITE_STDB_URI`, `VITE_STDB_DB` set to the production values and uploads `dist` to the Static Web App `roboaudit-web`. URL: https://kind-river-0eb9d010f.5.azurestaticapps.net (HTTPS, so the phone mic and camera work). For a SPA with a `/phone` route add `apps/web/public/staticwebapp.config.json`:
+
+```json
+{ "navigationFallback": { "rewrite": "/index.html" } }
+```
+
+Manual deploy without GitHub: `npx @azure/static-web-apps-cli deploy apps/web/dist --deployment-token <token from az staticwebapp secrets list -n roboaudit-web -g keel-rg> --env production`.

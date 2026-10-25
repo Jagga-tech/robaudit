@@ -11,7 +11,7 @@ reset, and what the Azure additions change. Build nothing until this is agreed.
 | Convex clarification channel | cloud dev deployment `lovely-squirrel-569.convex.cloud` (already live) | **Convex production deployment** `hushed-shrimp-24.convex.cloud` (deployed 2026-10-24; `npx convex deploy`) | Prod URL is stable; dev deployment stays for rehearsals |
 | Agent service (`apps/agent`) | `pnpm agent` on the laptop | **Azure Container Apps** (one container, min 1 replica, restart-on-exit) with a laptop fallback | Keeps running when the laptop is busy with the UI; Microsoft track hosting story |
 | Document ingestion | none | **Azure AI Document Intelligence** (prebuilt-layout) called from the agent on `source.kind = scanned_forecast` | "Document-to-decision" for the Microsoft track; photo of a forecast sheet becomes forecast v2 |
-| Workbench + phone UI (Tanush) | Vite dev server | **Azure Static Web Apps** (or Vercel) serving the built UI over HTTPS | Phone mic needs HTTPS; one URL for judges' phone |
+| Workbench + phone UI (Tanush) | Vite dev server | **Azure Static Web Apps** (or Azure Static Web Apps) serving the built UI over HTTPS | Phone mic needs HTTPS; one URL for judges' phone |
 | Secrets | `.env` on laptop | Container Apps secrets + Convex env + GitHub Actions secrets | Never in git |
 
 Fallback chain on the day: if Maincloud is down → local SpacetimeDB on the laptop + hotspot. If

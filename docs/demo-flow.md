@@ -33,7 +33,7 @@ asking <Name>"). The laptop never acts for Summo and the phone never acts for Da
 | SpacetimeDB ledger | Maincloud `wss://maincloud.spacetimedb.com`, database `keel` (dashboard https://spacetimedb.com/keel) | local `ws://127.0.0.1:3000`, db `keel`, laptop on hotspot |
 | Convex | prod `https://hushed-shrimp-24.convex.cloud` | dev `https://lovely-squirrel-569.convex.cloud` |
 | Summo | Azure Container Apps `keel-agent` (resource group `keel-rg`) | laptop `pnpm agent` (never both at once) |
-| Workbench + phone page | Vercel, HTTPS. URL: **TBD** | laptop `vite preview` over HTTPS tunnel, or the video |
+| Workbench + phone page | Azure Static Web Apps, HTTPS. URL: **TBD** | laptop `vite preview` over HTTPS tunnel, or the video |
 
 The UI build needs only `VITE_CONVEX_URL`, `VITE_STDB_URI`, `VITE_STDB_DB`. No model or voice keys ever
 reach the browser.
@@ -145,7 +145,7 @@ stays, new adjustment").
 5. **Agent down** (no extraction within ~10 s of a source, or `az containerapp logs show --name keel-agent
    --resource-group keel-rg --follow` shows a crash): stop `keel-agent`, then run `pnpm agent` on the laptop
    with the Maincloud/prod `.env`. Never run both.
-6. **App down** (Vercel or Maincloud unreachable for 10 s): play the video.
+6. **App down** (Azure Static Web Apps or Maincloud unreachable for 10 s): play the video.
 
 ## Team roles at the table
 
@@ -170,7 +170,7 @@ stays, new adjustment").
 - [ ] T−30 `az containerapp logs show --name keel-agent --resource-group keel-rg` shows `agent loop started` and no `MOCK:` lines (`MOCK: azure-di` means every sheet reads $600,000).
 - [ ] T−28 `npx convex env list --prod` has `CARTESIA_API_KEY`; otherwise the question is silent and the transcript is `MOCK: it's additional`.
 - [ ] T−25 `pnpm demo --require-real --remote` passes against Maincloud + Convex prod (stop `pnpm agent` locally first).
-- [ ] T−20 Reset. Open the Vercel URL on the laptop: S0 figures, QR showing.
+- [ ] T−20 Reset. Open the Azure Static Web Apps URL on the laptop: S0 figures, QR showing.
 - [ ] T−18 Scan the QR from a phone not on the venue Wi-Fi (cellular): name, update, ring, answer by voice, confirm, approve, post.
 - [ ] T−12 Photograph the $550k sheet: `azure-di` row shows $550,000, proposal +$21,053.
 - [ ] T−10 Press all three Break it buttons; each shows its refusal.
