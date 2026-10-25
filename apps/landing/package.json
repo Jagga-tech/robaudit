@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:phone": "node tests/phone.e2e.mjs"
   },
   "dependencies": {
     "@keel/bindings": "workspace:*",
@@ -13,6 +14,7 @@
     "spacetimedb": "2.13.*"
   },
   "devDependencies": {
+    "playwright": "1.60.0",
     "typescript": "~5.6.2",
     "vite": "^5.4.0"
   }

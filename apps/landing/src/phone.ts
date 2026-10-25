@@ -13,8 +13,46 @@ const MIC_SVG = '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11
 type Me = { id: Id<'managers'>; name: string };
 type Row = Doc<'clarifications'>;
 type Sent = { text: string; at: number };
-// The call, kept locally so live updates don't wipe a recording or an edit in progress.
-type Call = { id: Id<'clarifications'>; phase: 'ask' | 'recording' | 'transcribing' | 'review' | 'edit'; transcript: string; micFailed: boolean; played: boolean };
+type Answer = 'additional' | 'new_total';
+// One screen state machine for the call, kept locally so live updates don't wipe a recording or an edit in progress.
+// ask -> recording -> sending -> transcribing -> heard (matched) | choose (option buttons); edit from heard/choose.
+type Phase = 'ask' | 'recording' | 'sending' | 'transcribing' | 'heard' | 'choose' | 'edit';
+type Call = {
+  id: Id<'clarifications'>; phase: Phase; transcript: string; note: string; micFailed: boolean; played: boolean;
+  segs: number; waitFrom: number; // transcript segments seen / count when the last answer was submitted
+  busy: boolean; // confirm/decline in flight: double taps no-op, and its own `active -> null` is not "stale"
+  unsub?: () => void; timer?: ReturnType<typeof setTimeout>; cancelRec?: () => void;
+};
+
+const MIN_HOLD = 400, MAX_HOLD = 8000, TRANSCRIPT_WAIT = 12_000, CELEBRATE = 2200;
+const UPLOAD_FAILED = "The recording didn't send. Tap your answer.";
+const STALE = 'That question was answered. Waiting for the next one.';
+
+// Same rule the agent applies to the confirmed answer: regexes copied verbatim from normalizeAnswer in
+// apps/agent/src/loop.ts (keep in sync). Both or neither -> null -> the phone asks which one; never confirms a guess.
+const TOTAL = /new[\s_-]*total|\btotal\b/i, ADD = /addition|on top|\bmore\b|\bextra\b/i;
+const normalize = (a: string): Answer | null => {
+  const total = TOTAL.test(a), add = ADD.test(a);
+  return total === add ? null : total ? 'new_total' : 'additional';
+};
+/** The judge's words -> the option they meant, or null. Only options the question offered count. */
+export function matchAnswer(text: string, options: string[]): Answer | null {
+  const m = normalize(text);
+  return m && (!options.length || options.some((o) => normalize(o) === m)) ? m : null;
+}
+/** Transcript HTML with the matched phrase in <mark>; long side chatter is cut down to that phrase alone. */
+function heardHtml(text: string, m: Answer | null): string {
+  const hit = m ? (m === 'new_total' ? TOTAL : ADD).exec(text) : null;
+  if (!hit) return esc(text);
+  let a = hit.index, b = a + hit[0].length;
+  while (a > 0 && /\w/.test(text[a - 1])) a--; // widen "addition" to "additional"
+  while (b < text.length && /\w/.test(text[b])) b++;
+  const mark = `<mark>${esc(text.slice(a, b))}</mark>`;
+  return text.length > 80 ? `…${mark}…` : esc(text.slice(0, a)) + mark + esc(text.slice(b));
+}
+/** Reject when `p` takes longer than `ms`. */
+const within = <T>(p: Promise<T>, ms: number, what: string) =>
+  Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`${what} timed out`)), ms))]);
 
 /** Float32 mono samples at `inRate` -> 16 kHz mono PCM16 WAV with a 44-byte header (Convex cannot transcode webm/opus). */
 export function encodeWav(input: Float32Array, inRate: number): Blob {
@@ -66,12 +104,16 @@ function dictate(onText: (t: string) => void, onEnd: () => void): () => void {
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const label = (o: string) => o.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()); // "new_total" -> "New total"
 const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const DOTS = '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
 
 if (typeof document !== 'undefined') boot();
 
 function boot() {
   const app = document.getElementById('app')!;
   const connLine = document.getElementById('conn')!;
+  const summo = document.querySelector('.summo')!;
+  const oops = document.getElementById('oops')!;
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches; // no animation classes at all
   const convex = new ConvexClient(CONVEX_URL);
   const load = <T>(k: string, d: T): T => { try { return JSON.parse(sessionStorage.getItem(k) ?? '') as T; } catch { return d; } };
 
@@ -79,49 +121,87 @@ function boot() {
   let sent = load<Sent[]>('keel-sent', []);
   let ledger: DbConnection | undefined;
   let ledgerState = 'offline';
+  let convexErr = false;
   let active: Row | null = null;
   let call: Call | undefined;
   let doneUntil = 0;
   let homeNote = '';
-  let stopTranscript: (() => void) | undefined;
 
   const $ = <T extends HTMLElement>(sel: string) => app.querySelector(sel) as T;
   const showErr = (msg: string) => { const e = $('.err'); if (e) e.textContent = msg; };
   const plain = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^.*?Uncaught Error:\s*/s, '').split('\n')[0];
 
+  // ---- never die: stray rejections/errors get one inline line and a Retry, never a frozen screen ----
+  const oopsMsg = oops.querySelector('span')!;
+  const fail = (e: unknown) => { oopsMsg.textContent = `Something went wrong: ${plain(e)}`; oops.hidden = false; };
+  addEventListener('unhandledrejection', (e) => { e.preventDefault(); fail(e.reason); });
+  addEventListener('error', (e) => fail(e.error ?? e.message));
+  oops.querySelector('button')!.onclick = () => { oops.hidden = true; ensureLedger(); render(); };
+  // Back/forward cache restores a page with dead sockets: reload, and the resume path below rebuilds the screen.
+  addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+
   function paintConn() {
     const c = convex.connectionState();
-    connLine.textContent = `ledger: ${ledgerState} · convex: ${c.isWebSocketConnected ? 'online' : 'connecting'}`;
+    const down = convexErr || ledgerState === 'reconnecting' || (c.hasEverConnected && !c.isWebSocketConnected);
+    connLine.classList.toggle('warn', down);
+    connLine.textContent = down ? 'Reconnecting…' : `ledger: ${ledgerState} · convex: ${c.isWebSocketConnected ? 'online' : 'connecting'}`;
   }
-  convex.subscribeToConnectionState(paintConn);
+  convex.subscribeToConnectionState(paintConn); // ConvexClient reconnects its own socket and replays subscriptions
 
-  // ---- SpacetimeDB (docs/frontend-guide.md §4): one identity per role, kept in localStorage ----
+  /** onUpdate that survives query errors: show Reconnecting…, resubscribe with backoff. */
+  function watch<T>(sub: (cb: (v: T) => void, onErr: (e: Error) => void) => () => void, cb: (v: T) => void): () => void {
+    let stop: () => void, dead = false, wait = 1000;
+    const go = () => {
+      stop = sub((v) => { wait = 1000; if (convexErr) { convexErr = false; paintConn(); } cb(v); }, () => {
+        convexErr = true; paintConn(); stop();
+        setTimeout(() => { if (!dead) go(); }, wait); wait = Math.min(wait * 2, 15_000);
+      });
+    };
+    go();
+    return () => { dead = true; stop(); };
+  }
+
+  // ---- SpacetimeDB (docs/frontend-guide.md §4): one identity per role, rebuilt with backoff when it drops ----
+  let ledgerWait = 1000, ledgerTimer: ReturnType<typeof setTimeout> | undefined;
   async function connectLedger(name: string) {
-    ledger?.disconnect();
-    ledgerState = 'connecting'; paintConn();
+    const old = ledger; ledger = undefined; old?.disconnect(); // ledger cleared first so old's onDisconnect doesn't retry
+    if (ledgerState !== 'reconnecting') ledgerState = 'connecting';
+    paintConn();
     const key = `keel-token-${ROLE}`;
-    const c = await new Promise<DbConnection>((resolve, reject) => {
-      DbConnection.builder()
+    let conn: DbConnection | undefined;
+    const c = await within(new Promise<DbConnection>((resolve, reject) => {
+      conn = DbConnection.builder()
         .withUri(STDB_URI).withDatabaseName(STDB_DB)
         .withToken(localStorage.getItem(key) ?? undefined)
         .onConnect((c, _id, token) => { localStorage.setItem(key, token); resolve(c); })
         .onConnectError((_ctx, e) => reject(e))
-        .onDisconnect(() => { if (ledger === c) { ledgerState = 'offline'; paintConn(); } })
+        .onDisconnect(() => { if (ledger === conn) { ledger = undefined; retryLedger(); } })
         .build();
-    });
-    await new Promise<void>((resolve, reject) => {
+    }), 10_000, 'ledger connect').catch((e) => { conn?.disconnect(); throw e; });
+    await within(new Promise<void>((resolve, reject) => {
       c.subscriptionBuilder().onApplied(() => resolve()).onError((ctx) => reject((ctx as any).event ?? new Error('subscription failed')))
         .subscribe(['SELECT * FROM user', 'SELECT * FROM project', 'SELECT * FROM source']);
-    });
+    }), 10_000, 'ledger subscribe').catch((e) => { c.disconnect(); throw e; });
     const u = c.db.user.identity.find(c.identity!);
     if (!u || u.role !== ROLE || u.name !== name) await c.reducers.registerDemoUser({ name, role: ROLE });
-    ledger = c; ledgerState = 'online'; paintConn();
+    if (me?.name !== name) return c.disconnect(); // reset while connecting
+    ledger = c; ledgerState = 'online'; ledgerWait = 1000; paintConn();
   }
-  const ensureLedger = () => { if (me && ledgerState !== 'online' && ledgerState !== 'connecting') connectLedger(me.name).catch(() => { ledgerState = 'offline'; paintConn(); }); };
+  function retryLedger() {
+    if (!me || ledgerTimer) return;
+    ledgerState = 'reconnecting'; paintConn();
+    ledgerTimer = setTimeout(() => {
+      ledgerTimer = undefined;
+      if (me) connectLedger(me.name).catch(() => { ledgerWait = Math.min(ledgerWait * 2, 15_000); retryLedger(); });
+    }, ledgerWait);
+  }
+  const ensureLedger = () => { if (me && !ledger && ledgerState !== 'connecting') retryLedger(); };
 
   /** addSource as the deployment manager. Project looked up at send time: ids change after reset (docs/demo-flow.md, reset). */
   async function addSource(kind: string, text: string) {
-    if (!ledger || ledgerState !== 'online') { ensureLedger(); throw new Error('Not connected to the ledger yet. Try again in a moment.'); }
+    // Fresh join or a dropped socket: wait for the (re)connection rather than failing the tap.
+    for (let t = 0; !ledger && t < 50; t++) { ensureLedger(); await new Promise((r) => setTimeout(r, 200)); }
+    if (!ledger) throw new Error('Not connected to the ledger yet. Try again in a moment.');
     const projects = [...ledger.db.project.iter()];
     const p = projects.find((x) => x.name === 'Oakland deployment') ?? projects[0];
     if (!p) throw new Error('No project on the ledger yet.');
@@ -136,12 +216,53 @@ function boot() {
     return (await res.json()).storageId;
   }
 
+  // ---- the call: state survives reloads in sessionStorage ----
+  const save = (c: Call) => sessionStorage.setItem('keel-call', JSON.stringify({ id: c.id, phase: c.phase, transcript: c.transcript, note: c.note, waitFrom: c.waitFrom }));
+  const go = (c: Call, phase: Phase, note = '') => { clearTimeout(c.timer); c.phase = phase; c.note = note; save(c); if (call === c) render(); };
+
+  function startCall(row: Row): Call {
+    const c: Call = { id: row._id, phase: 'ask', transcript: '', note: '', micFailed: false, played: false, segs: -1, waitFrom: 0, busy: false };
+    const saved = load<Partial<Call> | null>('keel-call', null);
+    if (saved?.id === row._id) {
+      Object.assign(c, { transcript: saved.transcript ?? '', note: saved.note ?? '', waitFrom: saved.waitFrom ?? 0, played: true });
+      const p = saved.phase ?? 'ask';
+      if (p === 'recording') c.phase = 'choose', c.note = UPLOAD_FAILED; // the audio died with the page
+      else if (p === 'sending' || p === 'transcribing') { c.phase = 'transcribing'; armTimeout(c); }
+      else c.phase = p === 'edit' ? (matchAnswer(c.transcript, row.options) ? 'heard' : 'choose') : p;
+    }
+    c.unsub = watch<Doc<'transcriptSegments'>[]>((cb, er) => convex.onUpdate(api.transcript.byClarification, { id: row._id }, cb, er), (segs) => {
+      c.segs = segs.length;
+      const waiting = c.phase === 'sending' || c.phase === 'transcribing' || (c.phase === 'choose' && c.note === TIMEOUT_NOTE);
+      if (segs.length <= c.waitFrom || !waiting || c.busy) return;
+      c.waitFrom = segs.length;
+      c.transcript = segs.sort((a, b) => a._creationTime - b._creationTime).at(-1)!.text.trim();
+      lastTranscript.push(c.transcript);
+      go(c, matchAnswer(c.transcript, row.options) ? 'heard' : 'choose', c.transcript ? '' : "Summo didn't hear an answer. Tap your answer.");
+    });
+    save(c);
+    return c;
+  }
+  const TIMEOUT_NOTE = 'Summo is still listening. Tap your answer.';
+  const lastTranscript: string[] = ((window as any).__phoneTranscripts = []); // read by tests/phone.e2e.mjs
+  function armTimeout(c: Call) {
+    clearTimeout(c.timer);
+    c.timer = setTimeout(() => { if (c.phase === 'transcribing') go(c, 'choose', TIMEOUT_NOTE); }, TRANSCRIPT_WAIT);
+  }
+  function endCall() {
+    if (!call) return;
+    clearTimeout(call.timer); call.unsub?.(); call.cancelRec?.();
+    call = undefined; sessionStorage.removeItem('keel-call');
+  }
+
   // ---- screens ----
   function render() {
-    document.body.classList.toggle('ring', !!active);
+    document.body.classList.toggle('ring', !!active && !calm);
+    const done = Date.now() < doneUntil;
+    summo.classList.toggle('bounce', done && !calm);
+    document.body.classList.toggle('celebrate', done && !calm);
     if (!me) return renderJoin();
     if (active && call?.id === active._id) return renderCall(active, call);
-    if (Date.now() < doneUntil) return renderDone();
+    if (done) return renderDone();
     renderHome();
   }
 
@@ -155,21 +276,22 @@ function boot() {
         <p class="err" role="alert"></p>
         <button class="pill dark" type="submit">Join</button>
       </form>`;
+    let joining = false;
     $<HTMLFormElement>('#join').onsubmit = async (ev) => {
       ev.preventDefault();
+      if (joining) return; // double tap / double Enter
       const name = $<HTMLInputElement>('#name').value.trim();
       if (!name) return showErr('Type your first name.');
+      joining = true;
       const btn = $<HTMLButtonElement>('button'); btn.disabled = true; btn.textContent = 'Joining…';
       try {
         const id = await convex.mutation(api.managers.join, { name });
         me = { id, name }; sessionStorage.setItem('keel-manager', JSON.stringify(me));
-        render();
-        await connectLedger(name);
       } catch (e) {
-        ledgerState = 'offline'; paintConn();
-        if (!me) { btn.disabled = false; btn.textContent = 'Join'; showErr(`Couldn't join: ${plain(e)}`); }
-        else { homeNote = `Joined, but the ledger is unreachable (${plain(e)}). Retrying when you send.`; render(); }
+        joining = false; btn.disabled = false; btn.textContent = 'Join'; return showErr(`Couldn't join: ${plain(e)}`);
       }
+      render();
+      connectLedger(name).catch(() => retryLedger());
     };
   }
 
@@ -189,22 +311,26 @@ function boot() {
     const note = (s: string) => { homeNote = s; $('.note').textContent = s; };
     const log = (text: string) => { sent.push({ text, at: Date.now() }); sessionStorage.setItem('keel-sent', JSON.stringify(sent)); };
     const after = (msg: string) => { note(msg); setTimeout(() => { if (homeNote === msg) { homeNote = ''; if (!active) render(); } }, 6000); };
+    if (homeNote === STALE) after(STALE);
 
     let stopMic: (() => void) | undefined;
     const mic = $<HTMLButtonElement>('#mic');
     mic.onclick = () => {
       if (stopMic) return stopMic();
       mic.classList.add('on');
-      stopMic = dictate((t) => { ta.value = t; }, () => { stopMic = undefined; mic.classList.remove('on'); });
+      try { stopMic = dictate((t) => { ta.value = t; }, () => { stopMic = undefined; mic.classList.remove('on'); }); }
+      catch { mic.hidden = true; } // typing always works
     };
 
+    let sending = false;
     $<HTMLButtonElement>('#send').onclick = async (ev) => {
+      if (sending) return;
       const text = ta.value.trim();
       if (!text) return showErr('Type or say an update first.');
       stopMic?.();
-      const btn = ev.currentTarget as HTMLButtonElement; btn.disabled = true;
-      try { await addSource('note', text); log(text); after('Sent. Summo is reading…'); render(); }
-      catch (e) { btn.disabled = false; showErr(`Not sent: ${plain(e)}`); }
+      const btn = ev.currentTarget as HTMLButtonElement; btn.disabled = true; sending = true;
+      try { await within(addSource('note', text), 15_000, 'Send'); log(text); after('Sent. Summo is reading…'); render(); }
+      catch (e) { sending = false; btn.disabled = false; showErr(`Not sent: ${plain(e)}`); }
     };
 
     $<HTMLInputElement>('#photo input').onchange = async (ev) => {
@@ -218,35 +344,38 @@ function boot() {
   }
 
   function renderDone() {
-    app.innerHTML = `
-      <h1>Thanks ${esc(me!.name)}. Summo booked it with your name on it.</h1>
-      <button class="pill willow" id="back" type="button">Back to updates</button>`;
-    $<HTMLButtonElement>('#back').onclick = () => { doneUntil = 0; render(); };
+    app.innerHTML = `<h1 class="thanks">Thanks, ${esc(me!.name)}. Summo is booking it with your name on it.</h1>`;
   }
 
   function renderCall(row: Row, c: Call) {
-    const reask = row.status === 'fallback_text' || c.micFailed;
+    if (row.status === 'fallback_text' && (c.phase === 'ask' || c.phase === 'heard')) { c.phase = 'choose'; c.note ||= "Summo didn't catch that. Tap your answer."; }
+    const m = matchAnswer(c.transcript, row.options);
+    const options = row.options.map((o, i) => `<button class="pill ${i ? 'outline' : 'dark'}" data-opt="${esc(o)}" type="button">${esc(label(o))}</button>`).join('');
+    const againBtn = c.micFailed ? (SR ? '<button class="pill quiet" id="dictate" type="button">Say it instead</button>' : '') : '<button class="pill quiet" id="again" type="button">Say it again</button>';
     let body: string;
-    if (reask) {
+    if (c.phase === 'sending' || c.phase === 'transcribing') {
+      body = `<p class="lede" id="wait">${c.phase === 'sending' ? 'Sending your answer' : 'Transcribing'}${calm ? '…' : DOTS}</p>`;
+    } else if (c.phase === 'heard') {
       body = `
-        <p class="lede">${c.micFailed ? 'The mic isn\'t available. Tap the answer.' : 'Summo didn\'t catch that. Tap the answer.'}</p>
-        ${row.options.map((o, i) => `<button class="pill ${i ? 'outline' : 'dark'}" data-opt="${esc(o)}" type="button">${esc(label(o))}</button>`).join('')}
-        ${c.micFailed && SR ? '<button class="pill quiet" id="dictate" type="button">Say it instead</button>' : ''}`;
-    } else if (c.phase === 'transcribing') {
-      body = `<p class="lede">Transcribing…</p>`;
-    } else if (c.phase === 'review') {
-      body = `
-        <div class="card transcript">${esc(c.transcript)}</div>
-        <button class="pill dark" id="yes" type="button">That's right</button>
-        <button class="pill outline" id="edit" type="button">Edit</button>`;
+        <div class="card transcript">${heardHtml(c.transcript, m)}</div>
+        ${c.transcript.length > 80 ? `<p class="raw">Heard: “${esc(c.transcript)}”</p>` : ''}
+        <button class="pill dark" id="yes" type="button" ${m ? '' : 'disabled'}>That's right</button>
+        <button class="pill outline" id="edit" type="button">Edit</button>
+        <button class="pill quiet" id="again" type="button">Say it again</button>`;
+    } else if (c.phase === 'choose') {
+      const lede = c.transcript && c.note !== TIMEOUT_NOTE ? `I heard: “${esc(c.transcript)}”. Which did you mean?`
+        : c.transcript ? esc(c.note) : esc(c.note || 'Tap your answer.');
+      body = `<p class="lede" id="choose">${lede}</p>${options}${c.transcript ? '<button class="pill quiet" id="edit" type="button">Edit</button>' : ''}${againBtn}`;
     } else if (c.phase === 'edit') {
       body = `
         <textarea id="fix" aria-label="Your answer">${esc(c.transcript)}</textarea>
         <button class="pill dark" id="yes" type="button">That's right</button>`;
     } else {
       body = `
+        <p class="note">${esc(c.note)}</p>
         <button class="pill willow" id="play" type="button" hidden>Play question</button>
-        <button class="talk" id="talk" type="button">${MIC_SVG}<span>Hold to answer</span></button>`;
+        <button class="talk${calm ? '' : ' asking'}" id="talk" type="button">${MIC_SVG}<span>Hold to answer</span></button>
+        <button class="pill quiet" id="tap" type="button">Tap an answer instead</button>`;
     }
     app.innerHTML = `
       <p class="eyebrow">Summo has a question</p>
@@ -255,31 +384,47 @@ function boot() {
       <p class="err" role="alert"></p>
       <button class="pill quiet" id="decline" type="button">Not me / decline</button>`;
 
+    const lock = (on: boolean) => app.querySelectorAll('button').forEach((b) => (b.disabled = on));
+    /** Only canonical answers reach Convex: a matched transcript or a tapped option. */
     const confirm = async (answer: string) => {
-      if (!answer.trim()) return showErr('The answer is empty.');
-      app.querySelectorAll('button').forEach((b) => (b.disabled = true));
+      if (c.busy) return; // double tap
+      c.busy = true; lock(true);
       try {
-        await convex.mutation(api.clarifications.confirm, { id: row._id, answer: answer.trim(), speaker: me!.name });
-        stopTranscript?.(); call = undefined; doneUntil = Date.now() + 5000; setTimeout(render, 5100); render();
-      } catch (e) { app.querySelectorAll('button').forEach((b) => (b.disabled = false)); showErr(`Not saved: ${plain(e)}`); }
+        await convex.mutation(api.clarifications.confirm, { id: row._id, answer, speaker: me!.name }); // no-op if already confirmed
+        if (call === c) endCall();
+        doneUntil = Date.now() + CELEBRATE; setTimeout(render, CELEBRATE + 50); render();
+      } catch (e) { c.busy = false; lock(false); showErr(`Not saved: ${plain(e)}`); }
     };
-    app.querySelectorAll<HTMLButtonElement>('[data-opt]').forEach((b) => (b.onclick = () => confirm(b.dataset.opt!)));
+    app.querySelectorAll<HTMLButtonElement>('[data-opt]').forEach((b) => (b.onclick = () => confirm(normalize(b.dataset.opt!) ?? b.dataset.opt!)));
     $<HTMLButtonElement>('#decline').onclick = async () => {
-      try { await convex.mutation(api.clarifications.decline, { id: row._id, reason: 'declined on phone' }); stopTranscript?.(); call = undefined; render(); }
-      catch (e) { showErr(`Couldn't decline: ${plain(e)}`); }
+      if (c.busy) return;
+      c.busy = true; lock(true);
+      try { await convex.mutation(api.clarifications.decline, { id: row._id, reason: 'declined on phone' }); if (call === c) endCall(); render(); }
+      catch (e) { c.busy = false; lock(false); showErr(`Couldn't decline: ${plain(e)}`); }
     };
     const yes = $<HTMLButtonElement>('#yes');
-    if (yes) yes.onclick = () => confirm(c.phase === 'edit' ? $<HTMLTextAreaElement>('#fix').value : c.transcript);
+    if (yes) yes.onclick = () => {
+      if (c.phase === 'edit') c.transcript = $<HTMLTextAreaElement>('#fix').value.trim();
+      const hit = matchAnswer(c.transcript, row.options);
+      if (hit) return confirm(hit);
+      go(c, 'choose'); // edited text still ambiguous: the options are the only way through
+    };
     const edit = $<HTMLButtonElement>('#edit');
-    if (edit) edit.onclick = () => { c.phase = 'edit'; render(); $<HTMLTextAreaElement>('#fix').focus(); };
+    if (edit) edit.onclick = () => { go(c, 'edit'); $<HTMLTextAreaElement>('#fix').focus(); };
+    const again = $<HTMLButtonElement>('#again');
+    if (again) again.onclick = () => { c.transcript = ''; go(c, 'ask'); };
+    const tap = $<HTMLButtonElement>('#tap');
+    if (tap) tap.onclick = () => go(c, 'choose');
     const dict = $<HTMLButtonElement>('#dictate');
     if (dict) dict.onclick = () => {
       dict.textContent = 'Listening… tap to stop';
       let text = '';
-      const stop = dictate((t) => { text = t; dict.textContent = t; }, () => { if (text) { c.transcript = text; c.micFailed = false; c.phase = 'review'; render(); } });
-      dict.onclick = stop;
+      try {
+        const stop = dictate((t) => { text = t; dict.textContent = t; }, () => { if (text) { c.transcript = text; c.micFailed = false; go(c, matchAnswer(text, row.options) ? 'heard' : 'choose'); } });
+        dict.onclick = stop;
+      } catch { dict.hidden = true; }
     };
-    if (!reask && c.phase === 'ask') wireAsk(row, c);
+    if (c.phase === 'ask') wireAsk(row, c);
   }
 
   function wireAsk(row: Row, c: Call) {
@@ -291,58 +436,79 @@ function boot() {
       if (url) await new Audio(url).play();
     };
     if (row.questionAudioId) {
+      const blocked = () => { play.hidden = false; $('.note').textContent = 'Tap Play question to hear Summo, or just read it.'; };
       play.onclick = () => playAudio().then(() => (play.hidden = true)).catch((e) => showErr(`Can't play: ${plain(e)}`));
-      if (!c.played) { c.played = true; playAudio().catch(() => (play.hidden = false)); } else play.hidden = false;
+      if (!c.played) { c.played = true; playAudio().catch(blocked); } else play.hidden = false;
     }
 
-    // Mic unavailable: tell Convex (status fallback_text, docs/frontend-guide.md §8) and show the option buttons.
-    const micFail = () => { c.phase = 'ask'; c.micFailed = true; render(); convex.mutation(api.clarifications.fallbackText, { id: row._id }).catch(() => {}); };
+    // Mic unavailable (no device, permission denied): tell Convex (status fallback_text, docs/frontend-guide.md §8) and show the options.
+    const micFail = () => {
+      if (call !== c) return;
+      c.micFailed = true; go(c, 'choose', "The mic isn't available. Tap your answer.");
+      convex.mutation(api.clarifications.fallbackText, { id: row._id }).catch(() => {});
+    };
     if (!navigator.mediaDevices?.getUserMedia) return micFail();
     const talk = $<HTMLButtonElement>('#talk');
-    let rec: Promise<() => Promise<Blob>> | undefined, t0 = 0;
+    const span = talk.querySelector('span')!;
+    let rec: Promise<() => Promise<Blob>> | undefined, t0 = 0, maxTimer: ReturnType<typeof setTimeout> | undefined;
     talk.onpointerdown = (e) => {
-      talk.setPointerCapture(e.pointerId);
-      c.phase = 'recording'; t0 = Date.now();
-      talk.classList.add('on'); talk.querySelector('span')!.textContent = 'Listening… let go to send';
+      if (rec || c.phase !== 'ask') return;
+      try { talk.setPointerCapture(e.pointerId); } catch { /* synthetic pointers */ }
+      c.phase = 'recording'; save(c); t0 = Date.now();
+      talk.classList.add('on'); span.textContent = 'Listening… let go to send';
       rec = startRecording();
       rec.catch(micFail);
+      maxTimer = setTimeout(finish, MAX_HOLD); // 8 s cap: auto-finalize
+      c.cancelRec = () => { clearTimeout(maxTimer); const r = rec; rec = undefined; r?.then((stop) => stop()).catch(() => {}); };
     };
-    talk.onpointerup = talk.onpointercancel = async () => {
-      if (!rec) return;
-      const r = rec; rec = undefined;
-      let stop: () => Promise<Blob>;
-      try { stop = await r; } catch { return; } // micFailed path already rendered
-      const wav = await stop();
-      if (Date.now() - t0 < 600) { c.phase = 'ask'; render(); return showErr('Hold the button while you talk.'); }
-      c.phase = 'transcribing'; render();
+    talk.onpointerup = talk.onpointercancel = () => { finish(); };
+    async function finish() {
+      if (!rec) return; // already finalized (release after the 8 s cap, double release)
+      clearTimeout(maxTimer);
+      const r = rec; rec = undefined; c.cancelRec = undefined;
+      const held = Date.now() - t0;
+      let wav: Blob;
+      try { wav = await (await r)(); } catch { return; } // micFail already rendered
+      if (call !== c) return; // question went away while recording
+      if (held < MIN_HOLD) { go(c, 'ask'); return showErr('Hold the button while you speak.'); }
+      go(c, 'sending');
       try {
-        await convex.mutation(api.clarifications.startAnswer, { id: row._id });
-        await convex.mutation(api.clarifications.submitAnswerAudio, { id: row._id, storageId: await upload(wav) });
-        stopTranscript?.();
-        stopTranscript = convex.onUpdate(api.transcript.byClarification, { id: row._id }, (segs) => {
-          if (!segs.length || call !== c || c.phase !== 'transcribing') return;
-          c.transcript = segs.sort((a, b) => a.seq - b.seq).map((s) => s.text).join(' ');
-          c.phase = 'review'; render();
-        });
-      } catch (e) { c.phase = 'ask'; render(); showErr(`Didn't send: ${plain(e)}`); }
-    };
+        await within((async () => {
+          await convex.mutation(api.clarifications.startAnswer, { id: row._id });
+          const storageId = await upload(wav);
+          c.waitFrom = Math.max(c.segs, 0);
+          await convex.mutation(api.clarifications.submitAnswerAudio, { id: row._id, storageId });
+        })(), 15_000, 'Upload');
+      } catch {
+        if (call === c && c.phase === 'sending') go(c, 'choose', UPLOAD_FAILED);
+        return;
+      }
+      if (call === c && c.phase === 'sending') { go(c, 'transcribing'); armTimeout(c); }
+    }
   }
 
   // ---- live state ----
-  convex.onUpdate(api.clarifications.active, {}, (row) => {
+  watch<Row | null>((cb, er) => convex.onUpdate(api.clarifications.active, {}, cb, er), (row) => {
+    const prev = call;
     active = row;
-    if (row && call?.id !== row._id) { stopTranscript?.(); call = { id: row._id, phase: 'ask', transcript: '', micFailed: false, played: false }; }
-    if (!row && call) { stopTranscript?.(); call = undefined; } // confirmed elsewhere, reset, or declined
+    if (prev && prev.id !== row?._id) {
+      // Our question closed under us: someone else confirmed it, or a reset. Our own confirm/decline sets busy.
+      const stale = !prev.busy;
+      endCall();
+      if (stale) homeNote = STALE;
+      else if (!row) return; // our own confirm/decline renders its next screen
+    }
+    if (row && !call) call = startCall(row);
     if (call && (call.phase === 'recording' || call.phase === 'edit') && row?.status !== 'fallback_text') return; // don't wipe the user's hands
     render();
   });
-  convex.onUpdate(api.managers.current, {}, (cur) => {
+  watch<{ _id: Id<'managers'> } | null>((cb, er) => convex.onUpdate(api.managers.current, {}, cb, er), (cur) => {
     if (!me || cur?._id === me.id) return;
     // Reset (null) or someone else joined: back to screen 1 (docs/frontend-guide.md §8).
     me = null; sessionStorage.removeItem('keel-manager'); sessionStorage.removeItem('keel-sent'); sent = [];
-    ledger?.disconnect(); ledger = undefined; ledgerState = 'offline'; paintConn(); render();
+    endCall(); const old = ledger; ledger = undefined; old?.disconnect(); ledgerState = 'offline'; paintConn(); render();
   });
 
   render();
-  if (me) connectLedger(me.name).catch(() => { ledgerState = 'offline'; paintConn(); });
+  if (me) connectLedger(me.name).catch(() => retryLedger());
 }

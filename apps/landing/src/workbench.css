@@ -1,8 +1,8 @@
 /* Workbench shell + Inbox/Projects/Project/Close. White and black most of the way; green only where it carries meaning
    (a figure that just changed, approved/posted, the five ticks, Summo and live dots). Amber = loss / open question, red-brown = refusal. */
 :root{
-  --paper:#FFFFFF; --card:#FFFFFF; --ink:#263336; --hero:#0B1215; --line:#E6E9E6; --muted:#6F7D80; --rust:#263336;
-  --willow:#C8D5BB; --willow-soft:#EEF3E8; --teal:#0F6B63; --amber:#C77A00; --amber-soft:#FBF1DF; --danger:#9B3B2E; --danger-soft:#F6E7E4;
+  /* Shared tone (paper, card, ink, rust, muted, line, willow) comes from base.css so the workbench matches the landing page; plain paper background, no gradient. */
+  --hero:var(--ink); --willow-soft:#EEF3E8; --teal:#0F6B63; --amber:#C77A00; --amber-soft:#FBF1DF; --danger:#9B3B2E; --danger-soft:#F6E7E4;
   --side:232px;
 }
 body{background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.45;font-variant-numeric:tabular-nums}

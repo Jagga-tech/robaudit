@@ -1,6 +1,6 @@
 /* Shared tokens and components: Figma file 8gPKZCS1U6j1LiL5fiGmTX, page "07 — Landing Page". Used by index.html and workbench.html. */
 :root{
-  --paper:#F4F5F3; --willow:#C8D5BB; --willow-soft:#E9EFE2; --rust:#47585C; --ink:#263336; --muted:#6F7D80; --card:#FFFFFF; --line:#DCE2DA;
+  --paper:#F4F5F3; --willow:#C8D5BB; --willow-soft:#E9EFE2; --rust:#38494D; --ink:#1B2528; --muted:#55656A; --card:#FFFFFF; --line:#DCE2DA;
   --display:"Bricolage Grotesque",system-ui,sans-serif; --body:"Hanken Grotesk",system-ui,sans-serif; --mono:"Geist Mono",ui-monospace,monospace;
   --card-h:76px; --gap:10px;
 }
