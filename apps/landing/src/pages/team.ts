@@ -10,6 +10,13 @@ const ROLE: Record<string, [string, string]> = {
   agent: ['Agent', 'Reads sources and proposes entries with evidence. Never posts: the ledger refuses it.'],
 };
 const ORDER = ['controller', 'accountant', 'deployment_manager', 'agent'];
+// seeded demo people; anyone else is a judge who joined from the phone
+const WHO: Record<string, string> = {
+  'Dana|controller': 'Seeded controller, played on this laptop. Reviews each proposal and presses Approve and post.',
+  'Priya|accountant': 'Seeded accountant. "Approve as the accountant" acts as Priya so the ledger can refuse her with the role error.',
+  'Matt|deployment_manager': 'Seeded site manager used by the scripted demo and the benchmark. In the live demo the judge takes this seat under their own name.',
+  'Summo|agent': 'The agent service on Azure Container Apps. Reads, asks, computes and proposes; it has no permission to post.',
+};
 
 const page: Page = {
   route: /^\/workbench\/team$/,
@@ -24,7 +31,8 @@ const page: Page = {
       const phone = ' <span class="ok">(on phone)</span>';
       const row = (name: string, role: string, extra = '') => {
         const [label, what] = ROLE[role] ?? [role, ''];
-        return `<tr><td class="${role === 'agent' ? 'summo' : ''}">${esc(name)}</td><td>${esc(label)}${extra}</td><td class="muted">${esc(what)}</td></tr>`;
+        const who = WHO[name + '|' + role] ?? (role === 'deployment_manager' ? 'Joined from the phone and registered as a deployment manager.' : '');
+        return `<tr><td class="${role === 'agent' ? 'summo' : ''}">${esc(name)}${who ? `<div class="muted small">${esc(who)}</div>` : ''}</td><td>${esc(label)}${extra}</td><td class="muted">${esc(what)}</td></tr>`;
       };
       root.innerHTML = `<div class="pg">
         <p class="lede">Who can do what. Roles are checked by the ledger’s reducers, not by this page.</p>
