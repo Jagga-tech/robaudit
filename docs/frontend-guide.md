@@ -215,7 +215,7 @@ const unsub = convex.onUpdate(api.clarifications.byWorkItem, { workItemId: Strin
 
 `workItemId` in Convex is the SpacetimeDB id as a string. Convex clarification fields: `question`, `options` (`['additional','new_total']` from the keyword path; Claude's options when Claude itself flagged the ambiguity), `status`, `answer`, `speaker`, `reason`, `questionAudioId`, `answerAudioId` and `confirmedAt` (ms).
 
-**Audio URLs.** No query that returns `ctx.storage.getUrl` exists yet. Add this to `convex/clarifications.ts`:
+**Audio URLs.** Use `api.clarifications.audioUrl({ storageId })` (returns `string | null`). It lives in `convex/clarifications.ts`:
 
 ```ts
 export const audioUrl = query({

@@ -81,6 +81,11 @@ export const submitAnswerAudio = mutation({
   },
 });
 
+export const audioUrl = query({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => ctx.storage.getUrl(storageId),
+});
+
 // internal helpers for voice.ts ("use node" files cannot define queries/mutations)
 export const get = internalQuery({ args: { id }, handler: (ctx, a) => ctx.db.get(a.id) });
 

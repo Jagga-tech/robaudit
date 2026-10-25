@@ -47,6 +47,20 @@ describe.skipIf(!url)("clarification channel e2e", () => {
     await c.mutation(api.clarifications.decline, { id: id2, reason: "test cleanup" });
   }, 20_000);
 
+  it("audioUrl returns a playable URL for questionAudioId", async () => {
+    const wid = `${workItemId}-url`;
+    const id = await c.mutation(api.clarifications.ask, { workItemId: wid, question: "Audio url check?", options: ["a", "b"] });
+    let row;
+    for (const end = Date.now() + 10_000; !row?.questionAudioId && Date.now() < end; ) {
+      await new Promise((r) => setTimeout(r, 250));
+      [row] = await c.query(api.clarifications.byWorkItem, { workItemId: wid });
+    }
+    expect(row?.questionAudioId).toBeTruthy();
+    const u = await c.query(api.clarifications.audioUrl, { storageId: row!.questionAudioId! });
+    expect(u?.startsWith("http")).toBe(true);
+    await c.mutation(api.clarifications.decline, { id, reason: "test cleanup" });
+  }, 20_000);
+
   it("submitAnswerAudio -> transcript segment", async () => {
     const id = await c.mutation(api.clarifications.ask, { workItemId, question: "Additional?", options: [] });
     const uploadUrl = await c.mutation(api.clarifications.generateUploadUrl, {});
