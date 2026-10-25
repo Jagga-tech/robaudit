@@ -25,14 +25,28 @@ export function parseAmountCents(amountText: string): bigint | null {
 const SMALL: Record<string, number> = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
 const BIG: Record<string, number> = { thousand: 1e3, k: 1e3, grand: 1e3, million: 1e6, mil: 1e6, mm: 1e6, m: 1e6, billion: 1e9, bn: 1e9 };
 export function parseSpokenCents(text: string): bigint | null {
-  const toks = text.toLowerCase().replace(/(\d),(?=\d)/g, '$1').replace(/(\d)([km])\b/g, '$1 $2').split(/[^a-z0-9.]+/).filter(Boolean);
-  let total = 0, cur = 0, seen = false;
+  const t0 = text.toLowerCase();
+  if (/\bpercent\b|%/.test(t0)) return null; // a share of something is not a figure
+  const toks = t0.replace(/(\d),(?=\d)/g, '$1').replace(/(\d)([km])\b/g, '$1 $2').split(/[^a-z0-9./]+/).filter(Boolean);
+  let total = 0, cur = 0, seen = false, lastBig = 0, prevDigits = false, point = 0;
   for (const t of toks) {
-    if (/^\d+(\.\d+)?$/.test(t)) { if (seen && cur) break; cur += Number(t); seen = true; }
-    else if (t in SMALL) { cur += SMALL[t]; seen = true; }
-    else if (t === 'half' || t === 'quarter') { cur += t === 'half' ? 0.5 : 0.25; seen = true; }
+    const frac = t.match(/^(\d+)\/(\d+)$/);
+    if (frac) { cur += Number(frac[1]) / Number(frac[2]); seen = true; prevDigits = true; continue; } // "1/2 million"
+    if (/^\d+(\.\d+)?$/.test(t)) {
+      if (point) { cur += Number(t) / 10 ** (point + t.length - 1); point += t.length; } // "one point five"
+      else if (prevDigits && cur && /^\d{3}$/.test(t)) cur = cur * 1000 + Number(t); // "400 000"
+      else if (seen && cur) break;
+      else cur += Number(t);
+      seen = true; prevDigits = true; continue;
+    }
+    prevDigits = false;
+    if (t in SMALL) { if (point) { cur += SMALL[t] / 10 ** point; point++; } else cur += SMALL[t]; seen = true; }
+    else if (t === 'point') point = 1;
+    else if (t === 'half' || t === 'quarter') { const f = t === 'half' ? 0.5 : 0.25; if (!cur && lastBig) total += f * lastBig; else cur += f; seen = true; } // "half a million", "a million and a half"
     else if (t === 'hundred') { cur = (cur || 1) * 100; seen = true; }
-    else if (t in BIG) { total += (cur || 1) * BIG[t]; cur = 0; seen = true; }
+    else if (t in BIG) { total += (cur || 1) * BIG[t]; lastBig = BIG[t]; cur = 0; point = 0; seen = true; }
+    else if ((t === 'to' || t === 'or') && seen) return null; // "2 to 3 million": a range, ask again
+    else if (!seen && /^(nothing|none|nil|zero|nada|haven)/.test(t)) { if (!/\d|hundred|thousand|million|billion/.test(t0)) return 0n; } // "nothing yet", "we haven't billed anything"
     else if (seen && t !== 'and' && t !== 'a' && t !== 'of') break;
   }
   return seen ? BigInt(Math.round((total + cur) * 100)) : null;

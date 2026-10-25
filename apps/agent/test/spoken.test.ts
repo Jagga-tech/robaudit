@@ -20,6 +20,18 @@ describe('parseSpokenCents (phone answers)', () => {
     ['a quarter of a million', 25000000n],
     ['two and a half million', 250000000n],
     ['one and a half million', 150000000n],
+    ['one point five million', 150000000n],
+    ['two point two five million', 225000000n],
+    ['400 000', 40000000n],
+    ['1 200 000 dollars', 120000000n],
+    ['a million and a half', 150000000n],
+    ['1/2 million', 50000000n],
+    ['we haven\'t billed anything yet', 0n],
+    ['nothing yet', 0n],
+    ['none so far', 0n],
+    ['one million two hundred thousand', 120000000n],
+    ['um, maybe 300 grand', 30000000n],
+    ['about 400,000', 40000000n],
   ])('%s', (text, cents) => expect(parseSpokenCents(text)).toBe(cents));
-  it.each(['a lot', 'not sure yet', ''])('no figure: %s', (t) => expect(parseSpokenCents(t)).toBeNull());
+  it.each(['a lot', 'not sure yet', '', '2 to 3 million', '800k or 900k', 'ten percent of a million'])('no figure: %s', (t) => expect(parseSpokenCents(t)).toBeNull());
 });
