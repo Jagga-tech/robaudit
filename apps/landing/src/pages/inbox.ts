@@ -1,6 +1,6 @@
 // Inbox (/workbench): work items waiting on a person. Default route.
 import type { Page } from '../lib/app';
-import { esc, all, ago, tag, inbox, live, head } from '../lib/ui';
+import { esc, all, ago, tag, inbox, live, head, disagreement, decisionOf, decisionText } from '../lib/ui';
 
 const LABEL: Record<string, string> = { awaiting_clarification: 'awaiting answer', proposed: 'proposed', held: 'held', returned: 'returned', stale: 'stale' };
 
@@ -12,11 +12,19 @@ const page: Page = {
     const draw = () => {
       const rows = inbox(d, ctx.judge()?.name);
       const n = all(d.project.iter()).length;
+      // one sub line per row: why it was returned/held, or how many sources disagree behind an open proposal
+      const sub = (w: (typeof rows)[number]['w']) => {
+        const a = decisionOf(d, w);
+        if (a) return `${decisionText(a)} · waiting for new evidence`;
+        if (!all(d.proposal.iter()).some((p) => p.workItemId === w.id && p.status === 'open')) return '';
+        const k = all(d.source.iter()).filter((s) => s.projectId === w.projectId && disagreement(d, s.id)).length;
+        return k ? `${k} source disagreement${k === 1 ? '' : 's'}` : '';
+      };
       head({ sub: rows.length ? `${rows.length} ${rows.length === 1 ? 'item waits' : 'items wait'} on a person.` : 'Everything Summo proposes lands here first.' });
       root.innerHTML = rows.length
-        ? `<table class="tbl rows"><thead><tr><th>Work item</th><th>Waiting on</th><th>Age</th><th>Status</th></tr></thead><tbody>${rows.map(({ w, who, at }) =>
-            `<tr data-href="/workbench/projects/${w.projectId}"><td><a href="/workbench/projects/${w.projectId}">${esc(w.title)}</a></td><td>waiting on ${esc(who)}</td><td class="mono">${ago(at)}</td>` +
-            `<td>${tag(LABEL[w.status] ?? w.status, w.status === 'proposed' ? '' : 'amber')}</td></tr>`).join('')}</tbody></table>`
+        ? `<table class="tbl rows"><thead><tr><th>Work item</th><th>Waiting on</th><th>Age</th><th>Status</th></tr></thead><tbody>${rows.map(({ w, who, at }) => { const a = decisionOf(d, w), line = sub(w); return (
+            `<tr data-href="/workbench/projects/${w.projectId}"><td><a href="/workbench/projects/${w.projectId}">${esc(w.title)}</a>${line ? `<p class="small${a ? ' amber' : ''}">${esc(line)}</p>` : ''}</td><td>${a ? 'waiting for new evidence' : `waiting on ${esc(who)}`}</td><td class="mono">${ago(at)}</td>` +
+            `<td>${tag(LABEL[w.status] ?? w.status, w.status === 'proposed' ? '' : 'amber')}</td></tr>`); }).join('')}</tbody></table>`
         : `<p class="empty big">Nothing waits on a person. Summo is watching ${n} project${n === 1 ? '' : 's'}.</p>`;
     };
     const stop = live(ctx, draw);

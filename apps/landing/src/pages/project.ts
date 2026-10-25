@@ -2,7 +2,7 @@
 // Overview = figures + margin + the proposal panel + activity; Sources; Calculations; Proposals (+ "break it").
 import type { Page } from '../lib/app';
 import { connect, call, codeOf, ids, type DbConnection } from '../lib/ledger';
-import { esc, clip, all, byId, last, sleep, reduceMotion, usd, dollars, pct, card, tag, sourceLabel, KIND, READER, ACCOUNT, project, proposalStatus, statusTone, live, head, setHtml } from '../lib/ui';
+import { esc, clip, all, byId, last, sleep, reduceMotion, usd, dollars, pct, card, tag, sourceLabel, KIND, READER, ACCOUNT, project, proposalStatus, statusTone, live, head, setHtml, disagreement, disagreeLine, DISAGREE, decisionOf, decisionText } from '../lib/ui';
 
 declare const qrcode: any; // qrcode-generator 1.4.4, classic script from cdnjs (workbench.html)
 
@@ -16,6 +16,7 @@ const CHECK_OF: Record<string, number> = { role: 0, not_approved: 1, revision: 1
 let shownCalc: bigint | undefined, shown = { bp: 0, rev: 0, margin: 0 };
 const posting = new Map<bigint, { checks: string[]; busy: boolean }>();
 const tickState = (pid: bigint) => posting.get(pid) ?? posting.set(pid, { checks: ['', '', '', '', ''], busy: false }).get(pid)!;
+let asking: { pid: bigint; decision: 'return' | 'hold'; draft: string } | null = null; // the inline reason box under Return/Hold
 let priya: Promise<DbConnection> | undefined; // second connection, opened only for "Approve as the accountant"
 
 const page: Page = {
@@ -63,10 +64,11 @@ const page: Page = {
         figures(x);
         setHtml($('[data-f=activity]'), activity(x));
         const p = x.main && x.latestOf(x.main.id);
-        const show = !!p && p.status !== 'posted'; // 'posted' only on the S0 seed: nothing to decide yet
+        const no = x.main && decisionOf(d, x.main); // returned/held: nothing open until new evidence arrives
+        const show = !!p && p.status !== 'posted' && !no; // 'posted' only on the S0 seed: nothing to decide yet
         $('[data-f=join]').hidden = show || !!ctx.judge();
         const writing = !!x.cur && (!p || p.calculationId < x.cur.id); // the calculation lands 6-9 s before its proposal
-        setHtml($('[data-f=prop]'), show && !writing ? panel(x, p!, true) : writing ? '<div class="quiet"><b>Summo is writing the entry.</b><p>The numbers moved. The proposal follows in a few seconds.</p></div>' : ctx.judge() ? `<div class="quiet"><b>Summo is watching.</b><p>${esc(ctx.judge()!.name)} joined as deployment manager. A site update from the phone starts the next proposal.</p></div>` : '');
+        setHtml($('[data-f=prop]'), show && !writing ? panel(x, p!, true) : no && !writing ? `<div class="quiet"><b>${no.held ? 'On hold' : 'Returned'}${no.reason ? ': ' + esc(no.reason) : ''}.</b><p>Summo will propose again when new evidence arrives.</p></div>` : writing ? '<div class="quiet"><b>Summo is writing the entry.</b><p>The numbers moved. The proposal follows in a few seconds.</p></div>' : ctx.judge() ? `<div class="quiet"><b>Summo is watching.</b><p>${esc(ctx.judge()!.name)} joined as deployment manager. A site update from the phone starts the next proposal.</p></div>` : '');
       };
     }
 
@@ -124,7 +126,8 @@ const page: Page = {
             const s = d.source.id.find(e.refId);
             if (!s) return card('note', e.summary, actor, actor.toLowerCase());
             const what = s.kind === 'scanned_forecast' ? 'photographed the forecast sheet' : s.kind === 'clarification' ? 'answer recorded' : `“${clip(s.text)}”`;
-            return card('note', `${actor}: ${what}`, `${KIND[s.kind] ?? s.kind} v${s.version}`, actor.toLowerCase());
+            const g = disagreement(d, s.id);
+            return g ? card('note', `${actor}: ${what}`, disagreeLine(g), DISAGREE, 'amber') : card('note', `${actor}: ${what}`, `${KIND[s.kind] ?? s.kind} v${s.version}`, actor.toLowerCase());
           }
           case 'extraction': {
             const xr = d.extraction.id.find(e.refId);
@@ -132,6 +135,8 @@ const page: Page = {
             let amount = '';
             try { const f = JSON.parse(xr?.factsJson ?? '[]'); amount = Array.isArray(f) ? f[0]?.amountText ?? '' : ''; } catch {}
             const reader = READER[xr?.reader ?? e.summary.split(' ')[0]] ?? 'Summo';
+            const g = xr?.reader === 'azure-di' ? disagreement(d, xr.sourceId) : null;
+            if (g) return card('readers', `Forecast sheet read by ${reader}`, disagreeLine(g), DISAGREE, 'amber');
             return card('readers', `${amount ? amount + ' read' : 'Read'}${ambiguous ? ', wording ambiguous' : ''}`, `${reader}, for Summo`, ambiguous ? 'ambiguous' : 'read', ambiguous ? 'amber' : '');
           }
           case 'clarification_opened': return card('phone', `Asking ${judge}: ${e.summary}`, 'Summo · phone call', 'asking', 'amber');
@@ -174,7 +179,7 @@ const page: Page = {
         const ref = s.kind === 'clarification' ? refs.find((r) => r.sourceId === s.parentSourceId) : undefined;
         const audio = ref?.audioStorageId ? ` data-audio="${esc(ref.audioStorageId)}"` : '';
         const label = s.kind === 'note' ? `Site update · ${clip(s.text, 24)}` : sourceLabel(s);
-        return `<button class="chip" type="button" data-src="${s.id}"${audio}>${audio ? '▶ ' : ''}${esc(label)}</button>`;
+        return `<button class="chip" type="button" data-src="${s.id}"${audio}>${audio ? '▶ ' : ''}${esc(label)}${disagreement(d, s.id) ? ' ' + tag(DISAGREE, 'amber') : ''}</button>`;
       });
       const st = proposalStatus(p, x.postingOf);
       const t = st === 'open' ? tag('awaiting Dana', 'amber') : tag(st, statusTone(st));
@@ -184,10 +189,13 @@ const page: Page = {
       const acts = pg ? `<p class="posted">Posted ${esc(pg.postingRef)} · ${esc(pg.postedBy)} · ${pg.postedAt.toDate().toLocaleTimeString()}</p>`
         : !decidable ? ''
         : `<button class="pill dark sm" type="button" data-act="approve" data-pid="${p.id}"${canPost && !ui.busy ? '' : ' disabled'}>Approve and post</button>` +
-          (p.status === 'open' ? `<button class="pill outline sm" type="button" data-act="return" data-pid="${p.id}"${ui.busy ? ' disabled' : ''}>Return</button><button class="pill outline sm" type="button" data-act="hold" data-pid="${p.id}"${ui.busy ? ' disabled' : ''}>Hold</button>` : '');
+          (p.status !== 'open' ? '' : asking?.pid === p.id
+            ? `<form class="why" data-why="${p.id}"><input name="reason" required maxlength="200" placeholder="${asking.decision === 'return' ? 'Why return it to Summo?' : 'Why hold it?'}" aria-label="Reason"><button class="pill dark sm" type="submit">${asking.decision === 'return' ? 'Return' : 'Hold'}</button><button class="pill outline sm" type="button" data-act="cancel">Cancel</button></form>`
+            : `<button class="pill outline sm" type="button" data-act="return" data-pid="${p.id}"${ui.busy ? ' disabled' : ''}>Return</button><button class="pill outline sm" type="button" data-act="hold" data-pid="${p.id}"${ui.busy ? ' disabled' : ''}>Hold</button>`);
+      const no = (p.status === 'returned' || p.status === 'held') && all(d.approval.iter()).filter((a) => a.proposalId === p.id && a.decision !== 'approve').pop();
       const wi = x.items.find((w) => w.id === p.workItemId);
       return `<article class="proposal${decidable && !pg && p.status === 'open' ? ' open' : ''}">` +
-        `<h3>Proposal rev ${p.revision} ${t}</h3>${x.items.length > 1 && wi ? `<p class="small">${esc(wi.title)}</p>` : ''}` +
+        `<h3>Proposal rev ${p.revision} ${t}</h3>${no ? `<p class="small amber">${esc(decisionText({ by: no.by, reason: no.reason, held: no.decision === 'hold' }))}</p>` : ''}${x.items.length > 1 && wi ? `<p class="small">${esc(wi.title)}</p>` : ''}` +
         `<div class="entry">${lines.map((l) => { const isDr = BigInt(l.debit) > 0n; return `<div class="${isDr ? 'dr' : 'cr'}"><span>${isDr ? 'Dr' : 'Cr'}</span><span>${esc(ACCOUNT[l.account] ?? l.account)}</span><span>${usd(isDr ? BigInt(l.debit) : BigInt(l.credit))}</span></div>`; }).join('')}</div>` +
         `<div class="expl">${expl.map((y) => `<p class="${y.startsWith('ESCALATION:') ? 'esc' : ''}">${esc(y)}</p>`).join('')}</div>` +
         (evidence.length ? `<p class="small">Evidence</p><div class="evid">${evidence.join('')}</div>` : '') +
@@ -210,7 +218,7 @@ const page: Page = {
         const past = new Set(seed ? ids(seed.exampleSourceIds).map(String) : []);
         const srcs = all(d.source.iter()).filter((s) => s.projectId === x.proj.id).sort(byId);
         const refs = all(d.clarificationRef.iter());
-        const key = srcs.map((s) => s.id).join() + '|' + [...past].join() + '|' + refs.map((r) => r.audioStorageId).join();
+        const key = srcs.map((s) => s.id).join() + '|' + all(d.extraction.iter()).length + '|' + [...past].join() + '|' + refs.map((r) => r.audioStorageId).join();
         if (key === sourcesKey) return; // keep focus on the chips while nothing changed
         sourcesKey = key;
         const chip = (label: string, data: string) => `<button class="chip" type="button" data-src="${data}">${esc(label)}</button>`;
@@ -221,7 +229,8 @@ const page: Page = {
           const extra = ref?.audioStorageId ? `<button class="chip" type="button" data-audio="${esc(ref.audioStorageId)}">▶ voice</button>`
             : s.kind === 'scanned_forecast' ? `<button class="chip" type="button" data-src="${s.id}">image + OCR</button>` : '';
           const text = s.kind === 'scanned_forecast' ? 'Photographed forecast sheet' : clip(s.text, 90);
-          return `<tr data-src="${s.id}"><td class="mono">#${s.id}</td><td>${esc(KIND[s.kind] ?? s.kind)}${past.has(String(s.id)) ? ' · past close' : ''}</td><td class="mono">v${s.version}</td><td>${esc(text)}</td><td>${extra}</td></tr>`;
+          const g = disagreement(d, s.id);
+          return `<tr data-src="${s.id}"><td class="mono">#${s.id}</td><td>${esc(KIND[s.kind] ?? s.kind)}${past.has(String(s.id)) ? ' · past close' : ''}</td><td class="mono">v${s.version}</td><td>${esc(text)}${g ? ` ${tag(DISAGREE, 'amber')}<p class="small">${esc(disagreeLine(g))}</p>` : ''}</td><td>${extra}</td></tr>`;
         }).join('');
       };
     }
@@ -273,11 +282,10 @@ const page: Page = {
       draw();
     }
 
-    async function decideWith(id: bigint, decision: 'return' | 'hold') {
+    async function decideWith(id: bigint, decision: 'return' | 'hold', reason: string) {
       const p = d.proposal.id.find(id);
       if (!p) return;
-      const reason = prompt(decision === 'return' ? 'Why return it to Summo?' : 'Why hold it?');
-      if (reason === null) return;
+      asking = null; draw();
       const err = await call(ctx.conn.reducers.decide({ proposalId: p.id, revision: p.revision, decision, reason }));
       if (err) refuse(err); else ctx.toast(`Rev ${p.revision} ${decision === 'return' ? 'returned to Summo' : 'held'}`, 'warn');
     }
@@ -341,18 +349,34 @@ const page: Page = {
       if (!t) return;
       const id = t.dataset.pid ? BigInt(t.dataset.pid) : 0n;
       if (t.dataset.act === 'approve') approveAndPost(id);
-      else if (t.dataset.act === 'return' || t.dataset.act === 'hold') decideWith(id, t.dataset.act);
+      else if (t.dataset.act === 'return' || t.dataset.act === 'hold') { asking = { pid: id, decision: t.dataset.act, draft: '' }; draw(); body.querySelector<HTMLInputElement>('form.why input')?.focus(); }
+      else if (t.dataset.act === 'cancel') { asking = null; draw(); }
       else if (t.dataset.break) BREAK[t.dataset.break]().catch((err) => refuse(String(err?.message ?? err)));
       else if (t.dataset.audio) playAudio(t.dataset.audio);
       else if (t.dataset.src) openSheet(t.dataset.src);
     };
     root.addEventListener('click', onClick);
+    const onSubmit = (e: SubmitEvent) => {
+      const f = (e.target as HTMLElement).closest<HTMLFormElement>('form.why');
+      if (!f || !asking) return;
+      e.preventDefault();
+      const reason = (f.elements.namedItem('reason') as HTMLInputElement).value.trim();
+      if (reason) decideWith(BigInt(f.dataset.why!), asking.decision, reason);
+    };
+    const onInput = (e: Event) => { const i = e.target as HTMLInputElement; if (asking && i.closest('form.why')) asking.draft = i.value; };
+    root.addEventListener('submit', onSubmit);
+    root.addEventListener('input', onInput);
 
     const tabDraw = { overview, sources, calculations, proposals }[tab]();
-    const draw = () => { header(); tabDraw(); };
+    const draw = () => {
+      const had = document.activeElement?.closest('form.why') != null;
+      header(); tabDraw();
+      const i = body.querySelector<HTMLInputElement>('form.why input'); // a re-render must not eat what Dana typed
+      if (i && asking && i.value !== asking.draft) { i.value = asking.draft; if (had) i.focus(); }
+    };
     const stop = live(ctx, draw);
     const stopJudge = ctx.convex.onUpdate(ctx.api.managers.current, {}, () => draw()); // join card + "asking <Name>"
-    return () => { stop(); stopJudge(); root.removeEventListener('click', onClick); };
+    return () => { stop(); stopJudge(); root.removeEventListener('click', onClick); root.removeEventListener('submit', onSubmit); root.removeEventListener('input', onInput); };
   },
 };
 export default page;

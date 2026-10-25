@@ -192,3 +192,7 @@ h3{font-size:14px;font-weight:600;margin:20px 0 8px}
 }
 .col .pg{padding:0} /* sub-page modules bring their own padding; the shell column already has it */
 .list .card{height:auto;opacity:1;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;transition:none}
+.small.amber{color:var(--amber)}
+.chip .tag{margin-left:4px}
+form.why{display:flex;gap:8px;flex-wrap:wrap;width:100%}
+form.why input{flex:1 1 180px;min-width:0;font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink)}

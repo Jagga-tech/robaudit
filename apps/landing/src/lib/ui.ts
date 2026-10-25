@@ -107,3 +107,28 @@ export function head(o: { title?: string; sub?: string; actions?: string }) {
 export function setHtml(el: HTMLElement, html: string) {
   if ((el as any)._html !== html) { (el as any)._html = html; el.innerHTML = html; }
 }
+
+/** A document-vs-ledger disagreement the agent recorded on a source's azure-di extraction (latest wins); null when none or unparsable. */
+export type Disagreement = { document: bigint; ledger: bigint; trusted: string; reason: string };
+export function disagreement(d: Db, sourceId: bigint): Disagreement | null {
+  const x = all(d.extraction.iter()).filter((e) => e.sourceId === sourceId && e.reader === 'azure-di').sort(byId).pop();
+  if (!x) return null;
+  try {
+    const g = JSON.parse(x.factsJson)?.disagreement;
+    if (!g || g.document == null || g.ledger == null) return null;
+    return { document: BigInt(g.document), ledger: BigInt(g.ledger), trusted: String(g.trusted ?? ''), reason: String(g.reason ?? '') };
+  } catch { return null; }
+}
+export const trustedLabel = (g: Disagreement) => (g.trusted === 'cost_export' ? 'cost export' : 'sheet');
+export const disagreeLine = (g: Disagreement) => `Sheet ${usd(g.document)} · cost export ${usd(g.ledger)} · trusted: ${trustedLabel(g)}`;
+export const DISAGREE = 'sources disagree';
+
+/** The return/hold decision behind a returned or held work item (the approval row on its latest proposal). */
+export function decisionOf(d: Db, w: { id: bigint; status: string }) {
+  if (w.status !== 'returned' && w.status !== 'held') return null;
+  const pids = new Set(all(d.proposal.iter()).filter((p) => p.workItemId === w.id).map((p) => p.id));
+  const a = all(d.approval.iter()).filter((x) => pids.has(x.proposalId) && (x.decision === 'return' || x.decision === 'hold')).sort(byId).pop();
+  return a ? { by: a.by, reason: a.reason, held: a.decision === 'hold', proposalId: a.proposalId } : null;
+}
+/** "Returned by Dana: <reason>" / "On hold by Dana: <reason>". */
+export const decisionText = (a: { by: string; reason: string; held: boolean }) => `${a.held ? 'On hold' : 'Returned'} by ${a.by}${a.reason ? ': ' + a.reason : ''}`;

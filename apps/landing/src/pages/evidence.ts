@@ -1,6 +1,7 @@
 // Evidence: every `source` row across projects, newest first, with the readers that read it and where it was used.
 import type { Ctx, Page } from '../lib/app';
 import { ids, pct } from '../lib/ledger';
+import { disagreement, disagreeLine, trustedLabel, DISAGREE, tag, usd } from '../lib/ui';
 import './pages.css';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -54,13 +55,13 @@ const page: Page = {
           <thead><tr><th>Kind</th><th class="num">Ver</th><th>Project</th><th>Text</th><th>Added</th><th>Read by</th><th>Ambiguity</th></tr></thead>
           <tbody>${shown.map((s) => {
             const mine = exs.filter((x) => x.sourceId === s.id);
-            const amb = mine.some((x) => x.ambiguityFlag);
+            const amb = mine.some((x) => x.ambiguityFlag), g = disagreement(d, s.id);
             return `<tr class="click${sel === s.id ? ' sel' : ''}" data-id="${s.id}">
               <td>${LABEL[s.kind] ?? esc(s.kind)}</td><td class="num">v${s.version}</td>
-              <td>${esc(projects.get(s.projectId) ?? '—')}</td><td class="text">${preview(s)}</td>
+              <td>${esc(projects.get(s.projectId) ?? '—')}</td><td class="text">${preview(s)}${g ? `<div class="muted">${esc(disagreeLine(g))}</div>` : ''}</td>
               <td class="mono muted">${when(s.createdAt)}</td>
               <td class="mono">${[...new Set(mine.map((x) => x.reader))].join(', ') || '<span class="muted">—</span>'}</td>
-              <td>${amb ? '<span class="amb">ambiguous</span>' : ''}</td></tr>`;
+              <td>${g ? tag(DISAGREE, 'amber') : amb ? '<span class="amb">ambiguous</span>' : ''}</td></tr>`;
           }).join('')}</tbody></table></div>` : '<p class="empty">No sources of this kind yet.</p>'}
       </div>${sel !== null ? sheet(sel) : ''}`;
     }
@@ -96,6 +97,14 @@ const page: Page = {
         parts.push('<h3>Recorded text</h3>', `<pre>${esc(s.text)}</pre>`);
       } else parts.push('<h3>Full text</h3>', `<pre>${esc(s.text)}</pre>`);
 
+      const g = disagreement(d, id);
+      if (g) {
+        const doc = g.trusted !== 'cost_export', mark = tag('trusted', 'ok');
+        parts.push(`<h3>Sources disagree ${tag(DISAGREE, 'amber')}</h3>`,
+          `<table class="cmp"><tr><th>Document${doc ? ' ' + mark : ''}</th><th>Ledger · cost export${doc ? '' : ' ' + mark}</th></tr>` +
+          `<tr><td class="mono${doc ? ' trusted' : ''}">${usd(g.document)}</td><td class="mono${doc ? '' : ' trusted'}">${usd(g.ledger)}</td></tr></table>`,
+          `<p>${esc(g.reason || `Trusting the ${trustedLabel(g)}.`)}</p>`);
+      }
       for (const x of exs.filter((x) => x.reader !== 'azure-di')) {
         let facts: { quote?: string; amountText?: string }[] = [];
         try { const f = JSON.parse(x.factsJson); if (Array.isArray(f)) facts = f; } catch {}
