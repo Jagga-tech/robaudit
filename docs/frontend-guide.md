@@ -314,6 +314,31 @@ Ordering rules:
 - The invoice proposal (`calculationId = 0`) is **not** staled by later notes, so beat 9 can run while it is still open.
 - **"New total" branch** (answer `new_total` in beat 5): remaining $200,000, 6667 bp (66.67%), revenue $666,667, asset $366,667, margin $400,000, no loss, entry Dr ContractAsset 166,667 / Cr Revenue 166,667. Approving it saves `another_means = new_total`. Reset before beat 9, because "another $50,000" would then be read as the new total remaining.
 
+## 7b. Scanned forecast upload (Azure Document Intelligence beat)
+
+The Microsoft-track beat: the accountant uploads a photo or PDF of the forecast sheet and the
+agent reads it with Azure Document Intelligence, then runs the normal extraction path.
+
+```ts
+// 1. upload the file to Convex storage
+const uploadUrl = await convex.mutation(api.clarifications.generateUploadUrl, {});
+const res = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+const { storageId } = await res.json();
+// 2. register it as evidence; the agent picks it up from the subscription
+await conn.reducers.addSource({ projectId, kind: 'scanned_forecast', text: storageId, parentSourceId: 0n, version: 2 });
+```
+
+What to show while it runs: an `extraction` row with `reader === 'azure-di'` appears first
+(its `factsJson` is `{ text, tables }`, the OCR output; render the text and the table under the
+source), then a `claude` extraction, then a new `calculation` and `proposal` whose
+`evidenceSourceIds` contains the scanned source id. Expected with the fixture
+`apps/agent/test/fixtures/forecast-v2.pdf`: remaining $600,000 read as the new total (the seeded
+convention `remaining_estimate_means = future_costs_only` is cited), progress 40%, adjustment
+-$100,000. The page image itself is available for display through
+`api.clarifications.audioUrl({ storageId })`, which returns a URL for any storage id.
+Without Azure keys the agent runs a mock OCR that returns the same figures; the UI cannot tell
+the difference, so design the "reading document..." state for 3-8 seconds either way.
+
 ## 8. Gotchas
 
 - **Ids shift after every reset.** Look rows up by name, title or kind each time, never by a cached id.
