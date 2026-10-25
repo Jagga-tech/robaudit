@@ -1,10 +1,10 @@
-# Keel
+# RoboAudit
 
-Keel is a project-close accounting agent for robotics companies that install fixed-price systems. When a cost forecast, a field note or a commissioning log changes, it reads the evidence, asks the deployment manager one clarifying question by voice if the wording is ambiguous, recomputes revenue with tested cost-to-cost arithmetic, and prepares an adjusting entry. A controller approves and posts it; the model never produces a number that gets posted.
+RoboAudit is a project-close accounting agent for robotics companies that install fixed-price systems. When a cost forecast, a field note or a commissioning log changes, it reads the evidence, asks the deployment manager one clarifying question by voice if the wording is ambiguous, recomputes revenue with tested cost-to-cost arithmetic, and prepares an adjusting entry. A controller approves and posts it; the model never produces a number that gets posted.
 
 Built at Cal Hacks 13.0. Design: `docs/superpowers/specs/2026-10-24-keel-design.md`. Team source doc: `docs/one-pager.md`.
 
-> The agent service is called **Summo** internally; Keel is the product. UI labels use "Summo" for the agent.
+> The agent service is called **Summo** internally; RoboAudit is the platform. UI labels (`@keel/*` packages and database `keel` keep the internal codename) use "Summo" for the agent.
 
 ## Architecture
 

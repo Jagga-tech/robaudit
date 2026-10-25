@@ -1,8 +1,8 @@
-# Keel frontend integration guide (workbench + phone)
+# RoboAudit frontend integration guide (workbench + phone)
 
 For Tanush. Everything here was checked against the code as of 2026-10-24: `spacetimedb/src`, `packages/bindings/src`, `convex/`, `apps/agent/src/loop.ts`, `apps/harness/src/main.ts` and `scripts/demo.ts`. If something here disagrees with the code, the code is right.
 
-> Naming: the product is **Keel**; the agent service (the thing that reads, asks and proposes) is **Summo**. Label it "Summo" in the queue, workbench and history.
+> Naming: the platform is **RoboAudit**; the agent service (the thing that reads, asks and proposes) is **Summo**. Label it "Summo" in the queue, workbench and history.
 
 ## 1. What the backend does
 
@@ -69,7 +69,7 @@ Import from `@keel/bindings`, never from `@keel/ledger-client`. That package imp
 import { DbConnection } from '@keel/bindings';
 
 export type Role = 'accountant' | 'deployment_manager' | 'controller' | 'agent';
-const NAMES: Record<Role, string> = { accountant: 'Priya', deployment_manager: 'Matt', controller: 'Dana', agent: 'Keel Agent' };
+const NAMES: Record<Role, string> = { accountant: 'Priya', deployment_manager: 'Matt', controller: 'Dana', agent: 'RoboAudit Agent' };
 // Subscription SQL uses the snake_case wire names; conn.db uses camelCase (work_item -> conn.db.workItem).
 const TABLES = ['user', 'project', 'policy', 'convention', 'source', 'extraction', 'clarification_ref', 'work_item',
   'calculation', 'proposal', 'approval', 'posting', 'contract_milestone', 'history_event'];
@@ -297,7 +297,7 @@ For the fallback, `new (window.SpeechRecognition ?? (window as any).webkitSpeech
 
 ## 7. The nine demo beats
 
-The S0 baseline is incurred $400k, remaining $400k, 50.00%, revenue $500,000, billed $300,000, asset $200,000, margin $200,000. Each Claude read takes about 2–6 s with a real key, and a forecast note needs two reads (extract, then explain). Show a "Keel is reading…" state from `source_added` until the next `calculation`/`proposed`/`clarification_opened` event for that source.
+The S0 baseline is incurred $400k, remaining $400k, 50.00%, revenue $500,000, billed $300,000, asset $200,000, margin $200,000. Each Claude read takes about 2–6 s with a real key, and a forecast note needs two reads (extract, then explain). Show a "RoboAudit is reading…" state from `source_added` until the next `calculation`/`proposed`/`clarification_opened` event for that source.
 
 | # | Who clicks what | Watch | Expected |
 |---|---|---|---|

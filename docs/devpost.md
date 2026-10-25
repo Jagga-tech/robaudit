@@ -1,6 +1,6 @@
-# Devpost submission: Keel
+# Devpost submission: RoboAudit
 
-**Project name:** Keel
+**Project name:** RoboAudit
 
 **Tagline:** An accounting agent that keeps robotics project revenue current, asks the one question it needs by phone, and lets a controller post.
 
@@ -12,9 +12,9 @@ Public evidence. Symbotic, a warehouse-automation company, disclosed a material 
 
 ## What it does
 
-Keel is the product; the agent inside it is named Summo.
+RoboAudit is the platform; the agent inside it is named Summo.
 
-A deployment manager adds a note. Keel reads it, sees that "another $200,000" could mean additional cost or a new total, and calls the manager. The question is spoken, the answer is transcribed and confirmed, and it is stored as evidence. Keel recomputes: progress falls from 50% to 40%, cumulative revenue from $500,000 to $400,000, margin to $0 with a loss warning. It proposes Dr Revenue 100,000 / Cr Contract asset 100,000 with an explanation. The controller approves, the posting checks run, and the history shows v1 to v2. The next month, "another $50,000 for conveyor rework" is handled with no call, citing the saved convention.
+A deployment manager adds a note. RoboAudit reads it, sees that "another $200,000" could mean additional cost or a new total, and calls the manager. The question is spoken, the answer is transcribed and confirmed, and it is stored as evidence. RoboAudit recomputes: progress falls from 50% to 40%, cumulative revenue from $500,000 to $400,000, margin to $0 with a loss warning. It proposes Dr Revenue 100,000 / Cr Contract asset 100,000 with an explanation. The controller approves, the posting checks run, and the history shows v1 to v2. The next month, "another $50,000 for conveyor rework" is handled with no call, citing the saved convention.
 
 ## How we built it
 
@@ -25,7 +25,7 @@ Language, arithmetic and permission to write are kept apart.
 - **SpacetimeDB** (TypeScript module): the ledger. Reducers enforce roles, revisions, staleness, period open, debits = credits and unique posting refs, and write a history event on every change. Agent, harness and UI subscribe live.
 - **Convex**: the voice clarification channel. Live queries drive the phone page and call pane, mutations move the call through ringing, answering and confirmed, actions call Cartesia, file storage holds question and answer audio, and the scheduler chains them. Convex never touches money.
 - **Cartesia**: Sonic TTS speaks the question; Ink STT transcribes the recorded answer over WebSocket. The STT path (Ink over WebSocket) is implemented; the automated demo confirms answers by text, so STT is exercised only from the phone page. Claude and Cartesia TTS were verified end to end with real keys in `pnpm demo --require-real`.
-- **Gemini 2.5 Flash**: an independent second reader on the same extraction schema. Gemini runs only when `GEMINI_API_KEY` is set (otherwise there is a single reader). When the readers disagree on the amount, Keel asks instead of guessing; when a saved convention applies to the agreed readings, Keel cites it instead of asking.
+- **Gemini 2.5 Flash**: an independent second reader on the same extraction schema. Gemini runs only when `GEMINI_API_KEY` is set (otherwise there is a single reader). When the readers disagree on the amount, RoboAudit asks instead of guessing; when a saved convention applies to the agreed readings, RoboAudit cites it instead of asking.
 
 ## Challenges we ran into
 
@@ -42,7 +42,7 @@ Language, arithmetic and permission to write are kept apart.
 
 ## What we learned
 
-Most of the work in an accounting agent is deciding what the model is not allowed to do. Keel learns conventions from confirmed answers, once the controller approves them, not model weights. S0 seeds one convention, learned from six past closes (seeded for the demo).
+Most of the work in an accounting agent is deciding what the model is not allowed to do. RoboAudit learns conventions from confirmed answers, once the controller approves them, not model weights. S0 seeds one convention, learned from six past closes (seeded for the demo).
 
 ## What's next
 

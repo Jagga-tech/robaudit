@@ -1,4 +1,4 @@
-# Keel — Production Deployment Plan (Cal Hacks demo + beyond)
+# RoboAudit — Production Deployment Plan (Cal Hacks demo + beyond)
 
 Date: 2026-10-24. Scope: how every service runs on the day, how it is deployed, how it is
 reset, and what the Azure additions change. Build nothing until this is agreed.
