@@ -32,10 +32,10 @@ describe('intake agent', () => {
     expect(f.named('openClarification')).toHaveLength(1);
   });
 
-  it('"a million dollars" is re-asked; "$1,000,000" records the contract and asks the next figure', async () => {
+  it('"not sure yet, a lot" is re-asked; "$1,000,000" records the contract and asks the next figure', async () => {
     const { f, cycle, say } = setup();
     await cycle();
-    await say('a million dollars');
+    await say('not sure yet, a lot');
     expect(f.named('recordIntake')).toHaveLength(0);
     expect(f.named('fallbackText')).toHaveLength(0); // amount answers never go through normalizeAnswer's re-ask
     expect(questions(f).at(-1)).toBe(REASK);

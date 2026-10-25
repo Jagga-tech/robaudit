@@ -1,5 +1,5 @@
 import { compute } from '@keel/engine';
-import { parseAmountCents } from '../extract.js';
+import { parseSpokenTotal } from '../extract.js';
 import { guardedLedger, log, say, type Agent } from '../bus.js';
 import type { ClarificationRefRow, ConvexClarification, Deps, LedgerState } from '../loop.js';
 import { engine, maxBy, usd } from './engine.js';
@@ -38,7 +38,7 @@ function figures(s: LedgerState, projectId: bigint): Partial<Record<Field, { id:
 }
 
 // ponytail: a bare digit string is the phone's cents; anything else is spoken/typed dollars. A typed "1000000" therefore reads as $10,000.
-export const amountOf = (a: string): bigint | null => (/^\d+$/.test(a.trim()) ? BigInt(a.trim()) : parseAmountCents(a));
+export const amountOf = (a: string): bigint | null => (/^\d+$/.test(a.trim()) ? BigInt(a.trim()) : parseSpokenTotal(a).cents);
 
 async function askOne(deps: Deps, projectId: bigint, workItemId: bigint, question: string) {
   await fieldLiaison.handlers.ask(deps, projectId, workItemId, question, [], '', 'amount');

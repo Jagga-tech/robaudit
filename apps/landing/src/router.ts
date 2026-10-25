@@ -7,19 +7,25 @@ import.meta.glob('./pages/*.css', { eager: true });
 const isPage = (x: any): x is Page => !!x && x.route instanceof RegExp && typeof x.render === 'function';
 export const pages: Page[] = [...new Set(Object.values(mods).flatMap((m) => Object.values(m).filter(isPage)))];
 
+// Sidebar: the five places Dana works. Everything internal (what the agents did and why) sits under Team as sub-pages.
 export const NAV = [
   { key: 'inbox', label: 'Inbox', path: '/workbench' },
-  { key: 'workflow', label: 'Workflow', path: '/workbench/workflow' },
-  { key: 'agents', label: 'Agents', path: '/workbench/agents' },
   { key: 'projects', label: 'Projects', path: '/workbench/projects' },
   { key: 'close', label: 'Close', path: '/workbench/close' },
   { key: 'books', label: 'Books', path: '/workbench/books' },
-  { key: 'evidence', label: 'Evidence', path: '/workbench/evidence' },
-  { key: 'audit', label: 'Audit trail', path: '/workbench/audit' },
-  { key: 'policies', label: 'Policies', path: '/workbench/policies' },
-  { key: 'connections', label: 'Connections', path: '/workbench/connections' },
-  { key: 'team', label: 'Team', path: '/workbench/team' },
-];
+  { key: 'team', label: 'Team', path: '/workbench/team', group: 'team' },
+  { key: 'agents', label: 'Agents', path: '/workbench/agents', group: 'team' },
+  { key: 'workflow', label: 'Workflow', path: '/workbench/workflow', group: 'team' },
+  { key: 'evidence', label: 'Evidence', path: '/workbench/evidence', group: 'team' },
+  { key: 'audit', label: 'Audit trail', path: '/workbench/audit', group: 'team' },
+  { key: 'policies', label: 'Policies', path: '/workbench/policies', group: 'team' },
+  { key: 'connections', label: 'Connections', path: '/workbench/connections', group: 'team' },
+] as { key: string; label: string; path: string; group?: string }[];
+/** Sidebar entries: one per group (the group's first item) plus the ungrouped ones. */
+export const SIDE = NAV.filter((n, i) => !n.group || NAV.findIndex((m) => m.group === n.group) === i);
+/** Sub-pages shown as tabs when the current page belongs to a group. The group's own page is labelled People. */
+export const subTabs = (key: string) => { const g = NAV.find((n) => n.key === key)?.group; return g ? NAV.filter((n) => n.group === g).map((n) => ({ ...n, label: n.key === g ? 'People' : n.label })) : []; };
+export const sideKey = (key: string) => NAV.find((n) => n.key === key)?.group ?? key;
 
 const clean = (path: string) => path.replace(/\/+$/, '') || '/';
 

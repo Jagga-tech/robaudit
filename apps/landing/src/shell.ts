@@ -3,7 +3,7 @@
 import { connect, onChange, call, subscribeExtra, STDB_URI, type DbConnection } from './lib/ledger';
 import { convex, api } from './lib/convex';
 import type { Ctx } from './lib/app';
-import { NAV, resolve, navKey } from './router';
+import { SIDE, subTabs, sideKey, resolve, navKey } from './router';
 import { esc, all, byId, last, inbox, onboarding } from './lib/ui';
 
 type Summo = Parameters<Ctx['summo']>[0];
@@ -16,7 +16,7 @@ let seenProp: bigint | undefined, seenPosting: bigint | undefined;
 let unmount: (() => void) | void;
 
 // ---- sidebar ----
-$('nav').innerHTML = NAV.map((n) => `<a href="${n.path}" data-key="${n.key}"><span>${n.label}</span><b data-count="${n.key}"></b></a>`).join('');
+$('nav').innerHTML = SIDE.map((n) => `<a href="${n.path}" data-key="${n.key}"><span>${n.label}</span><b data-count="${n.key}"></b></a>`).join('');
 
 function badgeState(d: DbConnection['db']): string {
   if (override && Date.now() < override.until) return override.state === 'asking' ? `asking ${manager?.name ?? 'the manager'}` : override.state;
@@ -54,7 +54,7 @@ function renderSide() {
     evidence: all(d.source.iter()).length,
     audit: all(d.historyEvent.iter()).length,
     policies: all(d.convention.iter()).length + all(d.policy.iter()).length,
-    team: all(d.user.iter()).filter((u) => u.role !== 'agent').length,
+    team: new Set(all(d.user.iter()).filter((u) => u.role !== 'agent').map((u) => u.name + '|' + u.role)).size, // distinct people, not identities
   };
   for (const el of document.querySelectorAll<HTMLElement>('[data-count]')) {
     const k = el.dataset.count!;
@@ -92,9 +92,16 @@ function mount() {
   unmount = undefined;
   const path = location.pathname;
   const key = navKey(path);
-  for (const a of document.querySelectorAll<HTMLElement>('#nav a')) a.classList.toggle('on', a.dataset.key === key);
-  const root = $('page');
-  root.replaceChildren();
+  for (const a of document.querySelectorAll<HTMLElement>('#nav a')) a.classList.toggle('on', a.dataset.key === sideKey(key));
+  const host = $('page');
+  host.replaceChildren();
+  // grouped pages (Team) get a tab strip above the page; the page renders into its own element below it
+  const tabs = subTabs(key);
+  let root: HTMLElement = host;
+  if (tabs.length) {
+    host.innerHTML = `<nav class="tabs">${tabs.map((t) => `<a href="${t.path}" class="${t.key === key ? 'on' : ''}">${t.label}</a>`).join('')}</nav><div class="tabbody"></div>`;
+    root = host.querySelector<HTMLElement>('.tabbody')!;
+  }
   $('sheet').hidden = true;
   const { page, params } = resolve(path);
   $('ptitle').textContent = page.title;

@@ -46,6 +46,57 @@ export function parseAmountCents(amountText: string): bigint | null {
   return Number.isFinite(n) ? BigInt(Math.round(n * mult * 100)) * (neg ? -1n : 1n) : null;
 }
 
+// Verbatim copy of parseSpokenCents from apps/agent/src/extract.ts: keep in sync.
+// Spoken amounts from a phone answer: "5 million", "four hundred thousand dollars", "400k", "a million", "half a million", "1,000,000".
+// The first figure wins and the words after it are ignored ("5 million for 7 months" -> 5,000,000). Null when no figure.
+const SMALL: Record<string, number> = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+const BIG: Record<string, number> = { thousand: 1e3, k: 1e3, grand: 1e3, million: 1e6, mil: 1e6, mm: 1e6, m: 1e6, billion: 1e9, bn: 1e9 };
+export function parseSpokenCents(text: string): bigint | null {
+  const t0 = text.toLowerCase();
+  if (/\bpercent\b|%|\bbetween\b/.test(t0)) return null; // a share or a range is not a figure
+  const toks = t0.replace(/(\d),(?=\d)/g, '$1').replace(/(\d)([km])\b/g, '$1 $2').split(/[^a-z0-9./]+/).filter(Boolean);
+  let total = 0, cur = 0, seen = false, lastBig = 0, prevDigits = false, point = 0;
+  for (const t of toks) {
+    const frac = t.match(/^(\d+)\/(\d+)$/);
+    if (frac) { cur += Number(frac[1]) / Number(frac[2]); seen = true; prevDigits = true; continue; } // "1/2 million"
+    if (/^\d+(\.\d+)?$/.test(t)) {
+      if (point) { cur += Number(t) / 10 ** (point + t.length - 1); point += t.length; } // "one point five"
+      else if (prevDigits && cur && /^\d{3}$/.test(t)) cur = cur * 1000 + Number(t); // "400 000"
+      else if (seen && cur) break;
+      else cur += Number(t);
+      seen = true; prevDigits = true; continue;
+    }
+    prevDigits = false;
+    if (t in SMALL) { if (point) { cur += SMALL[t] / 10 ** point; point++; } else cur += SMALL[t]; seen = true; }
+    else if (t === 'point') point = 1;
+    else if (t === 'half' || t === 'quarter') { const f = t === 'half' ? 0.5 : 0.25; if (!cur && lastBig) total += f * lastBig; else cur += f; seen = true; } // "half a million", "a million and a half"
+    else if (t === 'hundred') { cur = (cur || 1) * 100; seen = true; }
+    else if (t in BIG) { total += (cur || 1) * BIG[t]; lastBig = BIG[t]; cur = 0; point = 0; seen = true; }
+    else if ((t === 'to' || t === 'or') && seen) return null; // "2 to 3 million": a range, ask again
+    else if (!seen && /^(nothing|none|nil|zero|nada|haven)/.test(t)) { if (!/\d|hundred|thousand|million|billion/.test(t0)) return 0n; } // "nothing yet", "we haven't billed anything"
+    else if (seen && t !== 'and' && t !== 'a' && t !== 'of') break;
+  }
+  return seen ? BigInt(Math.round((total + cur) * 100)) : null;
+}
+
+// A spoken total: rejects a rate ("half a million a month") unless a duration follows ("for seven months"), then multiplies.
+// cents null -> `note` says why (shown to the speaker); cents set -> `note` is the arithmetic when a rate was expanded, else ''.
+const RATE = /\b(?:a|per|each|every)\s+(month|week|day|year)\b|\b(month|week|dai|year)ly\b|\bannual(?:ly)?\b/;
+const UNIT: Record<string, string> = { dai: 'day', annual: 'year', annually: 'year' };
+export function parseSpokenTotal(text: string): { cents: bigint | null; note: string } {
+  const t0 = text.toLowerCase();
+  const rate = t0.match(RATE);
+  const cents = parseSpokenCents(text);
+  if (!rate || cents === null) return { cents, note: '' };
+  const unit = UNIT[rate[1] ?? rate[2] ?? 'annual'] ?? rate[1] ?? rate[2];
+  const dur = t0.slice(rate.index! + rate[0].length).match(new RegExp(String.raw`\b(?:for|over|across|during)\s+(.+?)\s+${unit}s?\b`));
+  const n = dur ? parseSpokenCents(dur[1]) : null;
+  if (n === null || n <= 0n || n > 100000n) return { cents: null, note: `That sounds like a ${unit}ly figure. What is the total?` };
+  const count = Number(n / 100n);
+  return { cents: cents * BigInt(count), note: `${usdWhole(cents)} a ${unit} for ${count} ${unit}${count === 1 ? '' : 's'}` };
+}
+const usdWhole = (c: bigint) => '$' + (c / 100n).toLocaleString('en-US');
+
 // Same rule the agent applies to the confirmed answer: regexes copied verbatim from normalizeAnswer in
 // apps/agent/src/loop.ts (keep in sync). Both or neither -> null -> the phone asks which one; never confirms a guess.
 const TOTAL = /new[\s_-]*total|\btotal\b/i, ADD = /addition|on top|\bmore\b|\bextra\b/i;
@@ -283,7 +334,7 @@ function boot() {
   const isAmount = (row: Row) => row.answerType === 'amount';
   /** Where an answer text leads: amount -> heard (parsed) | ask with the catch line; choice -> heard (matched) | choose. */
   const next = (row: Row, text: string, empty = ''): [Phase, string] => isAmount(row)
-    ? (parseAmountCents(text) === null ? ['ask', NO_FIGURE] : ['heard', ''])
+    ? (parseSpokenTotal(text).cents === null ? ['ask', parseSpokenTotal(text).note || (text.trim() ? `Heard “${text.trim()}”, but no figure. Type it or try again.` : NO_FIGURE)] : ['heard', ''])
     : [matchAnswer(text, row.options) ? 'heard' : 'choose', text ? '' : empty];
   const lastTranscript: string[] = ((window as any).__phoneTranscripts = []); // read by tests/phone.e2e.mjs
   function armTimeout(c: Call) {
@@ -452,7 +503,7 @@ function boot() {
       body = `<p class="lede" id="wait">${c.phase === 'sending' ? 'Sending your answer' : 'Transcribing'}${calm ? '…' : DOTS}</p>`;
     } else if (amt && c.phase === 'heard') {
       body = `
-        <p class="lede" id="heard">I heard ${usd(parseAmountCents(c.transcript) ?? 0n)}. Is that right?</p>
+        <p class="lede" id="heard">I heard ${parseSpokenTotal(c.transcript).note ? `${esc(parseSpokenTotal(c.transcript).note)}, so ` : ''}${usd(parseSpokenTotal(c.transcript).cents ?? 0n)}. Is that right?</p>
         <button class="pill dark" id="yes" type="button">That's right</button>
         <button class="pill outline" id="edit" type="button">Edit</button>`;
     } else if (amt) {
@@ -517,7 +568,7 @@ function boot() {
     };
     const yes = $<HTMLButtonElement>('#yes');
     if (yes) yes.onclick = () => {
-      if (amt) { const cents = parseAmountCents(c.transcript); return cents === null ? go(c, 'ask', NO_FIGURE) : confirm(String(cents)); }
+      if (amt) { const cents = parseSpokenTotal(c.transcript).cents; return cents === null ? go(c, 'ask', NO_FIGURE) : confirm(String(cents)); }
       if (c.phase === 'edit') c.transcript = $<HTMLTextAreaElement>('#fix').value.trim();
       const hit = matchAnswer(c.transcript, row.options);
       if (hit) return confirm(hit);
