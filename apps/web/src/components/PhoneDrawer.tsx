@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
+import { useKeel } from '../data/KeelProvider';
 import { ManagerClarify } from './ManagerClarify';
 import { useUi } from './ui';
 
@@ -7,6 +8,13 @@ import { useUi } from './ui';
 export function PhoneDrawer() {
   const { phoneOpen, setPhoneOpen } = useUi();
   const [scale, setScale] = useState(1);
+  const status = useKeel().snapshot.call?.status;
+  // Round-trip finding: a drawer left open after the answer hid the desktop's reaction. Close it once the answer lands.
+  useEffect(() => {
+    if (!phoneOpen || (status !== 'confirmed' && status !== 'unconfirmed')) return;
+    const t = setTimeout(() => setPhoneOpen(false), 1800);
+    return () => clearTimeout(t);
+  }, [status, phoneOpen, setPhoneOpen]);
   useEffect(() => {
     const f = () => setScale(Math.min(1, (window.innerHeight - 72) / 864));
     f(); window.addEventListener('resize', f);
