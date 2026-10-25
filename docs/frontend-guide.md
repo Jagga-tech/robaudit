@@ -1,47 +1,68 @@
 # RoboAudit frontend integration guide (workbench + phone)
 
-For Tanush. Everything here was checked against the code as of 2026-10-24: `spacetimedb/src`, `packages/bindings/src`, `convex/`, `apps/agent/src/loop.ts`, `apps/harness/src/main.ts` and `scripts/demo.ts`. If something here disagrees with the code, the code is right.
+For Tanush. Everything here was checked against the code as of 2026-10-24: `spacetimedb/src`, `packages/bindings/src`, `convex/` (including `convex/managers.ts`), `apps/agent/src/loop.ts`, `apps/agent/src/bridge.ts`, `apps/harness/src/main.ts` and `scripts/demo.ts`. If something here disagrees with the code, the code is right. The stage script (who does what, timings, fallbacks) is `docs/demo-flow.md`; this guide is how to build it.
 
 > Naming: the platform is **RoboAudit**; the agent service (the thing that reads, asks and proposes) is **Summo**. Label it "Summo" in the queue, workbench and history.
 
 ## 1. What the backend does
 
-An accountant adds evidence (a note, a forecast, a commissioning log) to the SpacetimeDB ledger. The agent (`pnpm agent`) is subscribed to `source` and runs Claude on each new source; Gemini runs as a second reader. If the wording is ambiguous ("another $200,000"), the agent asks the deployment manager a question through Convex. Convex speaks it with Cartesia TTS and the phone page rings. Once the manager confirms an answer, the agent writes a `clarification` source, does the arithmetic in `packages/engine` (bigint cents, never the model), and writes a `calculation` plus a `proposal` (journal lines, explanation, evidence ids). The controller approves (`decide`) and posts (`post`). The reducers enforce role, revision, staleness, period, balance and posting-ref uniqueness. Approving a proposal that carries a pending convention saves that convention, so the next "another $X" is handled with no call.
+Evidence (a site note, a photographed forecast sheet, a commissioning log) is added to the SpacetimeDB ledger with `addSource`. In the demo the deployment manager adds it **from the phone** (the judge, on their own phone). Summo (`keel-agent` on Azure Container Apps, or `pnpm agent`) is subscribed to `source` and runs Claude on each new source; Gemini runs as a second reader; a `scanned_forecast` is first read by Azure Document Intelligence. If the wording is ambiguous ("another $200,000"), Summo asks the deployment manager a question through Convex. Convex speaks it with Cartesia TTS and the phone rings. Once the manager confirms an answer, Summo writes a `clarification` source, does the arithmetic in `packages/engine` (bigint cents, never the model), and writes a `calculation` plus a `proposal` (journal lines, explanation, evidence ids). The controller approves (`decide`) and posts (`post`). The reducers enforce role, revision, staleness, period, balance and posting-ref uniqueness. Approving a proposal that carries a pending convention saves that convention, so the next "another $X" is handled with no call.
 
 ```
- workbench (laptop) ── addSource / decide / post / resetDemo ──▶ ┌─────────────┐
+ workbench (laptop, Dana) ── decide / post / resetDemo ─────────▶ ┌─────────────┐
    │  reads all 14 tables (subscription)                          │ SpacetimeDB │
    │                                                              │  db "keel"  │
-   │                       agent (Node) ── recordExtraction ───▶  │             │
+ phone (judge) ── registerDemoUser / addSource ───────────────▶   │             │
+   │                       Summo (Node) ── recordExtraction ───▶  │             │
    │                         │  openClarification / resolveClarification /     │
    │                         │  recordCalculation / propose / openWorkItem /   │
    │                         │  markMilestoneMet                  └─────────────┘
    │                         │ ask() ▲ polls byWorkItem every 1 s
    │                         ▼       │
-   └── byWorkItem / transcript ──▶ ┌────────┐ ◀── speakQuestion / transcribe ──▶ Cartesia
- phone ── active / startAnswer / ──▶│ Convex │
-          submitAnswerAudio /       └────────┘
-          confirm / decline / fallbackText
+   │                       ┌────────┐ ◀── speakQuestion / transcribe ──▶ Cartesia
+   └── active / startAnswer│ Convex │
+       submitAnswerAudio / │        │ ◀── managers.current / byWorkItem / transcript ── workbench
+       confirm / fallback- │        │
+       Text / managers.join│        │
+       generateUploadUrl   └────────┘
 ```
 
-The UI never calls any agent reducer. The workbench calls `addSource`, `decide`, `post`, `resetDemo` and, if you want them, `closePeriod` and `saveConvention`. The phone only talks to Convex.
+The UI never calls any agent reducer. The workbench calls `decide`, `post`, `resetDemo`, and `addSource` only for the "Break it" button. The phone calls `registerDemoUser` and `addSource` on SpacetimeDB and the clarification/manager functions on Convex.
 
-## 2. Local setup
+## 2. Environments, URLs and setup
+
+### Production (the demo)
+
+| What | Value |
+|---|---|
+| SpacetimeDB URI | `wss://maincloud.spacetimedb.com` |
+| SpacetimeDB db | `keel` (dashboard https://spacetimedb.com/keel) |
+| Convex | prod `https://hushed-shrimp-24.convex.cloud` (dev, for rehearsal: `https://lovely-squirrel-569.convex.cloud`) |
+| Summo | Azure Container Apps `keel-agent`, resource group `keel-rg` |
+| Workbench + phone page | Vercel, HTTPS. URL **TBD**. The phone page must be HTTPS (mic and camera need a secure context). |
+
+### Vercel deployment
+
+- One Vite app under `apps/` serving two routes: `/` (workbench) and `/phone` (phone page). The QR on the workbench encodes `${location.origin}/phone`.
+- Environment variables (Vercel project settings, Production): `VITE_CONVEX_URL=https://hushed-shrimp-24.convex.cloud`, `VITE_STDB_URI=wss://maincloud.spacetimedb.com`, `VITE_STDB_DB=keel`. Vite inlines them at build time, so changing one needs a redeploy.
+- Monorepo: set the Vercel root directory to the repo root, install command `pnpm install`, build command `pnpm --filter <your-app> build`, output directory `apps/<your-app>/dist`. Add an SPA rewrite (`vercel.json`: `{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }`) so `/phone` loads on a cold open.
+- No model or voice key is ever a `VITE_*` variable. The browser holds none.
+- Fallback without a redeploy (suggested): let `?convex=<url>` and `?stdb=<uri>` override the env values, and encode them into the QR, so switching to the Convex dev deployment is a URL change.
+
+### Local setup
 
 ```bash
 pnpm install
 spacetime start                 # leave running (SpacetimeDB CLI 2.13)
 pnpm stdb:publish               # publishes db "keel" to local and wipes its data
 npx convex dev                  # leave running; writes CONVEX_URL to .env.local
-pnpm agent                      # agent loop; needs ANTHROPIC_API_KEY in .env, otherwise extraction is mocked
+pnpm agent                      # Summo; needs ANTHROPIC_API_KEY in .env, otherwise extraction is mocked
 ```
-
-Environment values the UI needs:
 
 | What | Where it comes from | Value (local) |
 |---|---|---|
-| Convex URL | `.env.local` → `CONVEX_URL` (written by `npx convex dev`) | `http://127.0.0.1:...` (local anonymous deployment) |
-| SpacetimeDB URI | `.env` → `STDB_URI` (Node only today) | `ws://127.0.0.1:3000` |
+| Convex URL | `.env.local` → `CONVEX_URL` (written by `npx convex dev`) | local or the dev cloud deployment |
+| SpacetimeDB URI | `.env` → `STDB_URI` | `ws://127.0.0.1:3000` |
 | SpacetimeDB db | `.env` → `STDB_DB` | `keel` |
 
 Vite only exposes `VITE_*` variables by default, so the harness uses an envDir trick. Copy it into your app's `vite.config.ts`:
@@ -49,37 +70,53 @@ Vite only exposes `VITE_*` variables by default, so the harness uses an envDir t
 ```ts
 import { defineConfig } from 'vite';
 export default defineConfig({ envDir: '../..', envPrefix: ['VITE_', 'CONVEX_URL', 'STDB_'] });
-// then: import.meta.env.VITE_CONVEX_URL ?? import.meta.env.CONVEX_URL
+// then:
+export const CONVEX_URL = import.meta.env.VITE_CONVEX_URL ?? import.meta.env.CONVEX_URL;
+export const STDB_URI = import.meta.env.VITE_STDB_URI ?? import.meta.env.STDB_URI ?? 'ws://127.0.0.1:3000';
+export const STDB_DB = import.meta.env.VITE_STDB_DB ?? import.meta.env.STDB_DB ?? 'keel';
 ```
 
-The harness only has `['VITE_', 'CONVEX_URL']` and hardcodes `ws://127.0.0.1:3000` and `keel`. Adding `'STDB_'` is my suggestion, so the URI is not hardcoded once we move to Maincloud or Convex cloud. No cloud URLs are configured in the repo yet.
+On a real phone `127.0.0.1` is the phone itself, and local Convex is unreachable. Test the phone page against Maincloud + a cloud Convex deployment.
 
 Add the app under `apps/` (it is already in the workspace glob) with deps `"@keel/bindings": "workspace:*"`, `"spacetimedb": "2.13.*"` and `"convex": "^1.48.0"`. Import the Convex API the same way the harness does: `import { api } from '../../../convex/_generated/api'`.
 
 **Seeing it work without a UI:**
-- `pnpm demo` runs all nine beats with asserts and prints `DEMO OK`. It runs its own agent in-process, so stop `pnpm agent` first.
-- `pnpm demo --reset-only` resets to S0 in about 0.5 s. Use it between judges.
+- `pnpm demo` runs all nine beats with asserts and prints `DEMO OK`. It runs its own agent in-process, so stop `pnpm agent` first. `--remote` uses the deployed agent instead.
+- `pnpm demo --reset-only` resets to S0 (and calls Convex `resetOpen`) in about 0.5 s.
 - `pnpm --filter @keel/harness dev` opens an unstyled page with one button per beat and a live JSON dump of the tables. It is your reference implementation.
 
-## 3. Connecting to SpacetimeDB from the browser
+## 3. Who is connected (the one-user model)
+
+There is no role switcher. Each device has a fixed identity:
+
+| Device | Connection | Registered as | Used for |
+|---|---|---|---|
+| Laptop (workbench) | main connection | `controller`, name `Dana` | everything Dana does: `decide`, `post`, `resetDemo`, the "Change the forecast" `addSource` |
+| Laptop (workbench) | second connection, opened only for the "Break it" button | `accountant`, name `Priya` | "Approve as the accountant" (must be refused) |
+| Phone (judge's own) | one connection | `deployment_manager`, name = the judge's first name | `addSource` for the update and the photographed sheet |
+| Summo | its own token on the server | `agent` | never from the UI |
+
+Each identity is a SpacetimeDB token kept in that browser's `localStorage` under `keel-token-<role>`. The judge's phone gets a fresh identity on first open.
+
+## 4. Connecting to SpacetimeDB from the browser
 
 Import from `@keel/bindings`, never from `@keel/ledger-client`. That package imports `node:fs` and `ws` and is Node-only.
 
 ```ts
 import { DbConnection } from '@keel/bindings';
+import { STDB_URI, STDB_DB } from './env';
 
-export type Role = 'accountant' | 'deployment_manager' | 'controller' | 'agent';
-const NAMES: Record<Role, string> = { accountant: 'Priya', deployment_manager: 'Matt', controller: 'Dana', agent: 'RoboAudit Agent' };
+export type Role = 'accountant' | 'deployment_manager' | 'controller';
 // Subscription SQL uses the snake_case wire names; conn.db uses camelCase (work_item -> conn.db.workItem).
-const TABLES = ['user', 'project', 'policy', 'convention', 'source', 'extraction', 'clarification_ref', 'work_item',
+export const TABLES = ['user', 'project', 'policy', 'convention', 'source', 'extraction', 'clarification_ref', 'work_item',
   'calculation', 'proposal', 'approval', 'posting', 'contract_milestone', 'history_event'];
 
-export async function connect(role: Role, onChange: () => void): Promise<DbConnection> {
+export async function connect(role: Role, name: string, onChange: () => void, tables = TABLES): Promise<DbConnection> {
   const key = `keel-token-${role}`; // one identity per role, kept per browser
   const conn = await new Promise<DbConnection>((resolve, reject) => {
     DbConnection.builder()
-      .withUri('ws://127.0.0.1:3000')
-      .withDatabaseName('keel')
+      .withUri(STDB_URI)
+      .withDatabaseName(STDB_DB)
       .withToken(localStorage.getItem(key) ?? undefined)
       .onConnect((c, _identity, token) => { localStorage.setItem(key, token); resolve(c); })
       .onConnectError((_ctx, e) => reject(e))
@@ -89,19 +126,21 @@ export async function connect(role: Role, onChange: () => void): Promise<DbConne
     conn.subscriptionBuilder()
       .onApplied(() => resolve())
       .onError((ctx) => reject((ctx as any).event ?? new Error('subscription failed')))
-      .subscribe(TABLES.map((t) => `SELECT * FROM ${t}`));
+      .subscribe(tables.map((t) => `SELECT * FROM ${t}`));
   });
   const me = conn.db.user.identity.find(conn.identity!);
-  if (!me || me.role !== role) await conn.reducers.registerDemoUser({ name: NAMES[role], role });
-  for (const t of TABLES) {
+  if (!me || me.role !== role || me.name !== name) await conn.reducers.registerDemoUser({ name, role });
+  for (const t of tables) {
     const tbl = (conn.db as any)[t.replace(/_(\w)/g, (_: string, x: string) => x.toUpperCase())];
     tbl.onInsert(onChange); tbl.onUpdate?.(onChange); tbl.onDelete(onChange);
   }
   return conn;
 }
+// laptop: const dana = await connect('controller', 'Dana', bump);
+// phone:  const mgr  = await connect('deployment_manager', judgeName, bump, ['user', 'project']);
 ```
 
-In React, keep a `version` counter that `onChange` increments, and read from the client cache on each render (`[...conn.db.workItem.iter()]`, `conn.db.proposal.id.find(id)`). Callback signatures are `onInsert((ctx, row) => …)`, `onUpdate((ctx, oldRow, newRow) => …)` and `onDelete((ctx, row) => …)`. `resetDemo` fires a delete for every row and then inserts the fresh ones.
+The phone only needs `user` and `project` (to find the project id). In React, keep a `version` counter that `onChange` increments, and read from the client cache on each render (`[...conn.db.workItem.iter()]`, `conn.db.proposal.id.find(id)`). Callback signatures are `onInsert((ctx, row) => …)`, `onUpdate((ctx, oldRow, newRow) => …)` and `onDelete((ctx, row) => …)`. `resetDemo` fires a delete for every row and then inserts the fresh ones.
 
 **Calling reducers.** They return a promise. When the server throws `SenderError("code: message")`, the promise rejects with an Error whose message contains the code:
 
@@ -118,12 +157,12 @@ export async function call(f: () => Promise<void>): Promise<{ ok: true } | { ok:
 ```
 
 What each code means for the UI:
-- `role`: wrong identity. Only `controller` can call `decide`, `post`, `closePeriod` and `saveConvention`.
+- `role`: wrong identity. Only `controller` can call `decide`, `post`, `closePeriod` and `saveConvention`. Message: `role: requires controller, caller is <role>`.
 - `revision`: not the latest revision, or the proposal was already decided.
-- `stale`: new evidence arrived after this proposal.
+- `stale`: new evidence arrived after this proposal. Message: `stale: proposal <id> is stale`.
 - `period_closed`: the project period is closed.
-- `unbalanced` or `bad_input`: something is wrong with the entry.
-- `duplicate_posting`: the postingRef or the proposal has already been posted.
+- `unbalanced` or `bad_input`: something is wrong with the entry. An empty entry (zero adjustment) gives `unbalanced: debits 0 != credits 0`.
+- `duplicate_posting`: `postingRef <ref> already posted`, or `proposal <id> already posted as <ref>`.
 - `not_approved`: `post` was called before `decide`.
 - `not_found`: a bad id.
 
@@ -144,7 +183,9 @@ export const lines = (entryJson: string) => (JSON.parse(entryJson) as Line[]).ma
 export const ids = (csv: string) => csv.split(',').filter(Boolean).map(BigInt);
 ```
 
-## 4. Data model for the screens
+## 5. Data model for the screens
+
+### SpacetimeDB tables
 
 | Table (`conn.db.*`) | Columns | Meaning |
 |---|---|---|
@@ -152,8 +193,8 @@ export const ids = (csv: string) => csv.split(',').filter(Boolean).map(BigInt);
 | `project` | id, name, contractValueCents, periodOpen | One project: "Oakland deployment", $1,000,000. |
 | `policy` | id, version, text, approvedBy, approvedAt | v3, "Cost-to-cost, single performance obligation, fixed price". |
 | `convention` | id, projectCompanyScope, template, key, value, exampleSourceIds (csv), policyVersion, approvedBy | Learned rules. The seed has `forecast.remaining_estimate_means = future_costs_only`. |
-| `source` | id, projectId, kind, version, text, parentSourceId (0 = none), hash, createdAt | Kinds: `contract`, `cost_export`, `forecast`, `note`, `clarification`, `commissioning_log`, `invoice`. |
-| `extraction` | id, sourceId, reader (`claude`/`gemini`), factsJson, ambiguityFlag, ambiguityText | One row per reader per source. |
+| `source` | id, projectId, kind, version, text, parentSourceId (0 = none), hash, createdAt | Kinds: `contract`, `cost_export`, `forecast`, `note`, `clarification`, `commissioning_log`, `invoice`, `scanned_forecast` (text = Convex storage id). |
+| `extraction` | id, sourceId, reader (`claude`/`gemini`/`azure-di`), factsJson, ambiguityFlag, ambiguityText | One row per reader per source. |
 | `clarificationRef` | id, workItemId, sourceId, convexId, question, status (`open`/`confirmed`), answer, speaker, confirmedAt, audioStorageId | Mirror of the Convex call; `audioStorageId` is the Convex answer audio. |
 | `workItem` | id, projectId, title, status, assignedRole | The queue. |
 | `calculation` | id, workItemId, forecastSourceId, inputsJson, progressBp, cumRevenueCents, contractAssetCents, marginCents, lossWarning | `inputsJson` = `{contractValueCents, incurredCents, remainingCents, billedCents}` as strings. |
@@ -161,7 +202,19 @@ export const ids = (csv: string) => csv.split(',').filter(Boolean).map(BigInt);
 | `approval` | id, proposalId, revision, decision (`approve`/`return`/`hold`), by, reason, at | |
 | `posting` | id, proposalId, revision, postingRef (unique), linesJson, postedBy, postedAt | The seed has `OAK-2026-09-R1`. |
 | `contractMilestone` | id, projectId, name, amountCents, status (`pending`/`met`/`invoiced`) | `acceptance`, $200,000. |
-| `historyEvent` | id, projectId (0 for user/convention events), kind, refId, summary, actor, at | Append-only log. |
+| `historyEvent` | id, projectId (0 for user/convention events), kind, refId, summary, actor, at | Append-only log. `actor` is the caller's registered name (the judge's name for phone sources). The agent identity is registered as `Keel Agent` (`packages/ledger-client/src/index.ts`): display every row whose actor's `user.role === 'agent'` (or `actor === 'Keel Agent'`) as "Summo". |
+
+`extraction.factsJson`: for `claude`/`gemini`, an array of facts (`kind`, `quote`, `amountText`, `charStart`, `charEnd`); for `azure-di`, `{ text, tables }` where `tables` is `string[][][]` (rows of cell strings).
+
+### Convex tables
+
+| Table | Fields | Functions |
+|---|---|---|
+| `clarifications` | workItemId (SpacetimeDB id as string), question, options, status (`ringing`/`answering`/`confirmed`/`unconfirmed`/`fallback_text`), answer, speaker, reason, questionAudioId, answerAudioId, confirmedAt (ms) | `active`, `byWorkItem`, `startAnswer`, `confirm`, `decline`, `fallbackText`, `resetOpen`, `generateUploadUrl`, `submitAnswerAudio`, `audioUrl` (all in `api.clarifications`) |
+| `transcriptSegments` | clarificationId, seq, text, isFinal | `api.transcript.byClarification({ id })` |
+| `managers` | name, joinedAt (ms), active | `api.managers.join({ name })` → id (deactivates any previous manager); `api.managers.leave({ id })`; `api.managers.current()` → `{ _id, name, joinedAt } \| null` |
+
+### Statuses
 
 **Work item status** (`workItem.status`):
 
@@ -178,75 +231,126 @@ approved ──post──▶ posted
 - **Learns:** `convention` rows, and the proposal's `pendingConventionJson` (shown as "Approving saves: forecast.another_means = additional"). `decide(approve)` inserts the convention row and a `convention_saved` history event.
 - **Runs:** the `historyEvent` stream. Kinds: `seed`, `reset`, `register_user`, `source_added`, `extraction`, `clarification_opened`, `clarification_confirmed`, `calculation`, `proposed`, `proposal_stale`, `decision_approve`/`decision_return`/`decision_hold`, `convention_saved`, `posted`, `work_item_opened`, `milestone_met`, `period_closed`.
 - **Escalates:** work item `awaiting_clarification` (the call), `calculation.lossWarning`, and an explanation whose first line starts with `ESCALATION:`.
-- **Improves:** on month 3 the explanation contains `Convention v3: another_means = additional`, and no Convex call is made.
+- **Improves:** a later "another $X" note is handled with no Convex call, and the explanation contains `Convention v3: another_means = additional`.
 
-## 5. Screens
+## 6. Design direction (from the design lead)
 
-**Queue.** Show `[...conn.db.workItem.iter()]` grouped by `status`, with a badge for `awaiting_clarification` and `stale`.
+Ledger paper, not a dashboard.
+
+| Token | Value | Use |
+|---|---|---|
+| paper | `#EEF1EC` | page background |
+| ink | `#16212E` | text, figures |
+| rules | `#C9D2CC` | hairlines between ledger rows |
+| teal | `#0F6B63` | approved / posted, passed checks |
+| amber | `#C77A00` | loss warning, open question ("Summo is asking <Name>") |
+| error | `#9B3B2E` | refusals (Break it), failed checks |
+
+- **Type:** IBM Plex Sans only (Google Fonts), `font-variant-numeric: tabular-nums` on every figure. Sentence-case labels; no all-caps labels.
+- **Hero:** the figure pair. Progress `50.00% → 40.00%` and cumulative revenue `$500,000 → $400,000`, large, before in ink at reduced weight, after in ink. Contract asset and margin sit beneath as smaller pairs; the loss warning is amber text next to margin.
+- **Motion:** exactly one orchestrated motion, when the calculation lands after the judge confirms (before figures settle into after figures, adjustment appears). Everything else is instant: no fades on rows, no spinners beyond a plain "Summo is reading" line.
+- **Layout:** rows on ruled paper (sources, extractions, the entry's Dr/Cr lines, history). No card grids, no gradient decoration, no shadows as ornament.
+- **Phone:** one action per screen, large type (body ≥ 20 px, primary button full width). Screens: name → update → ringing → record → confirm → done → photograph.
+
+## 7. Workbench (laptop, Dana)
+
+**Header:** "RoboAudit", the joined manager line, and the Reset button (§10).
+
+**Joined line and QR.** Subscribe to `api.managers.current`:
+
+```ts
+convex.onUpdate(api.managers.current, {}, (m) => setManager(m)); // { _id, name, joinedAt } | null
+```
+
+- `null`: show the QR code for `${origin}/phone` (any small QR lib, e.g. `qrcode`) with "Scan to join as deployment manager".
+- set: show "<name> joined as deployment manager" and shrink the QR to a corner. Use `name` wherever the UI says who is being asked ("Summo is asking <name>").
+
+**Queue.** `[...conn.db.workItem.iter()]` grouped by `status`, marked when `awaiting_clarification` (amber) or `stale`.
 
 **Workbench (one work item):**
-- **Left:** `source` rows for `projectId`, grouped by `kind` and sorted by `version`/`id`. Clarification sources show `parentSourceId` → the note they answer.
-- **Center:**
-  - The latest proposal is `maxBy(revision)` over `proposal` filtered by `workItemId`. "After" is `conn.db.calculation.id.find(latest.calculationId)`.
-  - "Before" is the calculation of the highest-revision `approved`/`posted` proposal with a lower revision. This mirrors the agent's baseline in `loop.ts`.
+- **Left:** `source` rows for `projectId`, grouped by `kind` and sorted by `version`/`id`. Clarification sources show `parentSourceId` → the note they answer. A `scanned_forecast` shows the image (`api.clarifications.audioUrl({ storageId: source.text })` returns a URL for any storage id) and, under it, the `azure-di` extraction text and table.
+- **Reading state:** from a `source_added` for a `note`/`scanned_forecast` until the next `extraction` for that source, show "Summo is reading" (for `scanned_forecast`: "Reading document" until the `azure-di` row, then "Summo is reading"). Then show the extraction rows (`claude`, `gemini`), each with its facts (quote + amount) and `ambiguityText` when `ambiguityFlag`.
+- **Center (the figure pair):**
+  - "Before" is the calculation of the highest-revision `approved`/`posted` proposal on the work item. This mirrors Summo's baseline in `loop.ts`.
+  - "After" is the **newest `calculation`** on the work item that is newer than "before", whether or not a proposal points at it yet. The calculation lands about 1 s after confirm; the proposal 6–9 s later. Run the motion when this row arrives, not when the proposal does.
   - Show progress, cumulative revenue, contract asset, margin and the loss warning. The adjustment is `after.cumRevenueCents - before.cumRevenueCents`.
   - Invoice proposals have `calculationId = 0`, so there is no calculation to show.
-- **Right:**
-  - Show `lines(p.entryJson)` as Dr/Cr lines and the `explanation`, split on `\n`. Render the first line in red if it starts with `ESCALATION:`.
-  - Show the evidence: `ids(p.evidenceSourceIds)` → `conn.db.source.id.find(id)`.
-  - **Approve:** call `decide({proposalId, revision, decision: 'approve', reason: ''})`, then `post({proposalId, revision, postingRef})`. The demo and the harness use `OAK-R${revision}`. Use `` `OAK-WI${workItemId}-R${revision}` `` instead: the invoice work item also starts at revision 1, and refs must be unique across the whole ledger.
-  - **Return/Hold:** call `decide` with `'return'` or `'hold'` and a reason; ask for one in the UI. A held or returned revision cannot be decided again; only a new proposal moves it forward.
-  - Disable the buttons unless `p.status === 'open'` and the role is controller.
-
-**History timeline.** `historyEvent` sorted by `id`, newest first, filtered to `projectId === oak || projectId === 0n`. Use `actor`, `summary` and `at.toDate()`.
-
-**Learns screen.**
-- The six prior-close notes are the sources whose ids appear in the seed convention's `exampleSourceIds`. Filtering by `kind === 'note'` alone would also pick up the live notes.
-- Below them, list every `convention` row. After beat 7 a second row appears: `forecast.another_means = additional`, `approvedBy: 'Dana'`, policyVersion 3, and `exampleSourceIds` set to the rev 2 evidence (note id plus clarification source id).
+- **Right (the proposal):**
+  - The latest proposal is `maxBy(revision)` over `proposal` filtered by `workItemId`. Until it exists, show "Summo is writing the entry".
+  - Show `lines(p.entryJson)` as Dr/Cr lines and the `explanation`, split on `\n`. Render the first line in amber if it starts with `ESCALATION:`.
+  - Evidence: `ids(p.evidenceSourceIds)` → `conn.db.source.id.find(id)`.
+  - "Approving saves: <template>.<key> = <value>" when `pendingConventionJson` is set.
+  - **Approve:** `decide({proposalId, revision, decision: 'approve', reason: ''})`, then `post({proposalId, revision, postingRef})`. Use `` `OAK-WI${workItemId}-R${revision}` `` (the demo and harness use `OAK-R${revision}`, but the invoice work item also starts at revision 1 and refs must be unique across the ledger).
+  - **Five visible checks** while posting, ticked in teal when `post` resolves (or the failing one in error colour with the reducer message): 1. Role is controller. 2. Approved, current revision, not stale. 3. Period open. 4. Debits equal credits. 5. Posting ref unique. These are the checks `post` performs, in its order.
+  - After approve: "Convention saved: another_means = additional" when a new `convention` row appears.
+  - **Return/Hold:** `decide` with `'return'` or `'hold'` and a reason. A held or returned revision cannot be decided again; only a new proposal moves it forward.
+  - Disable Approve unless `p.status === 'open'`.
 
 **Call pane (Convex):**
 
 ```ts
 import { ConvexClient } from 'convex/browser';
 import { api } from '../../../convex/_generated/api';
-const convex = new ConvexClient(import.meta.env.VITE_CONVEX_URL ?? import.meta.env.CONVEX_URL);
+const convex = new ConvexClient(CONVEX_URL);
 const unsub = convex.onUpdate(api.clarifications.byWorkItem, { workItemId: String(workItem.id) }, (rows) => {
   for (const c of rows) convex.onUpdate(api.transcript.byClarification, { id: c._id }, (segs) => { /* render segs[].text */ });
 });
 ```
 
-`workItemId` in Convex is the SpacetimeDB id as a string. Convex clarification fields: `question`, `options` (`['additional','new_total']` from the keyword path; Claude's options when Claude itself flagged the ambiguity), `status`, `answer`, `speaker`, `reason`, `questionAudioId`, `answerAudioId` and `confirmedAt` (ms).
+`workItemId` in Convex is the SpacetimeDB id as a string. `options` is `['additional','new_total']` from the keyword path, or Claude's options when Claude itself flagged the ambiguity.
 
-**Audio URLs.** Use `api.clarifications.audioUrl({ storageId })` (returns `string | null`). It lives in `convex/clarifications.ts`:
+**Audio URLs.** `api.clarifications.audioUrl({ storageId })` returns `string | null`:
 
 ```ts
-export const audioUrl = query({
-  args: { storageId: v.id("_storage") },
-  handler: (ctx, { storageId }) => ctx.storage.getUrl(storageId),
-});
-// UI: const url = await convex.query(api.clarifications.audioUrl, { storageId }); new Audio(url!).play();
+const url = await convex.query(api.clarifications.audioUrl, { storageId }); new Audio(url!).play();
 ```
+
+**History timeline.** `historyEvent` sorted by `id`, newest first, filtered to `projectId === oak || projectId === 0n`. Use `actor`, `summary` and `at.toDate()`. Summo's rows are its own actor.
+
+**Learns screen.**
+- The six prior-close notes are the sources whose ids appear in the seed convention's `exampleSourceIds`. Filtering by `kind === 'note'` alone would also pick up the live notes.
+- Below them, list every `convention` row. After approval a second row appears: `forecast.another_means = additional`, `approvedBy: 'Dana'`, policyVersion 3, and `exampleSourceIds` set to the rev 2 evidence (note id plus clarification source id).
 
 **Evidence trace (clicking $400,000):**
 1. Start at `proposal` → `calculation` (`calculationId`).
-2. From the calculation, `forecastSourceId` gives the note source ("we need another $200,000 to finish").
-3. Find the `source` with `kind === 'clarification'` and `parentSourceId === note.id`. Its text is "Clarification from Matt: Q: … A: additional".
+2. From the calculation, `forecastSourceId` gives the note source (the judge's words).
+3. Find the `source` with `kind === 'clarification'` and `parentSourceId === note.id`. Its text is "Clarification from <Name>: Q: … A: additional".
 4. Find the `clarificationRef` with `sourceId === note.id`. It carries `speaker`, `confirmedAt` and `audioStorageId`.
-5. Pass `audioStorageId` to `audioUrl` and play the manager's voice. The Convex row (`convexId`) also has `questionAudioId` for the question.
+5. Pass `audioStorageId` to `audioUrl` and play the judge's voice. The Convex row (`convexId`) also has `questionAudioId` for the question.
 
-## 6. Phone page
+## 8. Phone page (the judge)
 
-The phone page needs only Convex, no SpacetimeDB connection. Subscribe to `api.clarifications.active`, which returns the newest row whose status is `ringing`, `answering` or `fallback_text`, or `null`. Once you `confirm` or `decline`, `active` goes back to `null`, so keep the last row's `_id` locally to show the confirmed screen.
+Served at `/phone` over HTTPS. It talks to Convex for presence and the call, and to SpacetimeDB (as `deployment_manager`) only to add sources.
 
-| State | UI | Call |
+| Screen | Shows | Call |
 |---|---|---|
-| `ringing` | Ring and show `question`. Play the question audio once `questionAudioId` is set (TTS lands a second or so after `ask`). | Answer button → `startAnswer({id})` |
-| `answering` | Record button, then a "Transcribing…" spinner, then show `transcript.byClarification` segments. | upload → `submitAnswerAudio({id, storageId})` |
-| (segment shown) | "That's right", or edit the text, then confirm. Option buttons from `options` are a safe default. | `confirm({id, answer, speaker: 'Matt'})` |
-| | "No / not me" | `decline({id, reason})` → `unconfirmed` |
-| mic fails | Type or dictate with browser `SpeechRecognition` | `fallbackText({id})`, then `confirm({id, answer, speaker})` |
+| 1. Name | "Your first name", one field, Join | `const id = await convex.mutation(api.managers.join, { name })`; keep `id` in memory and `sessionStorage`. Then `connect('deployment_manager', name, bump, ['user','project'])` (calls `registerDemoUser({ name, role: 'deployment_manager' })` once). |
+| 2. Update | "What's the latest on site?" text area, a mic button, Send. Hint text: "e.g. we need another $200,000 to finish" | `addSource({ projectId, kind: 'note', text, parentSourceId: 0n, version: 1 })`. Then "Sent. Watch the screen." |
+| 3. Ringing | When `api.clarifications.active` returns a row with status `ringing`: the question in large type, Answer | Answer → `startAnswer({ id })` and play the question audio from `questionAudioId` via `audioUrl` (the tap is the user gesture that unlocks audio on iOS). |
+| 4. Record | Record / Stop, then "Transcribing…" | `generateUploadUrl` → POST WAV → `submitAnswerAudio({ id, storageId })`. |
+| 5. Confirm | The transcript (`transcript.byClarification`), "That's right", plus the `options` as buttons and an edit box | `confirm({ id, answer, speaker: name })`. "Not me" → `decline({ id, reason })` (status `unconfirmed`). |
+| 6. Done | "Done. Summo has your answer." then the photograph button | — |
+| 7. Photograph | "Photograph the forecast sheet" (camera) and, smaller, "Upload PDF" | see below |
+| Re-ask | `active` returns the same row with status `fallback_text` (Summo did not understand the answer) | Show the question again with the option buttons and a text box → `confirm`. |
 
-`transcribe` writes **one** final segment (`seq: 0`, `isFinal: true`) after the whole upload; segments do not stream live. The mock text is `MOCK: it's additional`. The agent normalizes `answer` with a regex. The answer must contain "additional", "on top", "more" or "extra", or "new total"/"total" (`new_total` also matches). Anything else leaves the call stuck: the clarification is confirmed in Convex but stays open in the ledger.
+Subscribe once: `convex.onUpdate(api.clarifications.active, {}, …)`. It returns the newest row whose status is `ringing`, `answering` or `fallback_text`, or `null`. After `confirm`/`decline` it goes back to `null`, so keep the last row's `_id` locally to show the Done screen. Also subscribe to `api.managers.current`: when it becomes `null` (reset) or a different `_id`, return to screen 1.
+
+**Project id:** `[...mgr.db.project.iter()].find(p => p.name === 'Oakland deployment')!.id`, looked up at send time (ids change after reset).
+
+**Speaking the update (browser SpeechRecognition, typing fallback):**
+
+```ts
+const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+if (!SR) hideMicButton(); // typing always works
+const rec = new SR(); rec.lang = 'en-US'; rec.interimResults = true;
+rec.onresult = (e: any) => setText([...e.results].map((r: any) => r[0].transcript).join(''));
+rec.onerror = () => hideMicButton(); // permission denied etc. -> type
+rec.start(); // on mic button tap; rec.stop() on second tap
+```
+
+The judge can edit the text before Send. Nothing is sent until they tap Send.
+
+**Answering the call (Cartesia STT).** `transcribe` writes **one** final segment (`seq: 0`, `isFinal: true`) after the whole upload; segments do not stream live. The mock text is `MOCK: it's additional`. Summo normalizes `answer`: it must contain "additional", "on top", "more" or "extra" (→ `additional`), or "total"/"new total" (→ `new_total`), but not both. Anything else makes Summo call `fallbackText({ id })`, and `active` shows the row again with status `fallback_text`: render the Re-ask screen. If the mic fails, call `fallbackText({ id })` yourself and use the option buttons, then `confirm`.
 
 ```ts
 // Record mic -> 16 kHz mono PCM16 WAV (44-byte header). Convex cannot transcode webm/opus.
@@ -293,63 +397,84 @@ export async function uploadAnswer(convex: ConvexClient, id: Id<'clarifications'
 // import type { Id } from '../../../convex/_generated/dataModel';
 ```
 
-For the fallback, `new (window.SpeechRecognition ?? (window as any).webkitSpeechRecognition)()`; on `onresult`, take `results[0][0].transcript` and call `confirm`.
+**Photographing the forecast (camera → `scanned_forecast`):**
 
-## 7. The nine demo beats
+```html
+<input type="file" accept="image/*" capture="environment" />   <!-- camera -->
+<input type="file" accept="application/pdf,image/*" />           <!-- "Upload PDF" fallback -->
+```
 
-The S0 baseline is incurred $400k, remaining $400k, 50.00%, revenue $500,000, billed $300,000, asset $200,000, margin $200,000. Each Claude read takes about 2–6 s with a real key, and a forecast note needs two reads (extract, then explain). Show a "RoboAudit is reading…" state from `source_added` until the next `calculation`/`proposed`/`clarification_opened` event for that source.
+```ts
+async function sendForecast(file: File) {
+  const uploadUrl = await convex.mutation(api.clarifications.generateUploadUrl, {});
+  const res = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+  const { storageId } = await res.json();
+  await mgr.reducers.addSource({ projectId, kind: 'scanned_forecast', text: storageId, parentSourceId: 0n, version: 2 });
+}
+```
+
+Summo fetches the bytes from Convex storage, writes an `extraction` with `reader === 'azure-di'` (`factsJson` = `{ text, tables }`), then a `claude` extraction on the OCR text, then a `calculation` and `proposal` whose `evidenceSourceIds` contains the scanned source id. A "Remaining Estimate" figure is read as the new total remaining and the explanation cites `Convention v3: remaining_estimate_means = future_costs_only`; no call is made. Design "Reading document" for 3–8 s. Without Azure keys the agent's mock OCR always returns $600,000, whatever was photographed.
+
+Sheets: `apps/agent/test/fixtures/sheets/forecast-{550k,600k,700k,350k}.{jpg,pdf}`. Expected values are in `docs/demo-flow.md` (after an approved "additional": $550k → 42.11%, $421,053, +$21,053; $700k → 36.36%, $363,636, −$36,364; $350k → 53.33%, $533,333, +$133,333; $600k → zero adjustment, empty entry, `post` fails `unbalanced`).
+
+## 9. "Break it" buttons (laptop)
+
+Three buttons in a quiet row under the proposal. Each shows the refusal in error colour as "Refused: <code>" and the reducer message underneath. Use the `call()` helper.
+
+| Button | Exact calls | Expected |
+|---|---|---|
+| "Post it again" | after a successful `post`: `dana.reducers.post({ proposalId, revision, postingRef })` with the **same** three values | `duplicate_posting: postingRef OAK-WI<n>-R<rev> already posted` |
+| "Approve as the accountant" | `const priya = await connect('accountant', 'Priya', bump)` (once, cached), then `priya.reducers.decide({ proposalId, revision, decision: 'approve', reason: '' })` on an **open** proposal | `role: requires controller, caller is accountant`; the proposal stays `open` |
+| "Change the forecast after approval" | with an **open** revenue proposal: `dana.reducers.addSource({ projectId, kind: 'note', text: 'Updated forecast: Remaining Estimate: $700,000', parentSourceId: 0n, version: 3 })`, then `dana.reducers.decide({ proposalId, revision, decision: 'approve', reason: '' })` on the old proposal | `stale: proposal <id> is stale`. Proposal and work item go `stale` (history `proposal_stale`), Approve disables, and Summo writes a fresh proposal from the new source 6–9 s later |
+
+Enable "Post it again" only when a `posting` exists for the latest proposal; the other two only when the latest proposal is `open` and `calculationId != 0`. A posted entry is never staled: `addSource` only stales `open` revenue proposals.
+
+## 10. Reset
+
+Header button, three calls in order:
+
+```ts
+await call(() => dana.reducers.resetDemo({}));
+await convex.mutation(api.clarifications.resetOpen, {});            // ringing/answering/fallback_text -> unconfirmed
+const m = await convex.query(api.managers.current, {});
+if (m) await convex.mutation(api.managers.leave, { id: m._id });
+```
+
+After reset: 1 work item `posted`, 1 proposal `posted` rev 1, calc 5000 bp, posting `OAK-2026-09-R1`, `managers.current()` is `null` (QR shows, phone returns to the name screen). `resetDemo` clears every table except `user`, so registered identities keep their roles and names. CLI fallback: `pnpm demo --reset-only --remote` (ledger + `resetOpen`, not `managers.leave`).
+
+## 11. The nine backend beats (reference)
+
+This is what `pnpm demo` asserts; the judge-driven order is in `docs/demo-flow.md` (judge = Matt below, Dana = controller, the "Priya" note is sent from the phone). The S0 baseline is incurred $400k, remaining $400k, 50.00%, revenue $500,000, billed $300,000, asset $200,000, margin $200,000. Each Claude read takes about 2–4 s with a real key, and a forecast note needs two reads (extract, then explain, 6–9 s).
 
 | # | Who clicks what | Watch | Expected |
 |---|---|---|---|
-| 1 | Reset (`resetDemo({})` + `clarifications.resetOpen({})`) | everything | 1 work item `posted`, 1 proposal `posted` rev 1, calc 5000 bp, posting `OAK-2026-09-R1` |
+| 1 | Reset (§10) | everything | 1 work item `posted`, 1 proposal `posted` rev 1, calc 5000 bp, posting `OAK-2026-09-R1` |
 | 2 | (agent running) | — | nothing visible |
-| 3 | Priya: `addSource({projectId, kind:'note', text:'we need another $200,000 to finish', parentSourceId:0n, version:1})` | `source`, `extraction` | extraction `ambiguityFlag: true` |
+| 3 | `addSource({projectId, kind:'note', text:'we need another $200,000 to finish', parentSourceId:0n, version:1})` | `source`, `extraction` | extraction `ambiguityFlag: true` |
 | 4 | — | Convex `active`; `workItem` | Phone `ringing`; work item `awaiting_clarification`; question "Is the $200,000 additional to the current remaining forecast, or the new total remaining?" (keyword path; Claude may phrase it) |
-| 5 | Matt on phone: confirm `additional` | Convex row `confirmed`; `clarificationRef` `confirmed`; new `clarification` source | work item → `open` |
+| 5 | Phone: confirm `additional` | Convex row `confirmed`; `clarificationRef` `confirmed`; new `clarification` source | work item → `open` |
 | 6 | — | `calculation`, `proposal` rev 2 | 4000 bp (40.00%), revenue $400,000, asset $100,000, margin $0, `lossWarning: true`, entry **Dr Revenue 100,000 / Cr ContractAsset 100,000**, explanation starts `ESCALATION:`, pending `{forecast, another_means, additional}` |
 | 7 | Dana: Approve (`decide` then `post`) | `approval`, `posting`, `convention` | work item `posted`; new convention `another_means = additional` approvedBy Dana |
-| 8 | Priya: `addSource` kind `commissioning_log`, "Commissioning complete: 48 of 48 units commissioned, throughput test passed 1,200 totes/hr, acceptance criteria met." | `contractMilestone`, new `workItem`, `proposal` | milestone `met`; work item "Milestone invoice: acceptance" `proposed`; entry **Dr AccountsReceivable 200,000 / Cr ContractAsset 200,000** (calculationId 0) |
-| 9 | Priya: `addSource` note "another $50,000 for conveyor rework" | `proposal` rev 3 on Oakland | **no** Convex call; remaining $650k, 3810 bp (38.10%), revenue $380,952, asset $80,952, margin −$50,000, loss warning + `ESCALATION:`, entry Dr Revenue 19,048 / Cr ContractAsset 19,048, explanation contains `another_means` |
+| 8 | `addSource` kind `commissioning_log`, "Commissioning complete: 48 of 48 units commissioned, throughput test passed 1,200 totes/hr, acceptance criteria met." | `contractMilestone`, new `workItem`, `proposal` | milestone `met`; work item "Milestone invoice: acceptance" `proposed`; entry **Dr AccountsReceivable 200,000 / Cr ContractAsset 200,000** (calculationId 0) |
+| 9 | `addSource` note "another $50,000 for conveyor rework" | `proposal` rev 3 on Oakland | **no** Convex call; remaining $650k, 3810 bp (38.10%), revenue $380,952, asset $80,952, margin −$50,000, loss warning + `ESCALATION:`, entry Dr Revenue 19,048 / Cr ContractAsset 19,048, explanation contains `another_means` |
 
 Ordering rules:
-- **Approve and post rev 2 before adding any new source.** `addSource` stales every `open` revenue proposal on the project. If rev 2 has not been approved, month 3 also computes from the S0 baseline and the numbers are wrong.
-- The invoice proposal (`calculationId = 0`) is **not** staled by later notes, so beat 9 can run while it is still open.
+- **Approve and post rev 2 before adding any new source.** `addSource` stales every `open` revenue proposal on the project. If rev 2 has not been approved, the next source also computes from the S0 baseline.
+- The invoice proposal (`calculationId = 0`) is **not** staled by later notes.
 - **"New total" branch** (answer `new_total` in beat 5): remaining $200,000, 6667 bp (66.67%), revenue $666,667, asset $366,667, margin $400,000, no loss, entry Dr ContractAsset 166,667 / Cr Revenue 166,667. Approving it saves `another_means = new_total`. Reset before beat 9, because "another $50,000" would then be read as the new total remaining.
+- **Negative update** ("50k less"): remaining falls, progress rises, positive adjustment (from S0 as additional −$50,000: $350,000, 53.33%, $533,333, +$33,333).
 
-## 7b. Scanned forecast upload (Azure Document Intelligence beat)
-
-The Microsoft-track beat: the accountant uploads a photo or PDF of the forecast sheet and the
-agent reads it with Azure Document Intelligence, then runs the normal extraction path.
-
-```ts
-// 1. upload the file to Convex storage
-const uploadUrl = await convex.mutation(api.clarifications.generateUploadUrl, {});
-const res = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
-const { storageId } = await res.json();
-// 2. register it as evidence; the agent picks it up from the subscription
-await conn.reducers.addSource({ projectId, kind: 'scanned_forecast', text: storageId, parentSourceId: 0n, version: 2 });
-```
-
-What to show while it runs: an `extraction` row with `reader === 'azure-di'` appears first
-(its `factsJson` is `{ text, tables }`, the OCR output; render the text and the table under the
-source), then a `claude` extraction, then a new `calculation` and `proposal` whose
-`evidenceSourceIds` contains the scanned source id. Expected with the fixture
-`apps/agent/test/fixtures/forecast-v2.pdf`: remaining $600,000 read as the new total (the seeded
-convention `remaining_estimate_means = future_costs_only` is cited), progress 40%, adjustment
--$100,000. The page image itself is available for display through
-`api.clarifications.audioUrl({ storageId })`, which returns a URL for any storage id.
-Without Azure keys the agent runs a mock OCR that returns the same figures; the UI cannot tell
-the difference, so design the "reading document..." state for 3-8 seconds either way.
-
-## 8. Gotchas
+## 12. Gotchas
 
 - **Ids shift after every reset.** Look rows up by name, title or kind each time, never by a cached id.
-- `resetDemo` clears every table except `user`, so registered identities keep their roles. After a reset you do not need to call `registerDemoUser` again.
-- `pnpm demo --reset-only` does **not** call Convex `resetOpen`. A leftover `ringing` row from an aborted run stays in `active()` until something calls `api.clarifications.resetOpen({})`. Put it on your Reset button.
-- `demo/identities.json` holds the Node tokens used by `pnpm agent` and `pnpm demo` (gitignored). Browser tokens live in `localStorage` under `keel-token-<role>`. They are different identities with the same names, which is fine. To start fresh, clear localStorage.
-- `addSource` and `resetDemo` have no role check. `decide`, `post`, `closePeriod` and `saveConvention` require controller.
+- `resetDemo` clears every table except `user`. After a reset you do not need to call `registerDemoUser` again.
+- `pnpm demo --reset-only` calls `resetDemo` and Convex `resetOpen`, but not `managers.leave`. The Reset button must do all three.
+- `demo/identities.json` holds the Node tokens used by `pnpm agent` and `pnpm demo` (gitignored). Browser tokens live in `localStorage` under `keel-token-<role>`. They are different identities with the same names, which is fine. Tokens are per server: a local token does not work on Maincloud. To start fresh, clear localStorage.
+- `addSource`, `registerDemoUser` and `resetDemo` have no role check. `decide`, `post`, `closePeriod` and `saveConvention` require controller.
 - Node has no global WebSocket, so `@keel/ledger-client` polyfills it with `ws`. Browsers have one natively, so don't import ledger-client.
 - `JSON.stringify` throws on bigint. Use the `json` replacer above, and `BigInt(str)` going back.
-- Do not run `pnpm demo` and `pnpm agent` at the same time. Both would process each source and ask Convex twice.
-- On a real phone, `127.0.0.1` points at the phone itself, and `getUserMedia` needs a secure context (https or localhost). For stage use, serve the phone page over https and point it at a reachable Convex deployment (cloud, not the local anonymous one).
+- Do not run `pnpm demo` (without `--remote`) or `pnpm agent` while `keel-agent` is running. Two agents process each source and ask Convex twice.
+- `getUserMedia`, the camera input and SpeechRecognition need a secure context (https). iOS Safari plays audio only after a tap; start question playback from the Answer tap.
 - When `CARTESIA_API_KEY` is not set in the Convex env, the question audio is 0.5 s of silence and the transcript is `MOCK: it's additional`. Keep the question text on screen.
+- A zero adjustment (e.g. the $600,000 sheet after an approved "additional") produces an empty entry; `post` refuses it with `unbalanced`. Show "No change to the books" instead of an Approve button when `lines(p.entryJson).length === 0`.
+- The "Change the forecast" button text is fixed so Summo reads it without a call (a "Remaining Estimate" figure). Do not change it to "another …" after a convention is saved unless you want the convention path.
