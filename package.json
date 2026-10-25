@@ -11,6 +11,9 @@
     "agent": "pnpm --filter @keel/agent start",
     "demo": "tsx scripts/demo.ts",
     "bench": "tsx scripts/bench.ts",
+    "stress": "tsx scripts/stress.ts",
+    "logs": "tsx scripts/logs.ts",
+    "logs:export": "tsx scripts/logs.ts export",
     "test:convex": "vitest run convex/test",
     "eval": "PROMPTFOO_DISABLE_TELEMETRY=1 promptfoo eval -c eval/promptfooconfig.yaml -o eval/results.json --no-cache --no-table",
     "eval:view": "PROMPTFOO_DISABLE_TELEMETRY=1 promptfoo view"

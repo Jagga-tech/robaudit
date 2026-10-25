@@ -1,4 +1,5 @@
 import type { Ledger, SourceRow } from './loop.js';
+import { appendLog, errCode } from './logfile.js';
 
 export const log = (...a: unknown[]) => console.log(new Date().toISOString(), '[agent]', ...a);
 const MAX_ATTEMPTS = 3;
@@ -51,5 +52,15 @@ export function guardedLedger(ledger: Ledger, agent: string, may: readonly strin
 
 /** One agent_event row. Best effort: a logging failure never breaks the flow (and a ledger without the reducer just skips it). */
 export async function say(ledger: Ledger, agent: string, projectId: bigint, kind: Kind, summary: string, refTable = '', refId = 0n): Promise<void> {
-  try { await ledger.logAgentEvent?.({ projectId, agent, kind, summary, refTable, refId }); } catch (e: any) { log(`agent_event ${agent} ${kind} not logged: ${e?.message ?? e}`); }
+  const t = Date.now(), ids = { ...(refTable === 'source' && { sourceId: refId }), ...(refTable === 'work_item' && { workItemId: refId }) };
+  const line = { agent, kind, summary, refTable, refId, projectId, ...ids };
+  try {
+    await ledger.logAgentEvent?.({ projectId, agent, kind, summary, refTable, refId });
+    const err = kind === 'error' ? errCode(summary) : undefined;
+    appendLog({ ...line, level: kind === 'error' ? 'error' : 'info', latencyMs: Date.now() - t, ...(err && { err }) });
+  } catch (e: any) {
+    const msg = String(e?.message ?? e);
+    appendLog({ ...line, level: 'error', latencyMs: Date.now() - t, err: errCode(msg) ?? msg });
+    log(`agent_event ${agent} ${kind} not logged: ${msg}`);
+  }
 }

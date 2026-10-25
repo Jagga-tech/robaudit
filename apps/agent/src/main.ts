@@ -1,8 +1,12 @@
 import fs from 'node:fs';
 import { ConvexHttpClient } from 'convex/browser';
-import { connectAs } from '@keel/ledger-client';
+import { connectAs, STDB_DB, STDB_URI } from '@keel/ledger-client';
 import { agentDeps, isSeed } from './ledger-adapter.js';
 import { log, startLoop } from './loop.js';
+import { startFileLog } from './logfile.js';
+import { hasKey } from './claude.js';
+import { hasGeminiKey } from './gemini.js';
+import { isAzureDiReal } from './azure-di.js';
 
 // CONVEX_URL from env, else .env.local / .env at the repo root (.env is also loaded by claude.ts).
 for (const f of ['.env.local', '.env']) {
@@ -13,6 +17,9 @@ for (const f of ['.env.local', '.env']) {
 }
 if (!process.env.CONVEX_URL) throw new Error('CONVEX_URL unset (run `npx convex dev` to create .env.local)');
 
+const on = (b: boolean) => (b ? 'REAL' : 'OFF');
+const logPath = startFileLog({ ledger: `${STDB_URI}/${STDB_DB}`, convex: process.env.CONVEX_URL, readers: { claude: on(hasKey), gemini: on(hasGeminiKey), azure_di: on(isAzureDiReal) } });
+log(`log file ${logPath}`);
 const conn = await connectAs('agent');
 // ponytail: connectAs owns the builder, so hook the connection's disconnect emitter (TS-private, public at runtime). Run under a restart loop.
 (conn as unknown as { onDisconnect(cb: () => void): void }).onDisconnect(() => { log('ledger disconnected'); process.exit(1); });
