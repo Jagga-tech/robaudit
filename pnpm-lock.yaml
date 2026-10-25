@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@types/ws':
-        specifier: ^8.18.2
-        version: 8.18.2
       convex:
         specifier: ^1.48.0
         version: 1.48.0
@@ -21,6 +18,9 @@ importers:
       '@types/node':
         specifier: ^20.17.0
         version: 20.19.43
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
       tsx:
         specifier: ^4.19.0
         version: 4.23.15
@@ -40,7 +40,25 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  packages/bindings:
+    dependencies:
+      spacetimedb:
+        specifier: 2.13.*
+        version: 2.13.0
+
   packages/engine: {}
+
+  packages/ledger-client:
+    dependencies:
+      '@keel/bindings':
+        specifier: workspace:*
+        version: link:../bindings
+      spacetimedb:
+        specifier: 2.13.*
+        version: 2.13.0
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
 
   spacetimedb:
     dependencies:

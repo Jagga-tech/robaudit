@@ -44,6 +44,7 @@ describe.skipIf(!url)("clarification channel e2e", () => {
     await c.mutation(api.clarifications.fallbackText, { id: id2 });
     const active = await c.query(api.clarifications.active, {});
     expect(active).toMatchObject({ _id: id2, status: "fallback_text" });
+    await c.mutation(api.clarifications.decline, { id: id2, reason: "test cleanup" });
   }, 20_000);
 
   it("submitAnswerAudio -> transcript segment", async () => {
@@ -59,6 +60,6 @@ describe.skipIf(!url)("clarification channel e2e", () => {
     }
     expect(segs.length).toBe(1);
     expect(segs[0].isFinal).toBe(true);
-    await c.mutation(api.clarifications.fallbackText, { id }); // leave nothing ringing
+    await c.mutation(api.clarifications.decline, { id, reason: "test cleanup" }); // leave nothing open
   }, 20_000);
 });

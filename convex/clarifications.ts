@@ -64,7 +64,6 @@ export const generateUploadUrl = mutation({
 export const submitAnswerAudio = mutation({
   args: { id, storageId: v.id("_storage") },
   handler: async (ctx, { id, storageId }) => {
-    await ctx.db.patch(id, { answerAudioId: storageId });
     await ctx.scheduler.runAfter(0, api.voice.transcribe, { id, storageId });
   },
 });

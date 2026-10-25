@@ -66,6 +66,7 @@ function stt(pcm: Buffer, apiKey: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url, { headers: { "X-API-Key": apiKey } });
     let text = "";
+    let done = false;
     const timer = setTimeout(() => (ws.terminate(), reject(new Error("Cartesia STT timeout"))), 60_000);
     const finish = (err?: Error) => {
       clearTimeout(timer);
@@ -79,13 +80,18 @@ function stt(pcm: Buffer, apiKey: string): Promise<string> {
     });
     ws.on("message", (data, isBinary) => {
       if (isBinary) return;
-      const m = JSON.parse(data.toString());
+      let m;
+      try {
+        m = JSON.parse(data.toString());
+      } catch (e) {
+        return finish(e as Error);
+      }
       if (m.type === "transcript" && m.is_final) text += m.text ?? "";
-      else if (m.type === "done") finish();
+      else if (m.type === "done") (done = true, finish());
       else if (m.type === "error") finish(new Error(`Cartesia STT error: ${JSON.stringify(m)}`));
     });
     ws.on("error", (e) => finish(e));
-    ws.on("close", () => finish());
+    ws.on("close", (code) => finish(done || code === 1000 ? undefined : new Error(`Cartesia STT closed early (${code})`)));
   });
 }
 
