@@ -33,7 +33,7 @@ describe('parseSpokenCents (phone answers)', () => {
     ['um, maybe 300 grand', 30000000n],
     ['about 400,000', 40000000n],
   ])('%s', (text, cents) => expect(parseSpokenCents(text)).toBe(cents));
-  it.each(['a lot', 'not sure yet', '', '2 to 3 million', '800k or 900k', 'ten percent of a million'])('no figure: %s', (t) => expect(parseSpokenCents(t)).toBeNull());
+  it.each(['a lot', 'not sure yet', '', '2 to 3 million', '800k or 900k', 'ten percent of a million', 'between 700 and 800 thousand'])('no figure: %s', (t) => expect(parseSpokenCents(t)).toBeNull());
 });
 
 describe('parseSpokenTotal (rates)', () => {

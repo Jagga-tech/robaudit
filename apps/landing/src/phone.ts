@@ -53,7 +53,7 @@ const SMALL: Record<string, number> = { zero: 0, one: 1, two: 2, three: 3, four:
 const BIG: Record<string, number> = { thousand: 1e3, k: 1e3, grand: 1e3, million: 1e6, mil: 1e6, mm: 1e6, m: 1e6, billion: 1e9, bn: 1e9 };
 export function parseSpokenCents(text: string): bigint | null {
   const t0 = text.toLowerCase();
-  if (/\bpercent\b|%/.test(t0)) return null; // a share of something is not a figure
+  if (/\bpercent\b|%|\bbetween\b/.test(t0)) return null; // a share or a range is not a figure
   const toks = t0.replace(/(\d),(?=\d)/g, '$1').replace(/(\d)([km])\b/g, '$1 $2').split(/[^a-z0-9./]+/).filter(Boolean);
   let total = 0, cur = 0, seen = false, lastBig = 0, prevDigits = false, point = 0;
   for (const t of toks) {
