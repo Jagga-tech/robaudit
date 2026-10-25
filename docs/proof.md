@@ -60,7 +60,7 @@ Each row is something we put in the data or do on stage, with the response we ex
 | 13 | Crew on site, rain held us up Tuesday, morale is good. | none | – | no |
 | 14 | commissioning complete, throughput test passed | milestone | – | no |
 | 15 | we spent 20k on cranes and need another 100k to finish | remaining_update | +100,000 | yes |
-| 16 | we need another two hundred thousand to finish | remaining_update | null (spelled out) | yes |
+| 16 | we need another two hundred thousand to finish | remaining_update | 20000000 (number words) | yes |
 | 17 | we'll need an extra $45,000 for the sorter install | remaining_update | +45,000 | yes |
 | 18 | bump the cost to finish by $30k | remaining_update | +30,000 | yes |
 | 19 | we saved $25,000 on the remaining scope | remaining_update | −25,000 | no |

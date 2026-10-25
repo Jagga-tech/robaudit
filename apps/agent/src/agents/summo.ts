@@ -1,5 +1,5 @@
 import type { Convention } from '@keel/engine';
-import { parseAmountCents } from '../extract.js';
+import { parseAmountCents, parseSpokenCents } from '../extract.js';
 import type { Extraction } from '../schemas.js';
 import type { Disagreement, ExplainInput } from '../explain.js';
 import { attempt, createBus, guardedLedger, log, say, type Agent } from '../bus.js';
@@ -37,8 +37,13 @@ const reductionOf = (f: Extraction['facts'][number], noteText: string): Conventi
 const signed = (mag: bigint, convention: Convention, red: Convention | null) => (convention === 'additional' && red === 'additional' ? -mag : mag);
 
 // Amount comes from the quote (verified to be in the note); Claude's amountText only if it also appears in the note.
-const factAmount = (f: Extraction['facts'][number] | undefined, noteText: string) =>
-  f ? parseAmountCents(f.quote) ?? (f.amountText && noteText.includes(f.amountText) ? parseAmountCents(f.amountText) : null) : null;
+// Digits first; then number words ("another hundred grand", "two hundred thousand"), the way a site lead actually talks.
+const spoken = (t: string) => { const c = parseSpokenCents(t); return c != null && c > 0n ? c : null; };
+const factAmount = (f: Extraction['facts'][number] | undefined, noteText: string) => {
+  if (!f) return null;
+  const at = f.amountText && noteText.includes(f.amountText) ? f.amountText : '';
+  return parseAmountCents(f.quote) ?? (at ? parseAmountCents(at) : null) ?? spoken(f.quote) ?? (at ? spoken(at) : null);
+};
 
 // Facts are the amount source: remaining_update first; else (additive wording / additional_vs_total) the first fact with a parseable amount,
 // because the model sometimes files "another $50,000 for conveyor rework" as cost/other.
@@ -152,7 +157,13 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   });
   const calc = await waitFor(`calculation for source ${src.id}`, () => maxBy(ledger.state().calculations.filter((c) => c.forecastSourceId === src.id)), CALC_WAIT_MS);
   log(`calculation ${calc.id}: remaining ${usd(next.remaining)} (${convention}), progress ${after.progressBp} bp, cum revenue ${usd(after.cumRevenue)}, adjustment ${usd(adj)}${after.margin.lossWarning ? ', LOSS WARNING' : ''}`);
-  if (adj === 0n) { // an empty entry would fail post as unbalanced
+  // A project onboarded by phone whose opening proposal was never posted (a note staled it first): book the full
+  // opening position instead of a delta, or the books would start from an adjustment to nothing.
+  const st = ledger.state();
+  const booked = new Set(st.proposals.filter((p) => p.status === 'posted' || p.status === 'approved').map((p) => p.calculationId));
+  const openingUnposted = st.sources.some((x) => x.projectId === src.projectId && x.kind === 'intake')
+    && !st.calculations.some((c) => booked.has(c.id) && st.workItems.find((w) => w.id === c.workItemId)?.projectId === src.projectId);
+  if (adj === 0n && !openingUnposted) { // an empty entry would fail post as unbalanced
     await say(ledger, NAME, src.projectId, 'skip', `no revenue change: cumulative revenue unchanged at ${usd(after.cumRevenue)}`, 'calculation', calc.id);
     return log(`no revenue change: cumulative revenue unchanged at ${usd(after.cumRevenue)}`);
   }
@@ -164,9 +175,10 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   // The source disagreement is always stated, whether or not the model wrote it.
   const said = disagreement && !/system of record/i.test(`${x.summary} ${x.whyRevenueMoved}`) ? disagreementSentence(disagreement) : '';
   const rework = reworkOf(ledger.state(), workItemId); // controller said no last time: say what this revision answers
-  const explanation = [escalation, rework, ...citations, x.summary, x.whyRevenueMoved, said, x.whatDidNotChange].filter(Boolean).join('\n');
+  const opening = openingUnposted ? `Nothing is posted on this project yet, so this entry books the full opening position (revenue to date ${usd(after.cumRevenue)}, billed ${usd(next.billed)}) with the update applied, not an adjustment.` : '';
+  const explanation = [escalation, opening, rework, ...citations, x.summary, x.whyRevenueMoved, said, x.whatDidNotChange].filter(Boolean).join('\n');
   const evidence = [src.id, ...(extraEvidenceId ? [extraEvidenceId] : [])].join(',');
-  const entry = engine.handlers.revenueEntry(adj);
+  const entry = openingUnposted ? engine.handlers.openingEntry(after.cumRevenue, next.billed) : engine.handlers.revenueEntry(adj);
   // Reviewer reads the finished proposal; a flag only appends a line (Dana decides), it never blocks or rewrites.
   const review = await reviewer.handlers.check(deps, {
     incurredCents: String(snap.incurred), remainingBeforeCents: String(snap.remaining), remainingAfterCents: String(next.remaining),
@@ -174,9 +186,9 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
     cumRevenueBeforeCents: String(before.cumRevenue), cumRevenueAfterCents: String(after.cumRevenue), adjustmentCents: String(adj),
     entryLines: JSON.parse(entry), conventionCited: citations.filter((c) => c.startsWith('Convention')).join('; '), explanation,
   });
-  const flag = review.verdict && !review.verdict.consistent ? `\nReviewer flag: ${review.verdict.note}` : '';
+  const flag = !openingUnposted && review.verdict && !review.verdict.consistent ? `\nReviewer flag: ${review.verdict.note}` : ''; // the reviewer checks adjustment entries, not opening positions
   await ledger.propose({ workItemId, calculationId: calc.id, entryJson: entry, explanation: explanation + flag, evidenceSourceIdsCsv: evidence, pendingConventionJson });
-  await say(ledger, NAME, src.projectId, 'propose', `revenue adjustment ${usd(adj)} for approval${escalation ? ' (escalation: loss contract)' : ''}`, 'calculation', calc.id);
+  await say(ledger, NAME, src.projectId, 'propose', `${openingUnposted ? `opening position, revenue ${usd(after.cumRevenue)}` : `revenue adjustment ${usd(adj)}`} for approval${escalation ? ' (escalation: loss contract)' : ''}`, 'calculation', calc.id);
   const proposalId = ledger.state().proposals.find((p) => p.calculationId === calc.id)?.id;
   await reviewer.handlers.report(deps, src.projectId, review, proposalId != null ? 'proposal' : 'calculation', proposalId ?? calc.id);
   log(`proposal on work item ${workItemId}: adjustment ${usd(adj)}${escalation ? ' (ESCALATION)' : ''}`);

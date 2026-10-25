@@ -29,7 +29,7 @@ tests:
   - { description: 'A13 no figures', providers: [claude, gemini], vars: { note: 'Crew on site, rain held us up Tuesday, morale is good.', expect: { kind: none, flag: false, direction: none, decision: none } } }
   - { description: 'A14 milestone', providers: [claude, gemini], vars: { note: 'commissioning complete, throughput test passed', expect: { kind: milestone, flag: false, direction: none, decision: none } } }
   - { description: 'A15 spent 20k, another 100k', providers: [claude, gemini], vars: { note: 'we spent 20k on cranes and need another 100k to finish', expect: { kind: remaining_update, amountCents: '10000000', flag: true, direction: additive, decision: ask } } }
-  - { description: 'A16 two hundred thousand', providers: [claude, gemini], vars: { note: 'we need another two hundred thousand to finish', expect: { kind: remaining_update, amountCents: 'null', flag: true, direction: additive, decision: ask } } }
+  - { description: 'A16 two hundred thousand', providers: [claude, gemini], vars: { note: 'we need another two hundred thousand to finish', expect: { kind: remaining_update, amountCents: '20000000', flag: true, direction: additive, decision: ask } } }
   - { description: 'A17 extra $45,000', providers: [claude, gemini], vars: { note: "we'll need an extra $45,000 for the sorter install", expect: { kind: remaining_update, amountCents: '4500000', flag: true, direction: additive, decision: ask } } }
   - { description: 'A18 bump by $30k', providers: [claude, gemini], vars: { note: 'bump the cost to finish by $30k', expect: { kind: remaining_update, amountCents: '3000000', flag: true, direction: additive, decision: ask } } }
   - { description: 'A19 saved $25,000', providers: [claude, gemini], vars: { note: 'we saved $25,000 on the remaining scope', expect: { kind: remaining_update, amountCents: '-2500000', flag: false, direction: reduction, decision: book, remainingAfterCents: '37500000' } } }
@@ -37,7 +37,7 @@ tests:
 
   # --- Section B: planted decision cases (docs/proof.md rows 7 and 8), real reader + real loop
   - { description: 'B07 savings larger than remaining -> ask', providers: [claude, gemini], vars: { note: 'finishing will cost $500,000 less', remaining: '40000000', expect: { decision: ask, question: 'only \$400,000 remains', proposals: 0, remainingAfterCents: 'null' } } }
-  - { description: 'B08 spelled-out amount -> ask, amount null', providers: [claude, gemini], vars: { note: 'we need another two hundred thousand to finish', expect: { decision: ask, amountCents: 'null', question: 'Amount not stated', proposals: 0 } } }
+  - { description: 'B08 spelled-out amount -> read as $200,000, ask additional vs total', providers: [claude, gemini], vars: { note: 'we need another two hundred thousand to finish', expect: { decision: ask, amountCents: '20000000', question: 'on top of|additional|new total', proposals: 0 } } }
 
   # --- Section C: engine answer key and answer mapping (proof.md rows 1, 9, 10), no model
   - { description: "C01 additional $200,000 -> 4000 bp / $400,000 / -$100,000", providers: [engine], vars: { op: compute, convention: additional, update: '20000000', expect: { remaining: '60000000', progressBp: 4000, cumRevenue: '40000000', adjustment: '-10000000', entryLines: 2 } } }

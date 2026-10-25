@@ -86,14 +86,14 @@ describe('phrasings: loop paths (mock deps)', () => {
     expect(f.named('ask')).toHaveLength(1);
   });
 
-  it('spelled-out amount -> asks with "amount not stated"; on confirm no proposal, no crash', async () => {
+  it('spelled-out amount -> read as $200,000 (number words), asks additional vs total, proposes on confirm', async () => {
     const f = fake(ru('another two hundred thousand', 'two hundred thousand', true), { confirmed: { answer: 'additional', speaker: 'Matt' } });
     await handleNewSource(f.add('note', 'we need another two hundred thousand to finish'), f.deps);
-    expect(f.named('ask')[0].question).toMatch(/Amount not stated/);
-    expect(f.named('recordExtraction')[0].ambiguityText).toMatch(/Amount not stated/);
+    expect(f.named('ask')[0].question).not.toMatch(/Amount not stated/);
     await pollConfirmed(f.deps, new Set());
     expect(f.named('resolveClarification')).toHaveLength(1);
-    expect(f.named('propose')).toHaveLength(0);
+    expect(f.named('propose')).toHaveLength(1);
+    expect(f.named('recordCalculation')[0].progressBp).toBe(4000); // 400k / (400k + 600k)
   });
 });
 

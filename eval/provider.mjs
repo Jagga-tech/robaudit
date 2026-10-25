@@ -4,7 +4,7 @@
 import { tsImport } from 'tsx/esm/api';
 
 const src = (p) => tsImport(new URL(`../${p}`, import.meta.url).href, import.meta.url);
-const [{ extract, parseAmountCents }, { extractWithGemini }, { hasKey }, loop, eng] = await Promise.all([
+const [{ extract, parseAmountCents, parseSpokenCents }, { extractWithGemini }, { hasKey }, loop, eng] = await Promise.all([
   src('apps/agent/src/extract.ts'), src('apps/agent/src/gemini.ts'), src('apps/agent/src/claude.ts'), src('apps/agent/src/loop.ts'), src('packages/engine/src/index.ts'),
 ]);
 const S0 = { contractValue: 100000000n, incurred: 40000000n, remaining: 40000000n, billed: 30000000n }; // $1M contract, $400k in, $400k left
@@ -55,7 +55,7 @@ async function read(reader, note, remaining) {
   const decision = asks.length ? 'ask' : calc ? 'book' : 'none';
   return {
     facts: x.facts.map(({ kind, amountText, quote }) => ({ kind, amountText, quote })), ambiguity: x.ambiguity,
-    amountCents: f ? parseAmountCents(f.amountText) : null, direction, decision,
+    amountCents: f ? (parseAmountCents(f.amountText) ?? (parseSpokenCents(f.amountText) > 0n ? parseSpokenCents(f.amountText) : null)) : null, direction, decision, // digits, then number words, as summo.ts factAmount
     question: asks[0]?.question ?? null, remainingAfterCents: calc ? JSON.parse(calc.inputsJson).remainingCents : null, proposals: named('propose').length,
     flagged: !!g, reasons: g ? JSON.parse(g.factsJson).reasons : [],
   };

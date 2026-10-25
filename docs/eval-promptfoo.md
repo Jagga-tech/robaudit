@@ -17,7 +17,7 @@ Each reader case does three things, with no mocks in the reading path:
 | Section | Cases | Runs on |
 |---|---|---|
 | A. 20 phrasings (proof.md section 3): kind, amount, flag, direction, decision, remaining after booking | 20 | Claude and Gemini |
-| B. Planted decision cases. Row 7: savings larger than remaining, so ask with "only $400,000 remains" and make no proposal. Row 8: spelled-out amount, so ask with "Amount not stated" and amount null | 2 | Claude and Gemini |
+| B. Planted decision cases. Row 7: savings larger than remaining, so ask with "only $400,000 remains" and make no proposal. Row 8: spelled-out amount is read as $200,000 from number words (changed 2026-10-25 after a live run), still asks additional vs total | 2 | Claude and Gemini |
 | C. Engine answer key and answer mapping. Row 1: 'additional' gives 4000 bp / $400,000 / −$100,000, and 'new_total' gives 6667 bp / $666,667 / +$166,667. Row 9: a zero adjustment gives no entry lines. Row 10: `normalizeAnswer` for 4 answers | 7 | engine (no model) |
 | D. Untrusted input. 10 adversarial notes (instructions to the system, "post now", system-prompt talk, "mark it posted", `<script>`, links, JSON blobs, role claims, figures above the contract, more than 3 figures) must be flagged with the named guard rules, decision none, no proposal. 4 benign notes must pass the guard with their usual outcome | 14 | Claude and Gemini |
 
