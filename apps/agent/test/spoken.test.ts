@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSpokenCents } from '../src/extract.js';
+import { parseSpokenCents, parseSpokenTotal } from '../src/extract.js';
 
 describe('parseSpokenCents (phone answers)', () => {
   it.each([
@@ -34,4 +34,19 @@ describe('parseSpokenCents (phone answers)', () => {
     ['about 400,000', 40000000n],
   ])('%s', (text, cents) => expect(parseSpokenCents(text)).toBe(cents));
   it.each(['a lot', 'not sure yet', '', '2 to 3 million', '800k or 900k', 'ten percent of a million'])('no figure: %s', (t) => expect(parseSpokenCents(t)).toBeNull());
+});
+
+describe('parseSpokenTotal (rates)', () => {
+  it.each([
+    ['half a million a month for seven months', 350000000n, '$500,000 a month for 7 months'],
+    ['we spent 50k per month over 8 months', 40000000n, '$50,000 a month for 8 months'],
+    ['about 2 million a year for two years', 400000000n, '$2,000,000 a year for 2 years'],
+    ['four hundred thousand', 40000000n, ''],
+    ['1,000,000', 100000000n, ''],
+  ])('%s', (text, cents, note) => expect(parseSpokenTotal(text)).toEqual({ cents, note }));
+  it.each([
+    ['half a million a month', 'That sounds like a monthly figure. What is the total?'],
+    ['roughly 50k monthly', 'That sounds like a monthly figure. What is the total?'],
+    ['10k a week', 'That sounds like a weekly figure. What is the total?'],
+  ])('rate without duration re-asks: %s', (text, note) => expect(parseSpokenTotal(text)).toEqual({ cents: null, note }));
 });

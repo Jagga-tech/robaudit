@@ -52,6 +52,24 @@ export function parseSpokenCents(text: string): bigint | null {
   return seen ? BigInt(Math.round((total + cur) * 100)) : null;
 }
 
+// A spoken total: rejects a rate ("half a million a month") unless a duration follows ("for seven months"), then multiplies.
+// cents null -> `note` says why (shown to the speaker); cents set -> `note` is the arithmetic when a rate was expanded, else ''.
+const RATE = /\b(?:a|per|each|every)\s+(month|week|day|year)\b|\b(month|week|dai|year)ly\b|\bannual(?:ly)?\b/;
+const UNIT: Record<string, string> = { dai: 'day', annual: 'year', annually: 'year' };
+export function parseSpokenTotal(text: string): { cents: bigint | null; note: string } {
+  const t0 = text.toLowerCase();
+  const rate = t0.match(RATE);
+  const cents = parseSpokenCents(text);
+  if (!rate || cents === null) return { cents, note: '' };
+  const unit = UNIT[rate[1] ?? rate[2] ?? 'annual'] ?? rate[1] ?? rate[2];
+  const dur = t0.slice(rate.index! + rate[0].length).match(new RegExp(String.raw`\b(?:for|over|across|during)\s+(.+?)\s+${unit}s?\b`));
+  const n = dur ? parseSpokenCents(dur[1]) : null;
+  if (n === null || n <= 0n || n > 100000n) return { cents: null, note: `That sounds like a ${unit}ly figure. What is the total?` };
+  const count = Number(n / 100n);
+  return { cents: cents * BigInt(count), note: `${usdWhole(cents)} a ${unit} for ${count} ${unit}${count === 1 ? '' : 's'}` };
+}
+const usdWhole = (c: bigint) => '$' + (c / 100n).toLocaleString('en-US');
+
 // Real-model offsets are untrusted: recompute from the quote, drop facts whose quote isn't in the note.
 export function normalizeFacts(noteText: string, x: Extraction): Extraction {
   const facts = x.facts.flatMap((f) => {

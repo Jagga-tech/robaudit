@@ -79,6 +79,24 @@ export function parseSpokenCents(text: string): bigint | null {
   return seen ? BigInt(Math.round((total + cur) * 100)) : null;
 }
 
+// A spoken total: rejects a rate ("half a million a month") unless a duration follows ("for seven months"), then multiplies.
+// cents null -> `note` says why (shown to the speaker); cents set -> `note` is the arithmetic when a rate was expanded, else ''.
+const RATE = /\b(?:a|per|each|every)\s+(month|week|day|year)\b|\b(month|week|dai|year)ly\b|\bannual(?:ly)?\b/;
+const UNIT: Record<string, string> = { dai: 'day', annual: 'year', annually: 'year' };
+export function parseSpokenTotal(text: string): { cents: bigint | null; note: string } {
+  const t0 = text.toLowerCase();
+  const rate = t0.match(RATE);
+  const cents = parseSpokenCents(text);
+  if (!rate || cents === null) return { cents, note: '' };
+  const unit = UNIT[rate[1] ?? rate[2] ?? 'annual'] ?? rate[1] ?? rate[2];
+  const dur = t0.slice(rate.index! + rate[0].length).match(new RegExp(String.raw`\b(?:for|over|across|during)\s+(.+?)\s+${unit}s?\b`));
+  const n = dur ? parseSpokenCents(dur[1]) : null;
+  if (n === null || n <= 0n || n > 100000n) return { cents: null, note: `That sounds like a ${unit}ly figure. What is the total?` };
+  const count = Number(n / 100n);
+  return { cents: cents * BigInt(count), note: `${usdWhole(cents)} a ${unit} for ${count} ${unit}${count === 1 ? '' : 's'}` };
+}
+const usdWhole = (c: bigint) => '$' + (c / 100n).toLocaleString('en-US');
+
 // Same rule the agent applies to the confirmed answer: regexes copied verbatim from normalizeAnswer in
 // apps/agent/src/loop.ts (keep in sync). Both or neither -> null -> the phone asks which one; never confirms a guess.
 const TOTAL = /new[\s_-]*total|\btotal\b/i, ADD = /addition|on top|\bmore\b|\bextra\b/i;
@@ -316,7 +334,7 @@ function boot() {
   const isAmount = (row: Row) => row.answerType === 'amount';
   /** Where an answer text leads: amount -> heard (parsed) | ask with the catch line; choice -> heard (matched) | choose. */
   const next = (row: Row, text: string, empty = ''): [Phase, string] => isAmount(row)
-    ? (parseSpokenCents(text) === null ? ['ask', text.trim() ? `Heard “${text.trim()}”, but no figure. Type it or try again.` : NO_FIGURE] : ['heard', ''])
+    ? (parseSpokenTotal(text).cents === null ? ['ask', parseSpokenTotal(text).note || (text.trim() ? `Heard “${text.trim()}”, but no figure. Type it or try again.` : NO_FIGURE)] : ['heard', ''])
     : [matchAnswer(text, row.options) ? 'heard' : 'choose', text ? '' : empty];
   const lastTranscript: string[] = ((window as any).__phoneTranscripts = []); // read by tests/phone.e2e.mjs
   function armTimeout(c: Call) {
@@ -485,7 +503,7 @@ function boot() {
       body = `<p class="lede" id="wait">${c.phase === 'sending' ? 'Sending your answer' : 'Transcribing'}${calm ? '…' : DOTS}</p>`;
     } else if (amt && c.phase === 'heard') {
       body = `
-        <p class="lede" id="heard">I heard ${usd(parseSpokenCents(c.transcript) ?? 0n)}. Is that right?</p>
+        <p class="lede" id="heard">I heard ${parseSpokenTotal(c.transcript).note ? `${esc(parseSpokenTotal(c.transcript).note)}, so ` : ''}${usd(parseSpokenTotal(c.transcript).cents ?? 0n)}. Is that right?</p>
         <button class="pill dark" id="yes" type="button">That's right</button>
         <button class="pill outline" id="edit" type="button">Edit</button>`;
     } else if (amt) {
@@ -550,7 +568,7 @@ function boot() {
     };
     const yes = $<HTMLButtonElement>('#yes');
     if (yes) yes.onclick = () => {
-      if (amt) { const cents = parseSpokenCents(c.transcript); return cents === null ? go(c, 'ask', NO_FIGURE) : confirm(String(cents)); }
+      if (amt) { const cents = parseSpokenTotal(c.transcript).cents; return cents === null ? go(c, 'ask', NO_FIGURE) : confirm(String(cents)); }
       if (c.phase === 'edit') c.transcript = $<HTMLTextAreaElement>('#fix').value.trim();
       const hit = matchAnswer(c.transcript, row.options);
       if (hit) return confirm(hit);
