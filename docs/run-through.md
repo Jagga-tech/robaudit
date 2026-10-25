@@ -46,11 +46,11 @@ Phone: scan, Join with your name, send an update in your own words, answer by vo
 Then on the laptop: Approve and post, the three break-it buttons, Agents page, Audit trail, Jira chips, Reset demo.
 Remote demo script against production (laptop plays the humans, Azure runs Summo):
 ```
-cp demo/identities.maincloud.json demo/identities.json
 STDB_URI=wss://maincloud.spacetimedb.com STDB_DB=keel pnpm demo --require-real --remote
-cp demo/identities.local.json demo/identities.json
 ```
-Reset between judges at the venue: `cp demo/identities.maincloud.json demo/identities.json && STDB_URI=wss://maincloud.spacetimedb.com STDB_DB=keel pnpm demo --reset-only`
+The ledger client picks `demo/identities.maincloud.json` for a Maincloud URL and `demo/identities.local.json` otherwise; no copying.
+Reset between judges at the venue: `STDB_URI=wss://maincloud.spacetimedb.com STDB_DB=keel pnpm demo --reset-only`
+Repopulate both projects for screenshots: the remote demo above, then `STDB_URI=wss://maincloud.spacetimedb.com STDB_DB=keel npx tsx scripts/populate.ts`.
 
 ## 4. Cleanup before judging
 - Jira: delete test issues SUMMO-1, SUMMO-2 (and any SUMMO-N created while testing).

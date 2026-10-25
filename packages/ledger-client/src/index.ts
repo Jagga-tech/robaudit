@@ -19,7 +19,9 @@ try {
 } catch { /* no .env: keep defaults */ }
 export const STDB_URI = process.env.STDB_URI ?? 'http://127.0.0.1:3000';
 export const STDB_DB = process.env.STDB_DB ?? 'keel';
-const IDS_FILE = fileURLToPath(new URL('../../../demo/identities.json', import.meta.url));
+// Tokens differ per server: demo/identities.maincloud.json for Maincloud, demo/identities.local.json otherwise (identities.json if neither exists).
+const idsName = () => { const pick = STDB_URI.includes('maincloud') ? 'identities.maincloud.json' : 'identities.local.json'; return existsSync(fileURLToPath(new URL(`../../../demo/${pick}`, import.meta.url))) ? pick : 'identities.json'; };
+const IDS_FILE = fileURLToPath(new URL(`../../../demo/${idsName()}`, import.meta.url));
 const NAMES: Record<Role, string> = {
   accountant: 'Priya', deployment_manager: 'Matt', controller: 'Dana', agent: 'Summo',
 };
