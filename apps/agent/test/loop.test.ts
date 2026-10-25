@@ -15,7 +15,7 @@ const unflagged = (quote: string, amt: string): Extraction => ({
 const inputs = (remaining: bigint) => JSON.stringify({ contractValueCents: '100000000', incurredCents: '40000000', remainingCents: String(remaining), billedCents: '30000000' });
 
 // In-memory ledger mirroring the reducers' row effects; every call is recorded.
-function fake(extraction: Extraction, opts: { remaining?: bigint; convention?: boolean; confirmed?: { answer: string; speaker: string } } = {}) {
+function fake(extraction: Extraction, opts: { remaining?: bigint; convention?: boolean; confirmed?: { answer: string; speaker: string }; explain?: () => Promise<any> } = {}) {
   let n = 100n;
   const nid = () => ++n;
   const s: LedgerState = {
@@ -24,7 +24,7 @@ function fake(extraction: Extraction, opts: { remaining?: bigint; convention?: b
     conventions: opts.convention ? [{ template: 'forecast', key: 'another_means', value: 'additional', policyVersion: 3 }] : [],
     workItems: [{ id: 10n, projectId: P, title: 'Oakland deployment: forecast v1 close' }],
     calculations: [{ id: 20n, workItemId: 10n, forecastSourceId: 3n, inputsJson: inputs(opts.remaining ?? 40000000n) }],
-    extractions: [], clarificationRefs: [],
+    extractions: [], clarificationRefs: [], proposals: [{ calculationId: 20n, status: 'posted' }],
     milestones: [{ id: 30n, projectId: P, name: 'acceptance', amountCents: 20000000n, status: 'pending' }],
   };
   const calls: [string, any][] = [];
@@ -34,15 +34,19 @@ function fake(extraction: Extraction, opts: { remaining?: bigint; convention?: b
     ledger: {
       state: () => s,
       onSourceInsert: (cb) => { onInsert = cb; },
-      recordExtraction: rec('recordExtraction', (a) => s.extractions.push({ sourceId: a.sourceId, reader: a.reader, factsJson: a.factsJson })),
-      openClarification: rec('openClarification', (a) => s.clarificationRefs.push({ id: nid(), workItemId: a.workItemId, convexId: a.convexId, status: 'open', sourceId: maxSourceId() })),
+      recordExtraction: rec('recordExtraction', (a) => s.extractions.push({ sourceId: a.sourceId, reader: a.reader, factsJson: a.factsJson, ambiguityFlag: a.ambiguityFlag })),
+      // like the real reducer: bind to the newest source on the project whose extraction is flagged ambiguous
+      openClarification: rec('openClarification', (a) => {
+        const sourceId = s.extractions.filter((e) => e.ambiguityFlag).reduce((m, e) => (e.sourceId > m ? e.sourceId : m), 0n);
+        s.clarificationRefs.push({ id: nid(), workItemId: a.workItemId, convexId: a.convexId, status: 'open', sourceId, answer: '', speaker: '', audioStorageId: '' });
+      }),
       resolveClarification: rec('resolveClarification', (a) => {
         const c = s.clarificationRefs.find((x) => x.id === a.clarificationId)!;
-        c.status = 'confirmed';
+        Object.assign(c, { status: 'confirmed', answer: a.answer, speaker: a.speaker });
         s.sources.push({ id: nid(), projectId: P, kind: 'clarification', text: `Clarification from ${a.speaker}: A: ${a.answer}`, parentSourceId: c.sourceId });
       }),
       recordCalculation: rec('recordCalculation', (a) => s.calculations.push({ id: nid(), workItemId: a.workItemId, forecastSourceId: a.forecastSourceId, inputsJson: a.inputsJson })),
-      propose: rec('propose'),
+      propose: rec('propose', (a) => s.proposals.push({ calculationId: a.calculationId, status: 'open' })),
       openWorkItem: rec('openWorkItem', (a) => s.workItems.push({ id: nid(), projectId: a.projectId, title: a.title })),
       markMilestoneMet: rec('markMilestoneMet', (a) => { s.milestones.find((m) => m.id === a.milestoneId)!.status = 'met'; }),
     },
@@ -51,9 +55,8 @@ function fake(extraction: Extraction, opts: { remaining?: bigint; convention?: b
       byWorkItem: async (w) => (opts.confirmed && w === '10' ? [{ _id: 'cvx1', status: 'confirmed', ...opts.confirmed }] : []),
     },
     extract: vi.fn(async () => extraction),
-    explain: async () => ({ summary: 'S.', whyRevenueMoved: 'W.', whatDidNotChange: 'N.' }),
+    explain: opts.explain ?? (async () => ({ summary: 'S.', whyRevenueMoved: 'W.', whatDidNotChange: 'N.' })),
   };
-  const maxSourceId = () => s.sources.reduce((m, x) => (x.id > m ? x.id : m), 0n);
   const add = (kind: string, text: string) => { const r = { id: nid(), projectId: P, kind, text, parentSourceId: 0n }; s.sources.push(r); return r; };
   const named = (name: string) => calls.filter((c) => c[0] === name).map((c) => c[1]);
   return { deps, s, calls, add, named, insert: (x: SourceRow) => onInsert(x) };
@@ -99,11 +102,11 @@ describe('agent loop', () => {
 
   it('(d) same source delivered twice -> one propose', async () => {
     const f = fake(ambiguous('$50,000'), { remaining: 60000000n, convention: true });
+    const src = f.add('note', 'another $50,000 for conveyor rework'); // caught up at startup
     const stop = startLoop(f.deps, { pollMs: 10_000 });
-    const src = f.add('note', 'another $50,000 for conveyor rework'); // also caught up at startup
     f.insert(src); f.insert(src);
     await new Promise((r) => setTimeout(r, 50));
-    await handleNewSource(src, f.deps); // restart: extraction row already exists
+    await handleNewSource(src, f.deps); // restart: calculation for this source already exists
     stop();
     expect(f.named('propose')).toHaveLength(1);
     expect(f.deps.extract).toHaveBeenCalledTimes(1);
@@ -121,9 +124,13 @@ describe('agent loop', () => {
     expect(p.evidenceSourceIdsCsv).toBe(String(log.id));
   });
 
-  it('(f) unflagged "another $50,000", no convention -> clarification, no propose', async () => {
+  it('(f) unflagged "another $50,000", no convention -> clarification bound to this note, no propose', async () => {
     const f = fake(unflagged('another $50,000', '$50,000'), { remaining: 60000000n });
-    await handleNewSource(f.add('note', 'another $50,000 for conveyor rework'), f.deps);
+    f.s.extractions.push({ sourceId: 5n, reader: 'claude', factsJson: '[]', ambiguityFlag: true }); // older ambiguous source
+    const src = f.add('note', 'another $50,000 for conveyor rework');
+    await handleNewSource(src, f.deps);
+    expect(f.named('recordExtraction')[0]).toMatchObject({ ambiguityFlag: true, ambiguityText: expect.stringContaining('additional') });
+    expect(f.s.clarificationRefs[0].sourceId).toBe(src.id);
     expect(f.named('openClarification')).toHaveLength(1);
     expect(f.named('ask')[0]).toMatchObject({ question: 'Is the $X additional to the current remaining forecast, or the new total remaining?', options: ['additional', 'new_total'] });
     expect(f.named('propose')).toHaveLength(0);
@@ -143,6 +150,60 @@ describe('agent loop', () => {
     expect(f.named('openClarification')).toHaveLength(0);
     expect(JSON.parse(f.named('recordCalculation')[0].inputsJson).remainingCents).toBe('60000000');
     expect(f.named('propose')).toHaveLength(1);
+  });
+
+  it('amount comes from the quote, not a mismatched amountText', async () => {
+    const f = fake(unflagged('$200,000', '$300,000'));
+    await handleNewSource(f.add('note', 'the new total remaining is $200,000'), f.deps);
+    expect(JSON.parse(f.named('recordCalculation')[0].inputsJson).remainingCents).toBe('20000000');
+  });
+
+  it('explain throws -> no calculation, no propose', async () => {
+    const f = fake(unflagged('the new total remaining is $600,000', '$600,000'), { explain: async () => { throw new Error('claude down'); } });
+    await expect(handleNewSource(f.add('note', 'the new total remaining is $600,000'), f.deps)).rejects.toThrow('claude down');
+    expect(f.named('recordCalculation')).toHaveLength(0);
+    expect(f.named('propose')).toHaveLength(0);
+  });
+
+  it('startup: extraction row but no calculation/clarification -> processed again', async () => {
+    const f = fake(ambiguous('$200,000'));
+    const src = f.add('note', 'we need another $200,000 to finish');
+    f.s.extractions.push({ sourceId: src.id, reader: 'claude', factsJson: '[]', ambiguityFlag: true }); // convex ask failed last run
+    const stop = startLoop(f.deps, { pollMs: 10_000 });
+    await new Promise((r) => setTimeout(r, 50));
+    stop();
+    expect(f.deps.extract).toHaveBeenCalledTimes(1);
+    expect(f.named('openClarification')).toHaveLength(1);
+  });
+
+  it('startup: confirmed clarification with no calculation -> recordCalculation + propose', async () => {
+    const f = fake(ambiguous('$200,000'));
+    const src = f.add('note', 'we need another $200,000 to finish');
+    f.s.extractions.push({ sourceId: src.id, reader: 'claude', factsJson: JSON.stringify(ambiguous('$200,000').facts), ambiguityFlag: true });
+    f.s.clarificationRefs.push({ id: 50n, workItemId: 10n, sourceId: src.id, convexId: 'cvx9', status: 'confirmed', answer: 'additional', speaker: 'Matt', audioStorageId: '' });
+    const stop = startLoop(f.deps, { pollMs: 5 });
+    await new Promise((r) => setTimeout(r, 50));
+    stop();
+    expect(f.deps.extract).not.toHaveBeenCalled();
+    expect(f.named('resolveClarification')).toHaveLength(0);
+    expect(f.named('recordCalculation')).toHaveLength(1);
+    expect(f.named('propose')).toHaveLength(1);
+    expect(f.named('recordCalculation')[0]).toMatchObject({ progressBp: 4000 });
+  });
+
+  it('baseline skips a returned proposal and uses the last approved/posted one', async () => {
+    const f = fake(ambiguous('$50,000'), { convention: true }); // seed remaining 400k
+    f.s.calculations.push({ id: 21n, workItemId: 10n, forecastSourceId: 4n, inputsJson: inputs(60000000n) });
+    f.s.proposals.push({ calculationId: 21n, status: 'returned' });
+    await handleNewSource(f.add('note', 'another $50,000 for conveyor rework'), f.deps);
+    expect(JSON.parse(f.named('recordCalculation')[0].inputsJson).remainingCents).toBe('45000000');
+  });
+
+  it('note with no dollar figure -> no ask, no propose', async () => {
+    const f = fake({ facts: [], ambiguity: { flag: false, kind: 'none', question: '', options: [] } });
+    await handleNewSource(f.add('note', 'we need more time on site'), f.deps);
+    expect(f.named('ask')).toHaveLength(0);
+    expect(f.named('propose')).toHaveLength(0);
   });
 
   it('isAdditiveWording', () => {

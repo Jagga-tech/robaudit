@@ -24,7 +24,7 @@ export function ledgerDeps(conn: DbConnection): Ledger {
     state: () => ({
       projects: [...d.project.iter()], sources: [...d.source.iter()], conventions: [...d.convention.iter()],
       workItems: [...d.workItem.iter()], calculations: [...d.calculation.iter()], extractions: [...d.extraction.iter()],
-      milestones: [...d.contractMilestone.iter()], clarificationRefs: [...d.clarificationRef.iter()],
+      milestones: [...d.contractMilestone.iter()], clarificationRefs: [...d.clarificationRef.iter()], proposals: [...d.proposal.iter()],
     }),
     onSourceInsert: (cb) => d.source.onInsert((_ctx, row) => cb(row)),
     recordExtraction: (a) => r.recordExtraction(a), openClarification: (a) => r.openClarification(a),

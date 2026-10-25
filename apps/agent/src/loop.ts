@@ -9,14 +9,15 @@ export type SourceRow = { id: bigint; projectId: bigint; kind: string; text: str
 type ConventionRow = { template: string; key: string; value: string; policyVersion: number };
 type WorkItemRow = { id: bigint; projectId: bigint; title: string };
 type CalculationRow = { id: bigint; workItemId: bigint; inputsJson: string; forecastSourceId: bigint };
-type ExtractionRow = { sourceId: bigint; reader: string; factsJson: string };
+type ExtractionRow = { sourceId: bigint; reader: string; factsJson: string; ambiguityFlag: boolean };
+type ProposalRow = { calculationId: bigint; status: string };
 type MilestoneRow = { id: bigint; projectId: bigint; name: string; amountCents: bigint; status: string };
-export type ClarificationRefRow = { id: bigint; workItemId: bigint; sourceId: bigint; convexId: string; status: string };
+export type ClarificationRefRow = { id: bigint; workItemId: bigint; sourceId: bigint; convexId: string; status: string; answer: string; speaker: string; audioStorageId: string };
 export type LedgerState = {
   projects: { id: bigint; contractValueCents: bigint }[];
   sources: (SourceRow & { parentSourceId: bigint })[];
   conventions: ConventionRow[]; workItems: WorkItemRow[]; calculations: CalculationRow[];
-  extractions: ExtractionRow[]; milestones: MilestoneRow[]; clarificationRefs: ClarificationRefRow[];
+  extractions: ExtractionRow[]; milestones: MilestoneRow[]; clarificationRefs: ClarificationRefRow[]; proposals: ProposalRow[];
 };
 
 // Reducer calls take the generated bindings' camelCase arg objects, so the real adapter is `conn.reducers`.
@@ -50,25 +51,34 @@ const entryJson = (lines: EntryLine[]) => JSON.stringify(lines.map((l) => ({ acc
 export const isAdditiveWording = (text: string): boolean =>
   /\b(another|additional|more|extra)\b/i.test(text) && !/\b(new total|total remaining|remaining (is|of|now))\b/i.test(text);
 
+// Amount comes from the quote (verified to be in the note); Claude's amountText only if it also appears in the note.
+const factAmount = (f: Extraction['facts'][number] | undefined, noteText: string) =>
+  f ? parseAmountCents(f.quote) ?? (f.amountText && noteText.includes(f.amountText) ? parseAmountCents(f.amountText) : null) : null;
+
+/** Downstream state exists for this source, so it was fully handled (an extraction row alone does not count). */
+function handled(s: LedgerState, src: SourceRow): boolean {
+  if (s.calculations.some((c) => c.forecastSourceId === src.id) || s.clarificationRefs.some((c) => c.sourceId === src.id)) return true;
+  return src.kind === 'commissioning_log' && s.milestones.some((m) => m.projectId === src.projectId && m.name === 'acceptance' && m.status === 'met');
+}
+
 export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void> {
   const { ledger } = deps;
   if (!['note', 'forecast', 'commissioning_log'].includes(src.kind)) return;
-  if (ledger.state().extractions.some((e) => e.sourceId === src.id && e.reader === READER)) return; // restart-safe: already read
+  if (handled(ledger.state(), src)) return; // restart-safe
   log(`source ${src.id} (${src.kind}) -> extract`);
   const x = await deps.extract(src.text, Number(src.id));
-  await ledger.recordExtraction({ sourceId: src.id, reader: READER, factsJson: JSON.stringify(x.facts), ambiguityFlag: x.ambiguity.flag, ambiguityText: x.ambiguity.question });
-  log(`extraction recorded: ${x.facts.length} fact(s), ambiguous=${x.ambiguity.flag}`);
-
-  if (src.kind === 'commissioning_log') return milestoneInvoice(src, x, deps);
-
   const fact = x.facts.find((f) => f.kind === 'remaining_update');
-  const amount = fact && (parseAmountCents(fact.amountText) ?? parseAmountCents(fact.quote));
-  if (amount == null) return log(`source ${src.id}: no remaining_update amount, nothing to propose`);
-
+  const amount = factAmount(fact, src.text);
   const claudeFlag = x.ambiguity.flag;
-  const ambiguous = claudeFlag || isAdditiveWording(fact!.quote || src.text);
+  const ambiguous = claudeFlag || (src.kind !== 'commissioning_log' && amount != null && isAdditiveWording(fact!.quote || src.text));
   const question = claudeFlag ? x.ambiguity.question : 'Is the $X additional to the current remaining forecast, or the new total remaining?';
   const options = claudeFlag ? x.ambiguity.options : ['additional', 'new_total'];
+  // ambiguityFlag must match what we act on: open_clarification binds to the newest flagged extraction.
+  await ledger.recordExtraction({ sourceId: src.id, reader: READER, factsJson: JSON.stringify(x.facts), ambiguityFlag: ambiguous, ambiguityText: ambiguous ? question : x.ambiguity.question });
+  log(`extraction recorded: ${x.facts.length} fact(s), ambiguous=${ambiguous}`);
+
+  if (src.kind === 'commissioning_log') return milestoneInvoice(src, x, deps);
+  if (amount == null) return log(`source ${src.id}: no remaining_update amount, nothing to propose`);
   if (!ambiguous) return proposeForecast(src, amount, 'new_total', [], '', deps);
   const conv = ledger.state().conventions.find((c) => c.template === 'forecast' && c.key === 'another_means');
   if (conv) {
@@ -87,11 +97,16 @@ export async function resumeClarification(ref: ClarificationRefRow, c: ConvexCla
   if (!answer) return log(`clarification ${ref.id}: answer "${c.answer}" is neither additional nor new_total; left open`);
   await deps.ledger.resolveClarification({ clarificationId: ref.id, answer, speaker: c.speaker ?? '', audioStorageId: c.answerAudioId ?? '' });
   log(`clarification ${ref.id} resolved: ${answer} (${c.speaker})`);
+  return proposeFromClarification(ref, answer, deps);
+}
+
+/** Forecast proposal for an already-confirmed clarification (also the restart path when resolve succeeded but no calculation followed). */
+export async function proposeFromClarification(ref: ClarificationRefRow, answer: Convention, deps: Deps): Promise<void> {
   const s = deps.ledger.state();
   const note = s.sources.find((x) => x.id === ref.sourceId);
   const ext = s.extractions.find((e) => e.sourceId === ref.sourceId && e.reader === READER);
   const fact = ext && (JSON.parse(ext.factsJson) as Extraction['facts']).find((f) => f.kind === 'remaining_update');
-  const amount = fact && (parseAmountCents(fact.amountText) ?? parseAmountCents(fact.quote));
+  const amount = note && factAmount(fact, note.text);
   if (!note || amount == null) return log(`clarification ${ref.id}: source ${ref.sourceId} has no amount; nothing to propose`);
   const clar = maxBy(s.sources.filter((x) => x.kind === 'clarification' && x.parentSourceId === note.id));
   await proposeForecast(note, amount, answer, clar ? [clar.text] : [], JSON.stringify({ template: 'forecast', key: 'another_means', value: answer }), deps, clar?.id);
@@ -103,10 +118,12 @@ export function normalizeAnswer(a: string): Convention | null {
   return null;
 }
 
-// ponytail: baseline = newest calculation on the project (its inputsJson carries the snapshot); a "posted-only" baseline if returns/holds matter
+// Baseline = newest calculation with an approved/posted proposal (its inputsJson carries the snapshot), else the oldest (seed) one.
 function baseline(s: LedgerState, projectId: bigint) {
   const wis = new Set(s.workItems.filter((w) => w.projectId === projectId).map((w) => w.id));
-  const c = maxBy(s.calculations.filter((x) => wis.has(x.workItemId)));
+  const calcs = s.calculations.filter((x) => wis.has(x.workItemId));
+  const ok = new Set(s.proposals.filter((p) => p.status === 'approved' || p.status === 'posted').map((p) => p.calculationId));
+  const c = maxBy(calcs.filter((x) => ok.has(x.id))) ?? calcs.reduce<CalculationRow | undefined>((m, r) => (!m || r.id < m.id ? r : m), undefined);
   if (!c) throw new Error(`no baseline calculation for project ${projectId}`);
   const i = JSON.parse(c.inputsJson) as Record<string, string>;
   return {
@@ -121,6 +138,8 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   const next = { ...snap, remaining: applyUpdate(snap.remaining, amount, convention) };
   const before = compute(snap), after = compute(next);
   const adj = adjustment(before.cumRevenue, after.cumRevenue);
+  // explain first: a Claude failure must not leave an orphan calculation
+  const x = await deps.explain({ before, after, adjustmentCents: adj, convention, evidence: [...citations, src.text] });
   await ledger.recordCalculation({
     workItemId, forecastSourceId: src.id,
     inputsJson: JSON.stringify({ contractValueCents: String(next.contractValue), incurredCents: String(next.incurred), remainingCents: String(next.remaining), billedCents: String(next.billed) }),
@@ -129,7 +148,6 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   const calc = maxBy(ledger.state().calculations.filter((c) => c.workItemId === workItemId))!;
   log(`calculation ${calc.id}: remaining ${usd(next.remaining)} (${convention}), progress ${after.progressBp} bp, cum revenue ${usd(after.cumRevenue)}, adjustment ${usd(adj)}${after.margin.lossWarning ? ', LOSS WARNING' : ''}`);
 
-  const x = await deps.explain({ before, after, adjustmentCents: adj, convention, evidence: [...citations, src.text] });
   const escalation = after.margin.lossWarning
     ? `ESCALATION: expected margin ${usd(after.margin.amount)} on contract ${usd(next.contractValue)} (estimated total cost ${usd(after.estTotal)}); loss contract, controller review required.`
     : '';
