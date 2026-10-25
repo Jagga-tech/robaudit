@@ -1,6 +1,6 @@
 # Hackathon log
 
-- **Project:** RoboAudit (agent: Summo)
+- **Project:** Robaudit (agent: Summo)
 - **Event:** Cal Hacks 13.0
 - **What it does:** Reads robotics project-close evidence, asks the deployment manager one clarifying question by voice, recomputes revenue, and proposes an adjusting entry that a controller approves and posts.
 - **Live app:** https://www.robaudit.us

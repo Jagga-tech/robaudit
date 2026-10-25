@@ -1,4 +1,4 @@
-# RoboAudit judge briefing (two pages)
+# Robaudit judge briefing (two pages)
 
 Everything the person in front of the judges needs: what it is, how it works, what each sponsor sees, how the demo runs, and the answers to the hard questions. Facts are taken from the code and from `docs/devpost.md`, `docs/demo-flow.md` and `docs/one-pager.md`.
 
@@ -8,7 +8,7 @@ Everything the person in front of the judges needs: what it is, how it works, wh
 
 ### The names
 
-- **RoboAudit** is the product and the brand: the platform a robotics installer's finance team uses. It owns the ledger, the controller's workbench, the deployment manager's phone page, and the landing page.
+- **Robaudit** is the product and the brand: the platform a robotics installer's finance team uses. It owns the ledger, the controller's workbench, the deployment manager's phone page, and the landing page.
 - **Summo** is the lead agent and the mascot. It is the one agent service (`apps/agent`) that watches the ledger, reads every new source, decides whether to ask a question, runs the recalculation, and writes the proposal. On the Agents page it is the "coordinator, project accountant."
 - **The specialists** Summo coordinates: Readers A and B (Claude and Gemini, each extracting facts independently), the Document reader (Azure Document Intelligence, for photographed sheets), the Reconciler (compares the readers), Field liaison and Phone (Convex plus Cartesia, the call), the Engine (integer-cent arithmetic), the Explainer (Claude writing the plain-English reason), Proposal (journal lines plus evidence), and the Posting guard (ledger rules that refuse any post not made by the controller).
 - **The one human** is the controller, Dana. Only her role can approve, post, close a period or save a convention. Summo never posts. If asked: several specialists are modules inside Summo's loop rather than separate processes; the roster shows how the work is divided, not nine servers.

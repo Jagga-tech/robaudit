@@ -9243,7 +9243,7 @@
   },
   "config": {
     "tags": {},
-    "description": "RoboAudit reader + Summo decision eval",
+    "description": "Robaudit reader + Summo decision eval",
     "prompts": [
       "{{note}}"
     ],

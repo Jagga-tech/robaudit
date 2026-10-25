@@ -1,4 +1,4 @@
-# Proof it works: RoboAudit
+# Proof it works: Robaudit
 
 What is real, what is simulated, and how we know. Every number below comes from a test in this repo or from a run report in `.superpowers/sdd/2026-10-24-keel-backend/`. Times are PDT unless marked UTC.
 

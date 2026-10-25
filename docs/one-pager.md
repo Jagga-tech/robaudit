@@ -1,6 +1,6 @@
 # Robotics Project Close Agent — One Page (team source doc)
 
-Working name: RoboAudit. Pasted from the team's planning doc on 2026-10-24; see the design doc
+Working name: Robaudit. Pasted from the team's planning doc on 2026-10-24; see the design doc
 in `docs/superpowers/specs/` for what is being built.
 
 ## Public evidence (quote exactly)

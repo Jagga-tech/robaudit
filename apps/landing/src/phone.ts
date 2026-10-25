@@ -318,7 +318,7 @@ function boot() {
 
   function renderPick() {
     app.innerHTML = `
-      <p class="eyebrow">RoboAudit</p>
+      <p class="eyebrow">Robaudit</p>
       <h1>Hi ${esc(me!.name)}. What are you here for?</h1>
       <button class="pill dark big" id="oak" type="button">Join the Oakland deployment</button>
       <button class="pill outline big" id="onb" type="button">Onboard a new project</button>`;
@@ -328,7 +328,7 @@ function boot() {
 
   function renderOnboard() {
     app.innerHTML = `
-      <p class="eyebrow">RoboAudit · New project</p>
+      <p class="eyebrow">Robaudit · New project</p>
       <h1>Onboard a new project.</h1>
       <form class="stack" id="onboard">
         <label for="pname">Project name</label>
@@ -360,7 +360,7 @@ function boot() {
 
   function renderJoin() {
     app.innerHTML = `
-      <p class="eyebrow">RoboAudit</p>
+      <p class="eyebrow">Robaudit</p>
       <h1>You are the deployment manager.</h1>
       <form class="stack" id="join">
         <label for="name">Your first name</label>

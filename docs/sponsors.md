@@ -1,4 +1,4 @@
-# Sponsors and tracks: RoboAudit (Cal Hacks 13.0)
+# Sponsors and tracks: Robaudit (Cal Hacks 13.0)
 
 One section per track entered. Each lists the sponsor's stated criteria (from the Devpost prize blurbs), what we built with code paths, where the judge sees it, and the gaps we know. Test counts and run results are in [proof.md](proof.md), [eval-promptfoo.md](eval-promptfoo.md) and [benchmark.md](benchmark.md). Live app: https://kind-river-0eb9d010f.5.azurestaticapps.net (`/`, `/workbench`, `/phone`).
 

@@ -1,6 +1,6 @@
-# Devpost submission: RoboAudit
+# Devpost submission: Robaudit
 
-**Project name:** RoboAudit (Cal Hacks 13.0). The agent inside it is named Summo.
+**Project name:** Robaudit (Cal Hacks 13.0). The agent inside it is named Summo.
 
 **Tagline:** An accounting agent that keeps robotics project revenue current, asks the one question it needs by phone, and leaves posting to the controller.
 
@@ -62,7 +62,7 @@ Robotics companies that install million-dollar systems recognize revenue as work
 
 ## What it does
 
-RoboAudit is a System of Work for project-close accounting, built on top of the Systems of Record it writes into. Summo reads each new source (field note, forecast sheet, phone photo, commissioning log), asks the deployment manager one question by phone when the wording is ambiguous or its two readers disagree, recomputes progress and revenue with a deterministic engine, and proposes the adjusting entry with its evidence. The controller approves and posts. Conventions confirmed once and approved by the controller are cited next month instead of asked again.
+Robaudit is a System of Work for project-close accounting, built on top of the Systems of Record it writes into. Summo reads each new source (field note, forecast sheet, phone photo, commissioning log), asks the deployment manager one question by phone when the wording is ambiguous or its two readers disagree, recomputes progress and revenue with a deterministic engine, and proposes the adjusting entry with its evidence. The controller approves and posts. Conventions confirmed once and approved by the controller are cited next month instead of asked again.
 
 ## How we built it
 
@@ -84,7 +84,7 @@ Language, arithmetic and permission to write are kept apart. Claude Opus 5.5 and
 
 ## What we learned
 
-Most of the work in an accounting agent is deciding what the model is not allowed to do. RoboAudit learns conventions from confirmed answers, once the controller approves them, not from model weights.
+Most of the work in an accounting agent is deciding what the model is not allowed to do. Robaudit learns conventions from confirmed answers, once the controller approves them, not from model weights.
 
 ## What's next
 

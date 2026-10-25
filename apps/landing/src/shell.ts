@@ -100,7 +100,7 @@ function mount() {
   $('ptitle').textContent = page.title;
   $('psub').textContent = '';
   $('pacts').innerHTML = '';
-  document.title = `${page.title} · RoboAudit`;
+  document.title = `${page.title} · Robaudit`;
   if (!conn) { root.innerHTML = '<p class="empty">Connecting to the ledger…</p>'; return; }
   try { unmount = page.render(root, ctx, params); }
   catch (e: any) { root.innerHTML = `<p class="empty err">This page failed to render: ${esc(String(e?.message ?? e))}</p>`; console.error(e); }

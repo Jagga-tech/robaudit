@@ -1,6 +1,6 @@
-# RoboAudit judge-driven demo flow
+# Robaudit judge-driven demo flow
 
-Cal Hacks 13.0. Platform **RoboAudit**, agent **Summo**. Checked against the code on 2026-10-24
+Cal Hacks 13.0. Platform **Robaudit**, agent **Summo**. Checked against the code on 2026-10-24
 (`spacetimedb/src/index.ts`, `convex/clarifications.ts`, `convex/managers.ts`, `apps/agent/src/loop.ts`,
 `apps/agent/src/bridge.ts`, `apps/agent/src/azure-di.ts`, `packages/engine/src/engine.ts`, `scripts/demo.ts`).
 If this disagrees with the code, the code is right. Build details for the UI are in `docs/frontend-guide.md`.

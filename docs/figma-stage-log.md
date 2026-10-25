@@ -1,4 +1,4 @@
-# Figma "Idea to Demo" stage log — RoboAudit (Cal Hacks 13.0)
+# Figma "Idea to Demo" stage log — Robaudit (Cal Hacks 13.0)
 
 Draft written 2026-10-25 from the actual build history. Minutes are estimates from session timestamps; correct them before submitting. Each stage is under 200 words. Figma file: https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX (set sharing to "Anyone with the link" before submitting). Repo: https://github.com/Jagga-tech/robaudit (public).
 

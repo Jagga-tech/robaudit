@@ -1,4 +1,4 @@
-// Internal benchmark of the RoboAudit/Summo multi-agent loop: reading accuracy, planted errors, per-agent latency, chain integrity.
+// Internal benchmark of the Robaudit/Summo multi-agent loop: reading accuracy, planted errors, per-agent latency, chain integrity.
 // Usage: pnpm bench [--db keel-bench] [--runs 1]. LOCAL scratch ledger only (never `keel`, never Maincloud); real Convex + model keys
 // from .env; agent loop in-process (no other `pnpm agent` may target the bench db). Writes docs/benchmark.md.
 import fs from 'node:fs';

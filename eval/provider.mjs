@@ -1,4 +1,4 @@
-// Promptfoo custom provider: runs the real RoboAudit reader + Summo decision code (TypeScript, loaded through tsx).
+// Promptfoo custom provider: runs the real Robaudit reader + Summo decision code (TypeScript, loaded through tsx).
 // config.reader: 'claude' | 'gemini' -> read the note, then route it through the real loop on an in-memory ledger (guard first).
 // config.reader: 'engine'            -> deterministic engine / answer-mapping cases (vars.op), no model.
 import { tsImport } from 'tsx/esm/api';

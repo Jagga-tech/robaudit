@@ -1,6 +1,6 @@
-# RoboAudit
+# Robaudit
 
-RoboAudit keeps revenue current on fixed-price robotics installations recognized with cost-to-cost. It is used by three people: the project accountant (whose revenue-close work Summo does), the controller (who approves and posts), and the deployment manager on site (who answers Summo's questions from a phone). Summo, the agent, reads field notes, cost forecasts, photographed forecast sheets and commissioning logs; asks the deployment manager one question by voice when the wording is ambiguous or two readers disagree; recomputes progress and revenue with a deterministic engine in integer cents; and proposes an adjusting entry with an explanation. Summo never posts, and no model output is ever a posted amount: the ledger refuses `post` from anyone but the controller.
+Robaudit keeps revenue current on fixed-price robotics installations recognized with cost-to-cost. It is used by three people: the project accountant (whose revenue-close work Summo does), the controller (who approves and posts), and the deployment manager on site (who answers Summo's questions from a phone). Summo, the agent, reads field notes, cost forecasts, photographed forecast sheets and commissioning logs; asks the deployment manager one question by voice when the wording is ambiguous or two readers disagree; recomputes progress and revenue with a deterministic engine in integer cents; and proposes an adjusting entry with an explanation. Summo never posts, and no model output is ever a posted amount: the ledger refuses `post` from anyone but the controller.
 
 Built at Cal Hacks 13.0. Design: `docs/superpowers/specs/2026-10-24-keel-design.md`. Submission text: `docs/devpost.md`. Sponsor-by-sponsor detail: [docs/sponsors.md](docs/sponsors.md).
 
@@ -157,4 +157,4 @@ If a beat stalls, restart the agent; recovery is restart-safe except two crash w
 
 ## Team and naming
 
-RoboAudit is the platform. Summo is the agent. `keel` is the code codename: `@keel/*` packages, the SpacetimeDB database `keel`, and the `keel-*` Azure resources.
+Robaudit is the platform. Summo is the agent. `keel` is the code codename: `@keel/*` packages, the SpacetimeDB database `keel`, and the `keel-*` Azure resources.

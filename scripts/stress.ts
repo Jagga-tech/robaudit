@@ -1,4 +1,4 @@
-// Stress workflow for the RoboAudit/Summo loop: hostile inputs, races, resets and restarts against a LOCAL scratch ledger.
+// Stress workflow for the Robaudit/Summo loop: hostile inputs, races, resets and restarts against a LOCAL scratch ledger.
 // Usage: pnpm stress [--db keel-stress] [--rounds 1] [--convex URL] [--ids demo/identities.local.json]. Publishes the module to the scratch db (data wiped), real Convex + model keys
 // from .env, agent loop in-process. Writes docs/stress.md and logs/stress-<ts>.jsonl (the agent's file log for this run).
 // Afterwards: STDB_DB=keel-stress pnpm demo --reset-only

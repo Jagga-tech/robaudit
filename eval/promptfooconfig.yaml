@@ -1,6 +1,6 @@
-# Independent eval of the RoboAudit/Summo reader and decision logic. Run: pnpm eval (results in eval/results.json).
+# Independent eval of the Robaudit/Summo reader and decision logic. Run: pnpm eval (results in eval/results.json).
 # Promptfoo is the harness and grader; the cases and expected values are ours (docs/proof.md, apps/agent/test/phrasings.test.ts).
-description: RoboAudit reader + Summo decision eval
+description: Robaudit reader + Summo decision eval
 prompts: ['{{note}}']
 providers:
   - { id: file://provider.mjs, label: claude, config: { reader: claude } }

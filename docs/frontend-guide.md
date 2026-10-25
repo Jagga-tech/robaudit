@@ -1,8 +1,8 @@
-# RoboAudit frontend integration guide (workbench + phone)
+# Robaudit frontend integration guide (workbench + phone)
 
 For Tanush. Everything here was checked against the code as of 2026-10-24: `spacetimedb/src`, `packages/bindings/src`, `convex/` (including `convex/managers.ts`), `apps/agent/src/loop.ts`, `apps/agent/src/bridge.ts`, `apps/harness/src/main.ts` and `scripts/demo.ts`. If something here disagrees with the code, the code is right. The stage script (who does what, timings, fallbacks) is `docs/demo-flow.md`; this guide is how to build it.
 
-> Naming: the platform is **RoboAudit**; the agent service (the thing that reads, asks and proposes) is **Summo**. Label it "Summo" in the queue, workbench and history.
+> Naming: the platform is **Robaudit**; the agent service (the thing that reads, asks and proposes) is **Summo**. Label it "Summo" in the queue, workbench and history.
 
 ## 1. What the backend does
 
@@ -254,7 +254,7 @@ Ledger paper, not a dashboard.
 
 ## 7. Workbench (laptop, Dana)
 
-**Header:** "RoboAudit", the joined manager line, and the Reset button (§10).
+**Header:** "Robaudit", the joined manager line, and the Reset button (§10).
 
 **Joined line and QR.** Subscribe to `api.managers.current`:
 
