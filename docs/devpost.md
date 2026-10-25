@@ -22,8 +22,8 @@ Language, arithmetic and permission to write are kept apart.
 - **Engine** (TypeScript, integer-cent `bigint`, no I/O): progress, revenue, contract asset, margin, adjustment and balanced entries.
 - **SpacetimeDB** (TypeScript module): the ledger. Reducers enforce roles, revisions, staleness, period open, debits = credits and unique posting refs, and write a history event on every change. Agent, harness and UI subscribe live.
 - **Convex**: the voice clarification channel. Live queries drive the phone page and call pane, mutations move the call through ringing, answering and confirmed, actions call Cartesia, file storage holds question and answer audio, and the scheduler chains them. Convex never touches money.
-- **Cartesia**: Sonic TTS speaks the question; Ink STT transcribes the recorded answer over WebSocket.
-- **Gemini 2.5 Flash**: an independent second reader on the same extraction schema. If the two readers disagree on the amount or the ambiguity, Keel asks instead of guessing.
+- **Cartesia**: Sonic TTS speaks the question; Ink STT transcribes the recorded answer over WebSocket. The STT path is implemented; verified on stage rehearsal. Claude and Cartesia TTS were verified end to end with real keys in `pnpm demo --require-real`.
+- **Gemini 2.5 Flash**: an independent second reader on the same extraction schema. Gemini runs only when `GEMINI_API_KEY` is set (otherwise there is a single reader). When the readers disagree on the amount, Keel asks instead of guessing; when a saved convention applies to the agreed readings, Keel cites it instead of asking.
 
 ## Challenges we ran into
 
@@ -34,13 +34,13 @@ Language, arithmetic and permission to write are kept apart.
 
 ## Accomplishments that we're proud of
 
-- The numbers match an independent answer key to the dollar, in tests and in the end-to-end demo script.
-- Every control in the design is a test: duplicate posting, wrong role, stale proposal, closed period, idempotent propose.
-- The demo resets to the starting state in about half a second.
+- The numbers match an independent answer key to the dollar, in the engine tests; the end-to-end demo script asserts the same figures against the ledger.
+- Every control in the design is a test: duplicate posting, wrong role, stale proposal, closed period, idempotent propose. Control 6 ("new total") is engine-tested.
+- SpacetimeDB resets to the starting state in ~0.5 s; Convex open clarifications are cleared by `resetOpen`.
 
 ## What we learned
 
-Most of the work in an accounting agent is deciding what the model is not allowed to do. Keel learns conventions and precedents, not model weights.
+Most of the work in an accounting agent is deciding what the model is not allowed to do. Keel learns conventions from confirmed answers, once the controller approves them, not model weights. S0 seeds one convention, learned from six past closes (seeded for the demo).
 
 ## What's next
 
@@ -48,7 +48,7 @@ Multiple performance obligations and variable consideration, ERP connectors, rea
 
 ## Hyphenate: the four behaviors
 
-- **Learns:** the manager's answer becomes the convention `another_means = additional`, saved when the controller approves rev 2.
+- **Learns:** conventions learned from confirmed answers and approved by the controller; here the manager's answer becomes the convention `another_means = additional`, saved when the controller approves rev 2.
 - **Runs:** the agent extracts, computes and proposes rev 2 on its own; nobody types a number.
 - **Escalates:** an ambiguous word triggers the phone call, and the loss warning (margin $0, then -$50,000) goes to the controller.
 - **Improves:** month 3 runs with no call and cites the saved convention.

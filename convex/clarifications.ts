@@ -48,7 +48,20 @@ export const confirm = mutation({
 
 export const decline = mutation({
   args: { id, reason: v.string() },
-  handler: (ctx, { id, reason }) => ctx.db.patch(id, { status: "unconfirmed", reason }),
+  handler: async (ctx, { id, reason }) => {
+    const c = await ctx.db.get(id);
+    if (!c || c.status === "confirmed") return;
+    await ctx.db.patch(id, { status: "unconfirmed", reason });
+  },
+});
+
+export const resetOpen = mutation({
+  args: {},
+  handler: async (ctx) => {
+    for await (const c of ctx.db.query("clarifications")) {
+      if (OPEN.includes(c.status)) await ctx.db.patch(c._id, { status: "unconfirmed", reason: "reset" });
+    }
+  },
 });
 
 export const fallbackText = mutation({

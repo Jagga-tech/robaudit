@@ -30,7 +30,7 @@ Three things are kept apart: language, arithmetic, and permission to write.
 | SpacetimeDB | Holds the ledger. Reducers enforce roles, revisions, staleness, balance, period, posting-ref uniqueness. Posts. | `spacetimedb/` |
 | Convex | Runs the clarification call: live queries, mutations, actions, file storage, scheduler. Never touches money. | `convex/` |
 | Cartesia | Speaks the question (Sonic TTS) and transcribes the answer (Ink STT), inside Convex actions. | `convex/voice.ts` |
-| Gemini | Independent second reader on extraction; disagreement forces a clarification. | Task 10 (`apps/agent/src/gemini.ts`) |
+| Gemini | Independent second reader on extraction; disagreement forces a clarification. | `apps/agent/src/gemini.ts` |
 | Agent loop | Subscribes to the ledger, calls the above in order, bridges Convex confirmations back. | `apps/agent/src/{loop,bridge,main}.ts` |
 | Dev harness | Unstyled page with a button per demo beat and a live table dump. Not the demo UI. | `apps/harness` |
 
@@ -85,6 +85,22 @@ pnpm test:convex                        # Convex channel; needs npx convex dev r
 ```
 
 The ledger and Convex e2e tests reset the shared `keel` database. Do not run them during a live demo.
+
+## Stage runbook
+
+Start order:
+
+1. `spacetime start`
+2. `pnpm stdb:publish`
+3. `npx convex dev`
+4. `until pnpm agent; do sleep 1; done` (restart loop)
+5. UI
+
+Reset between judges: `pnpm demo --reset-only`.
+
+If a beat stalls, restart the agent; recovery is restart-safe.
+
+Known gaps (two crash windows): a crash between `record_calculation` and `propose`, and between Convex `ask` and `open_clarification`.
 
 ## Controls that are tested
 

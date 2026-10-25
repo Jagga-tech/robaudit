@@ -86,13 +86,15 @@ export const openClarification = spacetimedb.reducer(
   { workItemId: t.u64(), convexId: t.string(), question: t.string() },
   (ctx, { workItemId, convexId, question }) => {
     requireRole(ctx, 'agent');
-    const w = setWorkItemStatus(ctx, workItemId, 'awaiting_clarification');
+    const w = getWorkItem(ctx, workItemId);
     // The question is about the most recent ambiguous source on this project.
     let sourceId = 0n;
     for (const e of ctx.db.extraction.iter()) {
       if (!e.ambiguityFlag || e.sourceId <= sourceId) continue;
       if (ctx.db.source.id.find(e.sourceId)?.projectId === w.projectId) sourceId = e.sourceId;
     }
+    if (sourceId !== 0n) for (const x of ctx.db.clarificationRef.iter()) if (x.sourceId === sourceId) return; // idempotent per source
+    setWorkItemStatus(ctx, workItemId, 'awaiting_clarification');
     const c = ctx.db.clarificationRef.insert({
       id: 0n, workItemId, sourceId, convexId, question, status: 'open', answer: '', speaker: '',
       confirmedAt: Timestamp.UNIX_EPOCH, audioStorageId: '',
@@ -106,6 +108,7 @@ export const resolveClarification = spacetimedb.reducer(
   (ctx, { clarificationId, answer, speaker, audioStorageId }) => {
     requireRole(ctx, 'agent');
     const c = ctx.db.clarificationRef.id.find(clarificationId) ?? fail('not_found', `clarification ${clarificationId}`);
+    if (c.status !== 'open') return;
     const w = setWorkItemStatus(ctx, c.workItemId, 'open');
     const text = `Clarification from ${speaker}: Q: ${c.question} A: ${answer}`;
     const s = ctx.db.source.insert({ id: 0n, projectId: w.projectId, kind: 'clarification', version: 1, text, parentSourceId: c.sourceId, hash: hash(text), createdAt: ctx.timestamp });
@@ -122,6 +125,9 @@ export const recordCalculation = spacetimedb.reducer(
   (ctx, args) => {
     requireRole(ctx, 'agent');
     const w = getWorkItem(ctx, args.workItemId);
+    if (args.forecastSourceId !== 0n) {
+      for (const x of ctx.db.calculation.iter()) if (x.workItemId === args.workItemId && x.forecastSourceId === args.forecastSourceId) return; // idempotent per source
+    }
     const c = ctx.db.calculation.insert({ id: 0n, ...args });
     log(ctx, w.projectId, 'calculation', c.id, `Progress ${args.progressBp} bp, cum revenue ${args.cumRevenueCents} cents${args.lossWarning ? ', LOSS' : ''}`);
   }
@@ -137,6 +143,8 @@ export const propose = spacetimedb.reducer(
     if (calculationId !== 0n && ctx.db.calculation.id.find(calculationId)?.workItemId !== workItemId) fail('not_found', 'calculation');
     const existing = [...ctx.db.proposal.by_work_item.filter(workItemId)];
     if (existing.some((p) => p.calculationId === calculationId)) return; // idempotent retry
+    const fsrc = calculationId !== 0n ? ctx.db.calculation.id.find(calculationId)?.forecastSourceId ?? 0n : 0n;
+    if (fsrc !== 0n && existing.some((p) => p.status !== 'stale' && p.calculationId !== 0n && ctx.db.calculation.id.find(p.calculationId)?.forecastSourceId === fsrc)) return; // same source already proposed
     for (const p of existing) if (p.status === 'open') ctx.db.proposal.id.update({ ...p, status: 'stale' });
     const revision = existing.reduce((m, p) => Math.max(m, p.revision), 0) + 1;
     const w = setWorkItemStatus(ctx, workItemId, 'proposed');
@@ -182,9 +190,16 @@ export const post = spacetimedb.reducer(
     const w = getWorkItem(ctx, p.workItemId);
     const proj = ctx.db.project.id.find(w.projectId) ?? fail('not_found', `project ${w.projectId}`);
     if (!proj.periodOpen) fail('period_closed', `period closed for ${proj.name}`);
-    const lines = JSON.parse(p.entryJson) as { account: string; debit: string; credit: string }[];
+    let lines: { account: string; debit: string; credit: string }[];
     let dr = 0n, cr = 0n;
-    for (const l of lines) { dr += BigInt(l.debit); cr += BigInt(l.credit); }
+    try {
+      lines = JSON.parse(p.entryJson);
+      for (const l of lines) {
+        const d = BigInt(l.debit), c = BigInt(l.credit);
+        if (d < 0n || c < 0n) throw new Error('negative');
+        dr += d; cr += c;
+      }
+    } catch { return fail('bad_input', 'entryJson'); }
     if (lines.length === 0 || dr !== cr) fail('unbalanced', `debits ${dr} != credits ${cr}`);
     if (ctx.db.posting.postingRef.find(postingRef)) fail('duplicate_posting', `postingRef ${postingRef} already posted`);
     for (const x of ctx.db.posting.iter()) if (x.proposalId === proposalId) fail('duplicate_posting', `proposal ${proposalId} already posted as ${x.postingRef}`);

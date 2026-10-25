@@ -114,4 +114,40 @@ describe.skipIf(!up)('ledger controls (live SpacetimeDB)', () => {
     await controller.reducers.closePeriod({ projectId });
     await expect(controller.reducers.post({ proposalId: p.id, revision: p.revision, postingRef: 'TEST-CLOSED' })).rejects.toThrow(/period_closed/);
   });
+
+  it('recordCalculation is idempotent per (workItem, forecastSource)', async () => {
+    const w = await newWorkItem();
+    const args = { workItemId: w.id, forecastSourceId: 7n, inputsJson: '{}', progressBp: 6000, cumRevenueCents: 1n, contractAssetCents: 1n, marginCents: 1n, lossWarning: false };
+    await agent.reducers.recordCalculation(args);
+    await agent.reducers.recordCalculation(args);
+    expect([...agent.db.calculation.iter()].filter((c) => c.workItemId === w.id).length).toBe(1);
+  });
+
+  it('openClarification twice -> one ref; resolveClarification twice -> one clarification source', async () => {
+    const w = await newWorkItem();
+    const text = `ambiguous ${Math.random()}`;
+    await agent.reducers.addSource({ projectId, kind: 'note', text, parentSourceId: 0n, version: 1 });
+    const src = maxBy([...agent.db.source.iter()].filter((s) => s.text === text))!;
+    await agent.reducers.recordExtraction({ sourceId: src.id, reader: 'claude', factsJson: '{}', ambiguityFlag: true, ambiguityText: 'x' });
+    await agent.reducers.openClarification({ workItemId: w.id, convexId: 'a', question: 'q?' });
+    await agent.reducers.openClarification({ workItemId: w.id, convexId: 'b', question: 'q?' });
+    const refs = [...agent.db.clarificationRef.iter()].filter((c) => c.sourceId === src.id);
+    expect(refs.length).toBe(1);
+    const before = agent.db.source.count();
+    await agent.reducers.resolveClarification({ clarificationId: refs[0].id, answer: 'additional', speaker: 'owner', audioStorageId: '' });
+    await agent.reducers.resolveClarification({ clarificationId: refs[0].id, answer: 'additional', speaker: 'owner', audioStorageId: '' });
+    expect(agent.db.source.count()).toBe(before + 1n);
+    expect([...agent.db.source.iter()].filter((s) => s.kind === 'clarification' && s.parentSourceId === src.id).length).toBe(1);
+  });
+
+  it('post with negative line -> bad_input', async () => {
+    const w = await newWorkItem();
+    const calc = await newCalculation(w.id);
+    const bad = JSON.stringify([{ account: 'A', debit: '-5', credit: '0' }, { account: 'B', debit: '0', credit: '-5' }]);
+    await agent.reducers.propose({ workItemId: w.id, calculationId: calc.id, entryJson: bad, explanation: 't', evidenceSourceIdsCsv: '', pendingConventionJson: '' });
+    const p = [...agent.db.proposal.iter()].find((x) => x.workItemId === w.id)!;
+    await waitFor(controller, () => controller.db.proposal.id.find(p.id));
+    await controller.reducers.decide({ proposalId: p.id, revision: p.revision, decision: 'approve', reason: '' });
+    await expect(controller.reducers.post({ proposalId: p.id, revision: p.revision, postingRef: 'TEST-NEG' })).rejects.toThrow(/bad_input/);
+  });
 });

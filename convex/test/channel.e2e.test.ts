@@ -62,4 +62,11 @@ describe.skipIf(!url)("clarification channel e2e", () => {
     expect(segs[0].isFinal).toBe(true);
     await c.mutation(api.clarifications.decline, { id, reason: "test cleanup" }); // leave nothing open
   }, 20_000);
+
+  it("resetOpen clears the active clarification", async () => {
+    await c.mutation(api.clarifications.ask, { workItemId, question: "Reset me?", options: [] });
+    expect(await c.query(api.clarifications.active, {})).not.toBeNull();
+    await c.mutation(api.clarifications.resetOpen, {});
+    expect(await c.query(api.clarifications.active, {})).toBeNull();
+  });
 });
