@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extract, parseAmountCents } from "../src/extract.js";
+import { extract, normalizeFacts, parseAmountCents } from "../src/extract.js";
 import { explain } from "../src/explain.js";
 import { learnConventions } from "../src/learn.js";
 import { hasKey } from "../src/claude.js";
@@ -13,7 +13,24 @@ describe("parseAmountCents", () => {
     ["another $200,000", 20000000n],
     ["two hundred thousand", null],
     ["", null],
+    ["Q3: another $200,000", 20000000n],
+    ["$2 million", null],
+    ["$10mm", null],
   ])("%s -> %s", (t, want) => expect(parseAmountCents(t)).toBe(want));
+});
+
+describe("normalizeFacts", () => {
+  it("recomputes offsets and drops facts with unfound quotes", () => {
+    const note = "we need another $200,000 to finish";
+    const f = { kind: "remaining_update" as const, amountText: "$200,000", charStart: 0, charEnd: 1 };
+    const x = { facts: [{ ...f, quote: "$200,000" }, { ...f, quote: "not in note" }],
+      ambiguity: { flag: false, kind: "none" as const, question: "", options: [] } };
+    const r = normalizeFacts(note, x as any);
+    expect(r.facts).toHaveLength(1);
+    expect(r.facts[0].charStart).toBe(16);
+    expect(r.facts[0].charEnd).toBe(24);
+    expect(note.slice(16, 24)).toBe("$200,000");
+  });
 });
 
 const cases = () => {
