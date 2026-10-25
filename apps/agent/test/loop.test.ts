@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleNewSource, isAdditiveWording, normalizeAnswer, startLoop, type Deps, type LedgerState, type SourceRow } from '../src/loop';
-import { pollConfirmed } from '../src/bridge';
+import { pollConfirmed } from '../src/agents/field-liaison';
 import type { Extraction } from '../src/schemas';
 import { ambiguous, fake, inputs, unflagged } from './fake-deps';
 

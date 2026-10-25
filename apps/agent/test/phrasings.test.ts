@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { extract, parseAmountCents } from '../src/extract';
 import { hasKey } from '../src/claude';
 import { handleNewSource, isAdditiveWording, isReductionWording } from '../src/loop';
-import { pollConfirmed } from '../src/bridge';
+import { pollConfirmed } from '../src/agents/field-liaison';
 import type { Extraction } from '../src/schemas';
 import { fake } from './fake-deps';
 

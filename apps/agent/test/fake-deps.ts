@@ -27,6 +27,7 @@ export function fake(extraction: Extraction, opts: { remaining?: bigint; convent
     milestones: [{ id: 30n, projectId: P, name: 'acceptance', amountCents: 20000000n, status: 'pending' }],
   };
   const calls: [string, any][] = [];
+  const events: { agent: string; kind: string; summary: string; refTable: string; refId: bigint }[] = []; // agent_event rows
   let onInsert: (x: SourceRow) => void = () => {};
   const rec = (name: string, f: (a: any) => void = () => {}) => async (a: any) => { calls.push([name, a]); f(a); };
   const deps: Deps = {
@@ -48,6 +49,7 @@ export function fake(extraction: Extraction, opts: { remaining?: bigint; convent
       propose: rec('propose', (a) => s.proposals.push({ calculationId: a.calculationId, status: 'open' })),
       openWorkItem: rec('openWorkItem', (a) => s.workItems.push({ id: nid(), projectId: a.projectId, title: a.title })),
       markMilestoneMet: rec('markMilestoneMet', (a) => { s.milestones.find((m) => m.id === a.milestoneId)!.status = 'met'; }),
+      logAgentEvent: async (a) => { events.push(a); },
     },
     convex: {
       ask: async (a) => { calls.push(['ask', a]); return 'cvx1'; },
@@ -60,5 +62,5 @@ export function fake(extraction: Extraction, opts: { remaining?: bigint; convent
   };
   const add = (kind: string, text: string) => { const r = { id: nid(), projectId: P, kind, text, parentSourceId: 0n }; s.sources.push(r); return r; };
   const named = (name: string) => calls.filter((c) => c[0] === name).map((c) => c[1]);
-  return { deps, s, calls, add, named, insert: (x: SourceRow) => onInsert(x) };
+  return { deps, s, calls, events, add, named, insert: (x: SourceRow) => onInsert(x) };
 }
