@@ -22,7 +22,7 @@ One page of where everything lives. Open items are in `docs/track-todo.md`.
 |---|---|
 | Hyphenate (primary) | Agent roster refactor, sources-disagree control, return/hold handling, agent_event log, Gemini reviewer: other agent's branch work, see git log |
 | Spacetime | Ledger module, 15+ reducers, Maincloud. Done |
-| Convex | Clarification channel, voice actions, file storage, realtime, `@convex-dev/action-retrier` component, Convex Auth (anonymous) on the call mutations. `hackathon.md` written. PROD DEPLOY PENDING: `npx convex deploy -y` |
+| Convex | Clarification channel, voice actions, file storage, realtime, `@convex-dev/action-retrier` component, Convex Auth (anonymous) on the call mutations. `hackathon.md` written. Deployed to prod and verified 04:40 PDT |
 | Cartesia | Sonic TTS + Ink STT in `convex/voice.ts`. Flyer never checked |
 | Microsoft | Container Apps, Document Intelligence, Static Web Apps. Devpost text pending |
 | Atlassian | `apps/jira-forge` web trigger + `apps/jira-bridge`. Deployed, installed, smoke-tested (SUMMO-1). Live beat untested |

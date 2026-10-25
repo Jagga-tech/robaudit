@@ -54,8 +54,8 @@ Rubric: customer understanding, measurable usefulness, prototype-to-production, 
 
 Built: `@convex-dev/action-retrier` wraps both Cartesia actions (`convex/convex.config.ts`, `clarifications.ts`); Convex Auth anonymous provider (`convex/auth.ts`, `http.ts`, `authTables`), required by `startAnswer`/`submitAnswerAudio`/`confirm`/`decline`; `confirm` records `speakerUserId`. Phone, harness, demo script, bench and e2e test sign in anonymously. Verified on dev: 5/5 e2e, unauthenticated confirm rejected. `hackathon.md` updated (3,909 chars).
 
-- [ ] USER: `npx convex deploy -y` (prod). The sandbox blocks production deploys. Until then prod has the old functions; the pushed phone page still works there (sign-in just warns).
-- [ ] After prod deploy: `pnpm test:convex` against prod once (resets open clarifications), then `pnpm demo --reset-only`.
+- [x] Prod deployed 04:40 PDT (`npx convex deploy -y` by the user); `pnpm test:convex` 5/5 on prod; unauthenticated confirm rejected on prod. Phone footer shows `session: secure <id>`.
+- [ ] Before judging: `pnpm demo --reset-only`.
 - [ ] Video must show the phone ringing and the transcript streaming.
 - [x] Presence component skipped in favour of action-retrier (server-only, no UI collision).
 
