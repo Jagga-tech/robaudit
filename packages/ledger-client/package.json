@@ -1,0 +1,14 @@
+{
+  "name": "@keel/ledger-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@keel/bindings": "workspace:*",
+    "spacetimedb": "2.13.*",
+    "ws": "^8.22.0"
+  }
+}

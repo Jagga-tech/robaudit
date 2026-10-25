@@ -10,3 +10,4 @@ spacetimedb/dist/
 *.log
 
 .env.local
+demo/identities.json
