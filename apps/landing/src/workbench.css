@@ -5,7 +5,7 @@
   --hero:var(--ink); --willow-soft:#EEF3E8; --teal:#0F6B63; --amber:#C77A00; --amber-soft:#FBF1DF; --danger:#9B3B2E; --danger-soft:#F6E7E4;
   --side:232px;
 }
-body{background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.45;font-variant-numeric:tabular-nums}
+body{background:var(--card);color:var(--ink);font-family:var(--body);line-height:1.45;font-variant-numeric:tabular-nums}
 button{font:inherit}
 [hidden]{display:none!important}
 a{color:inherit}
@@ -113,7 +113,7 @@ h3{font-size:14px;font-weight:600;margin:20px 0 8px}
 @keyframes fadein{from{opacity:0}}
 
 /* Activity: ruled rows */
-.list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line);max-height:520px;overflow:auto}
+.list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)} /* no cap: the page scrolls, not the list */
 .list .card{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line)}
 .list .ibox{width:28px;height:28px;display:grid;place-items:center}
 .list .ibox svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -145,7 +145,7 @@ h3{font-size:14px;font-weight:600;margin:20px 0 8px}
 .entry div:last-child{border-bottom:0}
 .entry span:last-child{font:500 13px var(--mono)}
 .entry .cr span:nth-child(2){padding-left:18px}
-.expl{margin:0;font-size:14px;display:grid;gap:6px;max-height:240px;overflow:auto}
+.expl{margin:0;font-size:14px;display:grid;gap:6px}
 .expl p{margin:0}
 .expl .esc{color:var(--amber);font-weight:600}
 .evid{display:flex;flex-wrap:wrap;gap:6px}
@@ -189,6 +189,7 @@ h3{font-size:14px;font-weight:600;margin:20px 0 8px}
   #nav{grid-template-columns:repeat(2,1fr)}
   .col{margin-left:0;padding:20px 16px 60px}
   .tbl{display:block;overflow-x:auto}
+  .tabs{overflow-x:auto}
 }
 .col .pg{padding:0} /* sub-page modules bring their own padding; the shell column already has it */
 .list .card{height:auto;opacity:1;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;transition:none}

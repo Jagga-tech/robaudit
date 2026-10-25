@@ -133,4 +133,3 @@ a.jira:focus-visible{outline:2px solid #000;outline-offset:2px}
 .pg.jtab{padding:0;background:transparent}
 .pg .jline{margin:0 0 14px;color:var(--pg-strong);max-width:760px}
 .pg .jira-err td{color:var(--pg-red)}
-.pg .list.conns{max-height:none;overflow:visible} /* 8 rows: no inner scroll */
