@@ -377,20 +377,24 @@ function boot() {
     $<HTMLButtonElement>('#onb').onclick = () => { setMode('onboard'); render(); };
   }
 
+  // Typed values survive re-renders (a ledger update or a question arriving redraws the screen while the judge types).
+  const onb = { name: 'Art installation', customer: 'CalHacks' };
   function renderOnboard() {
     app.innerHTML = `
       <p class="eyebrow">Robaudit · New project</p>
       <h1>Onboard a new project.</h1>
       <form class="stack" id="onboard">
         <label for="pname">Project name</label>
-        <input id="pname" type="text" maxlength="60" required value="Riverside installation">
+        <input id="pname" type="text" maxlength="60" required value="${esc(onb.name)}">
         <label for="cust">Customer</label>
-        <input id="cust" type="text" maxlength="60" required value="Aster Robotics">
+        <input id="cust" type="text" maxlength="60" required value="${esc(onb.customer)}">
         <p class="err" role="alert"></p>
         <button class="pill dark" type="submit">Create project</button>
       </form>
       <button class="pill quiet" id="back" type="button">Back</button>`;
     $<HTMLButtonElement>('#back').onclick = () => { setMode(null); render(); };
+    $<HTMLInputElement>('#pname').oninput = (e) => { onb.name = (e.target as HTMLInputElement).value; };
+    $<HTMLInputElement>('#cust').oninput = (e) => { onb.customer = (e.target as HTMLInputElement).value; };
     let creating = false;
     $<HTMLFormElement>('#onboard').onsubmit = async (ev) => {
       ev.preventDefault();
