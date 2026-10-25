@@ -1,9 +1,9 @@
 import { applyUpdate, adjustment, buildEntry, buildInvoiceEntry, compute, type Convention, type EntryLine } from '@keel/engine';
 import { parseAmountCents } from './extract.js';
 import type { Extraction, Explanation } from './schemas.js';
-import type { ExplainInput } from './explain.js';
+import type { Disagreement, ExplainInput } from './explain.js';
 import { pollConfirmed } from './bridge.js';
-import { ocrNote, type ForecastDoc } from './azure-di.js';
+import { forecastFigures, ocrNote, type ForecastDoc } from './azure-di.js';
 
 // Structural row types: only the fields the agent reads (real binding rows are supersets).
 export type SourceRow = { id: bigint; projectId: bigint; kind: string; text: string };
@@ -86,18 +86,35 @@ function handled(s: LedgerState, src: SourceRow): boolean {
   return src.kind === 'commissioning_log' && s.milestones.some((m) => m.projectId === src.projectId && m.name === 'acceptance' && m.status === 'met');
 }
 
-/** OCR a scanned forecast once (the azure-di extraction row is the cache on retry); returns the source with its OCR note as text. */
-async function readScanned(src: SourceRow, deps: Deps): Promise<SourceRow> {
+/** Sheet vs cost export: any incurred difference above this (cents) is a source disagreement. 0 = every difference; raise it to add a materiality threshold. */
+export const DISAGREE_THRESHOLD_CENTS = 0n;
+const TRUST_REASON = 'Cost system export is the system of record for incurred cost; the forecast sheet is a human copy.';
+export const disagreementSentence = (d: Disagreement) =>
+  `The sheet shows ${usd(BigInt(d.document))} incurred; the cost export, our system of record, shows ${usd(BigInt(d.ledger))}, so we booked on ${usd(BigInt(d.ledger))}.`;
+
+type ScannedFacts = ForecastDoc & { incurredCents?: string; remainingCents?: string; disagreement?: Disagreement };
+/** OCR a scanned forecast once (the azure-di extraction row is the cache on retry); returns the source with its OCR note as text,
+ *  plus the incurred disagreement with the ledger (the cost export wins; incurred is never taken from the sheet). */
+async function readScanned(src: SourceRow, deps: Deps): Promise<{ src: SourceRow; disagreement?: Disagreement }> {
   const prior = deps.ledger.state().extractions.find((e) => e.sourceId === src.id && e.reader === 'azure-di');
-  let doc = prior && (JSON.parse(prior.factsJson) as ForecastDoc);
-  if (!doc) {
+  let facts = prior && (JSON.parse(prior.factsJson) as ScannedFacts);
+  if (!facts) {
     if (!deps.fetchDocument || !deps.readForecastDocument) throw new Error('scanned_forecast needs fetchDocument + readForecastDocument deps');
     const bytes = await deps.fetchDocument(src.text);
-    doc = await deps.readForecastDocument(bytes, 'application/octet-stream');
-    await deps.ledger.recordExtraction({ sourceId: src.id, reader: 'azure-di', factsJson: JSON.stringify(doc), ambiguityFlag: false, ambiguityText: '' });
-    log(`source ${src.id}: azure-di read ${bytes.length} bytes, ${doc.tables.length} table(s)`);
+    const doc = await deps.readForecastDocument(bytes, 'application/octet-stream');
+    const { incurredCents, remainingCents } = forecastFigures(doc);
+    const ledgerIncurred = baseline(deps.ledger.state(), src.projectId).snap.incurred;
+    const disagreement: Disagreement | undefined = incurredCents != null && abs(incurredCents - ledgerIncurred) > DISAGREE_THRESHOLD_CENTS
+      ? { field: 'incurred', document: String(incurredCents), ledger: String(ledgerIncurred), trusted: 'cost_export', reason: TRUST_REASON }
+      : undefined;
+    facts = { text: doc.text, tables: doc.tables, incurredCents: incurredCents?.toString(), remainingCents: remainingCents?.toString(), disagreement };
+    // Not an ambiguity (no question): a resolved conflict, so the flag stays false and the text says which source we trusted.
+    const ambiguityText = disagreement
+      ? `sources disagree: incurred ${usd(incurredCents!)} on the sheet vs ${usd(ledgerIncurred)} in the cost export; trusting the cost export` : '';
+    await deps.ledger.recordExtraction({ sourceId: src.id, reader: 'azure-di', factsJson: JSON.stringify(facts), ambiguityFlag: false, ambiguityText });
+    log(`source ${src.id}: azure-di read ${bytes.length} bytes, ${doc.tables.length} table(s)${disagreement ? `; ${ambiguityText}` : ''}`);
   }
-  return { ...src, text: ocrNote(doc) };
+  return { src: { ...src, text: ocrNote(facts) }, disagreement: facts.disagreement };
 }
 
 export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void> {
@@ -105,7 +122,8 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
   if (!['note', 'forecast', 'commissioning_log', 'scanned_forecast'].includes(src.kind)) return;
   if (handled(ledger.state(), src)) return; // restart-safe
   // ponytail: text swap means a clarification on a scanned forecast reads amounts from the fact quote only (note.text is the storageId)
-  if (src.kind === 'scanned_forecast') src = await readScanned(src, deps);
+  let disagreement: Disagreement | undefined;
+  if (src.kind === 'scanned_forecast') ({ src, disagreement } = await readScanned(src, deps));
   log(`source ${src.id} (${src.kind}) -> extract`);
   const both = deps.extractBoth
     ? await deps.extractBoth(src.text, Number(src.id))
@@ -139,8 +157,8 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
 
   if (src.kind === 'commissioning_log') return milestoneInvoice(src, x, deps);
   if (amount == null && !ambiguous) return log(`source ${src.id}: no remaining_update amount, nothing to propose`);
-  if (amount != null && remainingEstimate) return proposeForecast(src, amount, 'new_total', [`Convention v${reConv!.policyVersion}: remaining_estimate_means = ${reConv!.value} (a Remaining Estimate is the new total remaining)`], '', deps);
-  if (amount != null && !ambiguous) return proposeForecast(src, signed(amount, red ?? 'new_total', red), red ?? 'new_total', [], '', deps);
+  if (amount != null && remainingEstimate) return proposeForecast(src, amount, 'new_total', [`Convention v${reConv!.policyVersion}: remaining_estimate_means = ${reConv!.value} (a Remaining Estimate is the new total remaining)`], '', deps, undefined, disagreement);
+  if (amount != null && !ambiguous) return proposeForecast(src, signed(amount, red ?? 'new_total', red), red ?? 'new_total', [], '', deps, undefined, disagreement);
   const conv = ledger.state().conventions.find((c) => c.template === 'forecast' && c.key === 'another_means');
   if (conv && both.agreed && amount != null && !overdrawn) { // readers disagreeing on the amount is not something a convention can answer
     log(`convention another_means = ${conv.value} (policy v${conv.policyVersion}) applies; no question`);
@@ -195,7 +213,7 @@ function baseline(s: LedgerState, projectId: bigint) {
   };
 }
 
-async function proposeForecast(src: SourceRow, amount: bigint, convention: Convention, citations: string[], pendingConventionJson: string, deps: Deps, extraEvidenceId?: bigint) {
+async function proposeForecast(src: SourceRow, amount: bigint, convention: Convention, citations: string[], pendingConventionJson: string, deps: Deps, extraEvidenceId?: bigint, disagreement?: Disagreement) {
   const { ledger } = deps;
   const { workItemId, snap } = baseline(ledger.state(), src.projectId);
   const next = { ...snap, remaining: applyUpdate(snap.remaining, amount, convention) };
@@ -204,7 +222,7 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   const adj = adjustment(before.cumRevenue, after.cumRevenue);
   const input: ExplainInput = {
     before, after, adjustmentCents: adj, convention, evidence: [...citations, src.text],
-    contractValueCents: snap.contractValue, incurredCents: snap.incurred, remainingBeforeCents: snap.remaining, remainingAfterCents: next.remaining,
+    contractValueCents: snap.contractValue, incurredCents: snap.incurred, remainingBeforeCents: snap.remaining, remainingAfterCents: next.remaining, disagreement,
   };
   // Numbers first (the UI shows them within seconds of confirm); explain can only degrade to the template, never orphan this row.
   await ledger.recordCalculation({
@@ -220,7 +238,9 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   const escalation = after.margin.lossWarning
     ? `ESCALATION: expected margin ${usd(after.margin.amount)} on contract ${usd(next.contractValue)} (estimated total cost ${usd(after.estTotal)}); loss contract, controller review required.`
     : '';
-  const explanation = [escalation, ...citations, x.summary, x.whyRevenueMoved, x.whatDidNotChange].filter(Boolean).join('\n');
+  // The source disagreement is always stated, whether or not the model wrote it.
+  const said = disagreement && !/system of record/i.test(`${x.summary} ${x.whyRevenueMoved}`) ? disagreementSentence(disagreement) : '';
+  const explanation = [escalation, ...citations, x.summary, x.whyRevenueMoved, said, x.whatDidNotChange].filter(Boolean).join('\n');
   const evidence = [src.id, ...(extraEvidenceId ? [extraEvidenceId] : [])].join(',');
   await ledger.propose({ workItemId, calculationId: calc.id, entryJson: entryJson(buildEntry(adj)), explanation, evidenceSourceIdsCsv: evidence, pendingConventionJson });
   log(`proposal on work item ${workItemId}: adjustment ${usd(adj)}${escalation ? ' (ESCALATION)' : ''}`);
@@ -240,7 +260,7 @@ export function templateExplanation(i: ExplainInput): Explanation {
   const dir = i.remainingAfterCents > i.remainingBeforeCents ? 'rose' : i.remainingAfterCents < i.remainingBeforeCents ? 'fell' : 'stayed';
   return {
     summary: `The estimate to finish ${dir} from ${usd(i.remainingBeforeCents)} to ${usd(i.remainingAfterCents)} (read as ${i.convention}), so estimated total cost is now ${usd(a.estTotal)} (was ${usd(b.estTotal)}). Cumulative revenue recognised moves from ${usd(b.cumRevenue)} to ${usd(a.cumRevenue)}, a journal entry of ${usd(i.adjustmentCents)}. Expected margin is now ${usd(a.margin.amount)} (was ${usd(b.margin.amount)}).`,
-    whyRevenueMoved: `Progress is cost incurred (${usd(i.incurredCents)}) over estimated total cost, so the new estimate moves progress from ${pct(b.progressBp)} to ${pct(a.progressBp)}, and revenue on the ${usd(i.contractValueCents)} contract follows progress. Evidence: ${i.evidence.map((e) => `"${e}"`).join('; ')}.`,
+    whyRevenueMoved: `Progress is cost incurred (${usd(i.incurredCents)}) over estimated total cost, so the new estimate moves progress from ${pct(b.progressBp)} to ${pct(a.progressBp)}, and revenue on the ${usd(i.contractValueCents)} contract follows progress. Evidence: ${i.evidence.map((e) => `"${e}"`).join('; ')}.${i.disagreement ? ` ${disagreementSentence(i.disagreement)}` : ''}`,
     whatDidNotChange: `Cash and the customer invoice are unchanged; the contract asset moves from ${usd(b.contractAsset)} to ${usd(a.contractAsset)}. This is an estimate update, not an error or a restatement.`,
   };
 }
@@ -249,7 +269,7 @@ const FIGURE = /\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM]\b)?(?:\s*(?:million|billion|
 /** First $-figure in the explanation that is not one of the input-derived values (exact or whole-dollar), else undefined. */
 export function unverifiedFigure(x: Explanation, i: ExplainInput, updateAmount: bigint): string | undefined {
   const vals = [i.contractValueCents, i.incurredCents, i.remainingBeforeCents, i.remainingAfterCents, i.before.estTotal, i.after.estTotal,
-    i.before.cumRevenue, i.after.cumRevenue, i.before.contractAsset, i.after.contractAsset, i.adjustmentCents, i.before.margin.amount, i.after.margin.amount, updateAmount]
+    i.before.cumRevenue, i.after.cumRevenue, i.before.contractAsset, i.after.contractAsset, i.adjustmentCents, i.before.margin.amount, i.after.margin.amount, updateAmount, ...(i.disagreement ? [BigInt(i.disagreement.document)] : [])]
     .map((v) => (v < 0n ? -v : v));
   const ok = new Set(vals.flatMap((v) => [v, (v / 100n) * 100n, ((v + 50n) / 100n) * 100n]));
   return [x.summary, x.whyRevenueMoved, x.whatDidNotChange].join('\n').match(FIGURE)?.find((m) => { const c = parseAmountCents(m); return c == null || !ok.has(c); });

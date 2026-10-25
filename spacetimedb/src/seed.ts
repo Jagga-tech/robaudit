@@ -7,7 +7,7 @@ export function seedS0(ctx: Ctx) {
   const d = ctx.db;
   // ponytail: `user` rows survive a reset so registered demo identities keep their roles
   for (const tbl of [d.project, d.policy, d.convention, d.source, d.extraction, d.clarificationRef, d.workItem,
-    d.calculation, d.proposal, d.approval, d.posting, d.contractMilestone, d.historyEvent]) tbl.clear();
+    d.calculation, d.proposal, d.approval, d.posting, d.contractMilestone, d.historyEvent, d.agentEvent]) tbl.clear();
 
   const now = ctx.timestamp;
   const p = d.project.insert({ id: 0n, name: S.project.name, contractValueCents: BigInt(S.project.contractValueCents), periodOpen: S.project.periodOpen });

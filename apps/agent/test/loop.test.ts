@@ -253,4 +253,15 @@ describe('agent loop', () => {
     expect(isAdditiveWording('the new total remaining is $600,000')).toBe(false);
     expect(isAdditiveWording('remaining is now $600,000')).toBe(false);
   });
+
+  it('scanned sheet disagrees with the cost export on incurred -> disagreement on the azure-di row, explanation names the system of record', async () => {
+    const f = fake(unflagged('Remaining Estimate: $600,000', '$600,000'));
+    f.s.conventions.push({ template: 'forecast', key: 'remaining_estimate_means', value: 'future_costs_only', policyVersion: 3 });
+    f.deps.fetchDocument = async () => new Uint8Array([1]);
+    f.deps.readForecastDocument = async () => ({ text: 'Costs incurred to date: $420,000\nRemaining Estimate: $600,000', tables: [] });
+    await handleNewSource(f.add('scanned_forecast', 'kg2x'), f.deps);
+    const ocr = f.named('recordExtraction').find((e) => e.reader === 'azure-di');
+    expect(JSON.parse(ocr.factsJson).disagreement).toMatchObject({ document: '42000000', ledger: '40000000' });
+    expect(f.named('propose')[0].explanation).toContain('system of record');
+  });
 });

@@ -140,8 +140,19 @@ const historyEvent = table({ name: 'history_event', public: true }, {
   at: t.timestamp(),
 });
 
+const agentEvent = table({ name: 'agent_event', public: true }, {
+  id: id(),
+  projectId: t.u64().index('btree'),
+  agent: t.string(),
+  kind: t.string(),
+  summary: t.string(),
+  refTable: t.string(),
+  refId: t.u64(),
+  at: t.timestamp(),
+});
+
 const spacetimedb = schema({
   user, project, policy, convention, source, extraction, clarificationRef, workItem,
-  calculation, proposal, approval, posting, contractMilestone, historyEvent,
+  calculation, proposal, approval, posting, contractMilestone, historyEvent, agentEvent,
 });
 export default spacetimedb;

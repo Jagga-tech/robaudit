@@ -6,9 +6,12 @@ type Cents = bigint;
 // ponytail: structural copy of @keel/engine compute() output; import it once the engine package lands
 export type ComputeOut = { estTotal: Cents; progressBp: bigint | number; cumRevenue: Cents; contractAsset: Cents; margin: { amount: Cents; bp: bigint | number; lossWarning: boolean } };
 
+/** The sheet and the cost export disagree on a figure; we trust the cost export (cents as decimal strings). */
+export type Disagreement = { field: 'incurred'; document: string; ledger: string; trusted: 'cost_export'; reason: string };
 export type ExplainInput = {
   before: ComputeOut; after: ComputeOut; adjustmentCents: bigint; convention: string; evidence: string[];
   contractValueCents: bigint; incurredCents: bigint; remainingBeforeCents: bigint; remainingAfterCents: bigint;
+  disagreement?: Disagreement;
 };
 
 export async function explain(input: ExplainInput): Promise<Explanation> {

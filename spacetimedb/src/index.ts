@@ -52,6 +52,14 @@ export const registerDemoUser = spacetimedb.reducer(
   }
 );
 
+export const logAgentEvent = spacetimedb.reducer(
+  { projectId: t.u64(), agent: t.string(), kind: t.string(), summary: t.string(), refTable: t.string(), refId: t.u64() },
+  (ctx, { projectId, agent, kind, summary, refTable, refId }) => {
+    requireRole(ctx, 'agent');
+    ctx.db.agentEvent.insert({ id: 0n, projectId, agent, kind, summary, refTable, refId, at: ctx.timestamp });
+  }
+);
+
 export const addSource = spacetimedb.reducer(
   { projectId: t.u64(), kind: t.string(), text: t.string(), parentSourceId: t.u64(), version: t.u32() },
   (ctx, { projectId, kind, text, parentSourceId, version }) => {

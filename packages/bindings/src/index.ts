@@ -37,6 +37,7 @@ import {
 import AddSourceReducer from "./add_source_reducer";
 import ClosePeriodReducer from "./close_period_reducer";
 import DecideReducer from "./decide_reducer";
+import LogAgentEventReducer from "./log_agent_event_reducer";
 import MarkMilestoneMetReducer from "./mark_milestone_met_reducer";
 import OpenClarificationReducer from "./open_clarification_reducer";
 import OpenWorkItemReducer from "./open_work_item_reducer";
@@ -53,6 +54,7 @@ import SeedReducer from "./seed_reducer";
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import AgentEventRow from "./agent_event_table";
 import ApprovalRow from "./approval_table";
 import CalculationRow from "./calculation_table";
 import ClarificationRefRow from "./clarification_ref_table";
@@ -72,6 +74,20 @@ import WorkItemRow from "./work_item_table";
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  agentEvent: __table({
+    name: 'agent_event',
+    indexes: [
+      { accessor: 'id', name: 'agent_event_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'projectId', name: 'agent_event_project_id_idx_btree', algorithm: 'btree', columns: [
+        'projectId',
+      ] },
+    ],
+    constraints: [
+      { name: 'agent_event_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, AgentEventRow),
   approval: __table({
     name: 'approval',
     indexes: [
@@ -246,6 +262,7 @@ const reducersSchema = __reducers(
   __reducerSchema("add_source", AddSourceReducer),
   __reducerSchema("close_period", ClosePeriodReducer),
   __reducerSchema("decide", DecideReducer),
+  __reducerSchema("log_agent_event", LogAgentEventReducer),
   __reducerSchema("mark_milestone_met", MarkMilestoneMetReducer),
   __reducerSchema("open_clarification", OpenClarificationReducer),
   __reducerSchema("open_work_item", OpenWorkItemReducer),

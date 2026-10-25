@@ -1,4 +1,5 @@
 import DocumentIntelligence, { getLongRunningPoller, isUnexpected, type AnalyzeOperationOutput } from '@azure-rest/ai-document-intelligence';
+import { parseAmountCents } from './extract.js';
 import './claude.js'; // side effect: loads the repo .env (never prints values)
 
 export type ForecastDoc = { text: string; tables: string[][][] };
@@ -35,3 +36,13 @@ export async function readForecastDocument(bytes: Uint8Array, _contentType: stri
 /** The note-like text the extraction readers see for a scanned forecast. */
 export const ocrNote = (d: ForecastDoc) =>
   `Forecast document (OCR): ${d.text} | tables: ${d.tables.flatMap((t) => t.map((row) => row.join(' | '))).join('; ')}`;
+
+const FIG = String.raw`\s*[:|]?\s*(\$\s?\d[\d,]*(?:\.\d+)?)`;
+/** Incurred and Remaining Estimate figures (cents) read off the OCR'd sheet: paragraphs, then table rows ("label | $X"). */
+export function forecastFigures(d: ForecastDoc): { incurredCents?: bigint; remainingCents?: bigint } {
+  const t = ocrNote(d);
+  const inc = t.match(new RegExp(String.raw`(?:costs?\s+)?incurred(?:\s+to\s+date)?` + FIG, 'i'));
+  const rem = t.match(new RegExp(String.raw`remaining\s+estimate` + FIG, 'i'));
+  const c = (m: RegExpMatchArray | null) => (m ? parseAmountCents(m[1]) ?? undefined : undefined);
+  return { incurredCents: c(inc), remainingCents: c(rem) };
+}

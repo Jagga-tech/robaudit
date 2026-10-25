@@ -17,7 +17,7 @@ const NAMES: Record<Role, string> = {
 };
 const TABLES = [
   'user', 'project', 'policy', 'convention', 'source', 'extraction', 'clarification_ref', 'work_item',
-  'calculation', 'proposal', 'approval', 'posting', 'contract_milestone', 'history_event',
+  'calculation', 'proposal', 'approval', 'posting', 'contract_milestone', 'history_event', 'agent_event',
 ];
 
 const readIds = (): Record<string, string> => (existsSync(IDS_FILE) ? JSON.parse(readFileSync(IDS_FILE, 'utf8')) : {});

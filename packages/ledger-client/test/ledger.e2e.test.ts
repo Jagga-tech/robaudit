@@ -150,4 +150,14 @@ describe.skipIf(!up)('ledger controls (live SpacetimeDB)', () => {
     await controller.reducers.decide({ proposalId: p.id, revision: p.revision, decision: 'approve', reason: '' });
     await expect(controller.reducers.post({ proposalId: p.id, revision: p.revision, postingRef: 'TEST-NEG' })).rejects.toThrow(/bad_input/);
   });
+
+  it('logAgentEvent: agent inserts one row, accountant -> role', async () => {
+    const summary = `ev-${Date.now()}`;
+    await agent.reducers.logAgentEvent({ projectId, agent: 'summo', kind: 'read', summary, refTable: 'source', refId: 7n });
+    await waitFor(agent, () => [...agent.db.agentEvent.iter()].find((e) => e.summary === summary));
+    const rows = [...agent.db.agentEvent.iter()].filter((e) => e.summary === summary);
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toMatchObject({ projectId, agent: 'summo', kind: 'read', refTable: 'source', refId: 7n });
+    await expect(accountant.reducers.logAgentEvent({ projectId, agent: 'x', kind: 'read', summary: 'n', refTable: '', refId: 0n })).rejects.toThrow(/role: requires agent/);
+  });
 });
