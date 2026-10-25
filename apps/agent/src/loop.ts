@@ -46,6 +46,10 @@ const maxBy = <T extends { id: bigint }>(rows: T[]) => rows.reduce<T | undefined
 const usd = (c: bigint) => `${c < 0n ? '-' : ''}$${(c < 0n ? -c : c) / 100n}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const entryJson = (lines: EntryLine[]) => JSON.stringify(lines.map((l) => ({ account: l.account, debit: String(l.debit), credit: String(l.credit) })));
 
+// ponytail: keyword heuristic backing up Claude's flag; misses paraphrases ("on top of", "bump by"), upgrade = stricter extract prompt or a second classifier
+export const isAdditiveWording = (text: string): boolean =>
+  /\b(another|additional|more|extra)\b/i.test(text) && !/\b(new total|total remaining|remaining (is|of|now))\b/i.test(text);
+
 export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void> {
   const { ledger } = deps;
   if (!['note', 'forecast', 'commissioning_log'].includes(src.kind)) return;
@@ -61,16 +65,20 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
   const amount = fact && (parseAmountCents(fact.amountText) ?? parseAmountCents(fact.quote));
   if (amount == null) return log(`source ${src.id}: no remaining_update amount, nothing to propose`);
 
-  if (!x.ambiguity.flag) return proposeForecast(src, amount, 'new_total', [], '', deps);
+  const claudeFlag = x.ambiguity.flag;
+  const ambiguous = claudeFlag || isAdditiveWording(fact!.quote || src.text);
+  const question = claudeFlag ? x.ambiguity.question : 'Is the $X additional to the current remaining forecast, or the new total remaining?';
+  const options = claudeFlag ? x.ambiguity.options : ['additional', 'new_total'];
+  if (!ambiguous) return proposeForecast(src, amount, 'new_total', [], '', deps);
   const conv = ledger.state().conventions.find((c) => c.template === 'forecast' && c.key === 'another_means');
   if (conv) {
     log(`convention another_means = ${conv.value} (policy v${conv.policyVersion}) applies; no question`);
     return proposeForecast(src, amount, conv.value as Convention, [`Convention v${conv.policyVersion}: another_means = ${conv.value}`], '', deps);
   }
   const workItemId = baseline(ledger.state(), src.projectId).workItemId;
-  const convexId = await deps.convex.ask({ workItemId: String(workItemId), question: x.ambiguity.question, options: x.ambiguity.options });
-  await ledger.openClarification({ workItemId, convexId, question: x.ambiguity.question });
-  log(`clarification opened on work item ${workItemId} (convex ${convexId}): ${x.ambiguity.question}`);
+  const convexId = await deps.convex.ask({ workItemId: String(workItemId), question, options });
+  await ledger.openClarification({ workItemId, convexId, question });
+  log(`clarification opened on work item ${workItemId} (convex ${convexId}): ${question}`);
 }
 
 /** Called by the bridge once Convex reports the clarification confirmed. */

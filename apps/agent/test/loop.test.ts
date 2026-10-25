@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleNewSource, startLoop, type Deps, type LedgerState, type SourceRow } from '../src/loop';
+import { handleNewSource, isAdditiveWording, startLoop, type Deps, type LedgerState, type SourceRow } from '../src/loop';
 import { pollConfirmed } from '../src/bridge';
 import type { Extraction } from '../src/schemas';
 
@@ -7,6 +7,10 @@ const P = 1n;
 const ambiguous = (amt: string): Extraction => ({
   facts: [{ kind: 'remaining_update', amountText: amt, quote: amt, charStart: 0, charEnd: amt.length }],
   ambiguity: { flag: true, kind: 'additional_vs_total', question: 'Added to remaining, or new total?', options: ['additional', 'new_total'] },
+});
+const unflagged = (quote: string, amt: string): Extraction => ({
+  facts: [{ kind: 'remaining_update', amountText: amt, quote, charStart: 0, charEnd: quote.length }],
+  ambiguity: { flag: false, kind: 'none', question: '', options: [] },
 });
 const inputs = (remaining: bigint) => JSON.stringify({ contractValueCents: '100000000', incurredCents: '40000000', remainingCents: String(remaining), billedCents: '30000000' });
 
@@ -115,5 +119,36 @@ describe('agent loop', () => {
     expect(p.workItemId).toBe(f.s.workItems.at(-1)!.id);
     expect(JSON.parse(p.entryJson)).toEqual([{ account: 'AccountsReceivable', debit: '20000000', credit: '0' }, { account: 'ContractAsset', debit: '0', credit: '20000000' }]);
     expect(p.evidenceSourceIdsCsv).toBe(String(log.id));
+  });
+
+  it('(f) unflagged "another $50,000", no convention -> clarification, no propose', async () => {
+    const f = fake(unflagged('another $50,000', '$50,000'), { remaining: 60000000n });
+    await handleNewSource(f.add('note', 'another $50,000 for conveyor rework'), f.deps);
+    expect(f.named('openClarification')).toHaveLength(1);
+    expect(f.named('ask')[0]).toMatchObject({ question: 'Is the $X additional to the current remaining forecast, or the new total remaining?', options: ['additional', 'new_total'] });
+    expect(f.named('propose')).toHaveLength(0);
+  });
+
+  it('(g) unflagged "another $50,000" with convention -> no clarification, 3810 bp', async () => {
+    const f = fake(unflagged('another $50,000', '$50,000'), { remaining: 60000000n, convention: true });
+    await handleNewSource(f.add('note', 'another $50,000 for conveyor rework'), f.deps);
+    expect(f.named('openClarification')).toHaveLength(0);
+    expect(f.named('recordCalculation')[0]).toMatchObject({ progressBp: 3810 });
+    expect(f.named('propose')).toHaveLength(1);
+  });
+
+  it('(h) unflagged "new total remaining is $600,000" -> no clarification, new_total', async () => {
+    const f = fake(unflagged('the new total remaining is $600,000', '$600,000'));
+    await handleNewSource(f.add('note', 'the new total remaining is $600,000'), f.deps);
+    expect(f.named('openClarification')).toHaveLength(0);
+    expect(JSON.parse(f.named('recordCalculation')[0].inputsJson).remainingCents).toBe('60000000');
+    expect(f.named('propose')).toHaveLength(1);
+  });
+
+  it('isAdditiveWording', () => {
+    expect(isAdditiveWording('another $50,000')).toBe(true);
+    expect(isAdditiveWording('we need another $200,000 to finish')).toBe(true);
+    expect(isAdditiveWording('the new total remaining is $600,000')).toBe(false);
+    expect(isAdditiveWording('remaining is now $600,000')).toBe(false);
   });
 });
