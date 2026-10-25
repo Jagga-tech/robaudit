@@ -28,7 +28,7 @@ export function normalizeFacts(noteText: string, x: Extraction): Extraction {
 export async function extract(noteText: string, sourceId: number): Promise<Extraction> {
   if (hasKey) return normalizeFacts(noteText, await structured(Extraction, SYSTEM, `<note source_id="${sourceId}">${noteText}</note>`));
   // ponytail: deterministic mock only knows the demo's "another $X" ambiguity
-  const m = noteText.match(/\$\s?\d[\d,]*(?:\.\d+)?\s?[kKmM]?\b/);
+  const m = noteText.match(/\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM]\b)?/);
   if (/\banother\b/i.test(noteText) && m) {
     const charStart = m.index!, charEnd = charStart + m[0].length;
     return {
@@ -37,5 +37,10 @@ export async function extract(noteText: string, sourceId: number): Promise<Extra
         question: `Is "${m[0]}" added to the current remaining forecast, or is it the new total remaining to finish?` },
     };
   }
-  return { facts: [], ambiguity: { flag: false, kind: "none", question: "", options: [] } };
+  const none = { flag: false, kind: "none" as const, question: "", options: [] };
+  const ms = noteText.match(/\bacceptance\b/i);
+  if (ms && /commission|accept(ed|ance) (test|sign)/i.test(noteText)) {
+    return { facts: [{ kind: "milestone", amountText: "", quote: ms[0], charStart: ms.index!, charEnd: ms.index! + ms[0].length }], ambiguity: none };
+  }
+  return { facts: [], ambiguity: none };
 }
