@@ -61,7 +61,7 @@ Public evidence. Symbotic, a warehouse-automation company, disclosed a material 
 - Convex — Best use of Convex
 - Cartesia — Best Use of Cartesia
 - Microsoft — Built for the Real World
-- Atlassian — Best Agent. Submitting for: Best Agent
+- Atlassian — Best Agent. Submitting for: Best Agent. The Jira mirror is visible in the workbench: Inbox chips, a Jira tab per project, Connections and Agents.
 - MLH — Commit Fellowship Prize Category (opt in on Devpost and complete the supplemental form)
 - MLH — Best Use of Gemini API
 

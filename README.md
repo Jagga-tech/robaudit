@@ -140,8 +140,9 @@ Known gaps (two crash windows): a crash between `record_calculation` and `propos
 1. Check services: Azure agent healthy (`az containerapp revision list -n keel-agent -g keel-rg`), Maincloud answers (`spacetime sql keel "select count(*) from proposal" --server maincloud`), Convex prod reachable.
 2. Laptop opens the Azure URL, not localhost, so the QR encodes the public phone URL.
 3. Phone opens `/phone`.
-4. Reset between judges: `cp demo/identities.maincloud.json demo/identities.json`, then `pnpm demo --reset-only`.
-5. Fallbacks, in order: Convex dev URL (`https://lovely-squirrel-569.convex.cloud`); laptop agent `pnpm agent` (only after stopping the Azure one); local SpacetimeDB; the video.
+4. Start the Jira bridge on the laptop with the Maincloud env (`STDB_URI`/`STDB_DB` pointing at Maincloud, plus `JIRA_WEBTRIGGER_URL` and `SUMMO_WEBHOOK_SECRET`): `pnpm --filter @keel/jira-bridge start`.
+5. Reset between judges: `cp demo/identities.maincloud.json demo/identities.json`, then `pnpm demo --reset-only`.
+6. Fallbacks, in order: Convex dev URL (`https://lovely-squirrel-569.convex.cloud`); laptop agent `pnpm agent` (only after stopping the Azure one); local SpacetimeDB; the video.
 
 ## Controls that are tested
 

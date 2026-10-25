@@ -125,3 +125,12 @@
 .pg .chain .ev.pass{font-size:11.5px;color:var(--pg-muted)}
 .pg .chain .ev.flagged .sum{color:var(--pg-amber)}
 .pg-sheet pre.raw{border-color:#C77A00;background:#FFF9EE}
+
+/* Jira chip (inbox rows, project header): mono, black, hairline; never green */
+a.jira{display:inline-block;font:500 11px "Geist Mono",ui-monospace,monospace;color:#000;border:1px solid #E6E9E6;border-radius:999px;padding:1px 8px;margin-left:8px;text-decoration:none;white-space:nowrap;vertical-align:1px;background:#fff}
+a.jira:hover{border-color:#000}
+a.jira:focus-visible{outline:2px solid #000;outline-offset:2px}
+.pg.jtab{padding:0;background:transparent}
+.pg .jline{margin:0 0 14px;color:var(--pg-strong);max-width:760px}
+.pg .jira-err td{color:var(--pg-red)}
+.pg .list.conns{max-height:none;overflow:visible} /* 8 rows: no inner scroll */

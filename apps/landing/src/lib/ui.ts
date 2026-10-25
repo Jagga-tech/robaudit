@@ -139,3 +139,21 @@ export function guardFlag(d: Db, sourceId: bigint): { reasons: string[] } | null
   if (!x) return null;
   try { const f = JSON.parse(x.factsJson); return f?.flagged ? { reasons: Array.isArray(f.reasons) ? f.reasons.map(String) : [] } : null; } catch { return null; }
 }
+
+/** Jira mirror (apps/jira-bridge logs agent_event agent 'jira-mirror', kind 'mirror', summary '<KEY> · <headline>', ref work_item). */
+export const JIRA_SITE: string = import.meta.env.VITE_JIRA_SITE ?? 'https://one-atlas-udgh.atlassian.net';
+export const jiraUrl = (key: string) => `${JIRA_SITE}/browse/${encodeURIComponent(key)}`;
+export const jiraKey = (summary: string) => { const i = summary.indexOf(' · '); return (i < 0 ? summary : summary.slice(0, i)).trim(); };
+/** jira-mirror rows, oldest first; [] when the ledger has no agent_event table (or it is not subscribed yet). */
+export function jiraEvents(d: Db) {
+  try { return all(d.agentEvent.iter()).filter((e) => e.agent === 'jira-mirror').sort(byId); } catch { return []; }
+}
+/** Latest mirror event for a work item → its Jira issue; null when none. */
+export function jiraFor(conn: DbConnection, workItemId: bigint) {
+  const e = last(jiraEvents(conn.db).filter((x) => x.kind === 'mirror' && x.refTable === 'work_item' && x.refId === workItemId));
+  if (!e) return null;
+  const key = jiraKey(e.summary), i = e.summary.indexOf(' · ');
+  return key ? { key, url: jiraUrl(key), headline: i < 0 ? '' : e.summary.slice(i + 3), at: e.at.toDate() } : null;
+}
+export const jiraChip = (j: { key: string; url: string } | null) =>
+  j ? `<a class="jira" href="${esc(j.url)}" target="_blank" rel="noopener" title="Open ${esc(j.key)} in Jira">${esc(j.key)} ↗</a>` : '';

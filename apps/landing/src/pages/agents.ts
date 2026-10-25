@@ -2,7 +2,7 @@
 // agent_event rides a separate subscription (lib/ledger subscribeExtra): a ledger without the table still renders the roster.
 import type { Page } from '../lib/app';
 import { subscribeExtra } from '../lib/ledger';
-import { esc, ago } from '../lib/ui';
+import { esc, ago, jiraKey, jiraUrl } from '../lib/ui';
 import './pages.css';
 
 type Agent = { name: string; seat: string; tools: string; may: string[] };
@@ -17,11 +17,12 @@ const ROSTER: Agent[] = [
   { name: 'engine', seat: 'Deterministic calculator', tools: '@keel/engine', may: [] },
   { name: 'explainer', seat: 'Writes the memo', tools: 'Claude Opus 5.5', may: [] },
   { name: 'reviewer', seat: 'Second pair of eyes before the controller', tools: 'Gemini 3.5 Flash Lite', may: [] },
+  { name: 'jira-mirror', seat: 'The clerk who keeps the tracker current', tools: 'Atlassian Forge web trigger', may: [] },
   { name: 'learner', seat: 'Policy analyst', tools: 'Claude Opus 5.5', may: ['save pending conventions'] },
 ];
-const NOTHING: Record<string, string> = { engine: 'nothing · returns numbers', explainer: 'nothing · text only', reviewer: 'nothing · writes only its log' };
+const NOTHING: Record<string, string> = { engine: 'nothing · returns numbers', explainer: 'nothing · text only', reviewer: 'nothing · writes only its log', 'jira-mirror': 'log only' };
 // review summaries start with "consistent:" (green) or "flag:" (amber)
-const sumHtml = (e: { kind: string; summary: string }) => { const m = e.kind === 'review' && /^(consistent|flag):/.exec(e.summary); return m ? `<b class="${m[1] === 'flag' ? 'amb' : 'ok'}">${m[1]}:</b>${esc(e.summary.slice(m[0].length))}` : esc(e.summary); };
+const sumHtml = (e: { kind: string; summary: string }) => { if (e.kind === 'mirror') { const k = jiraKey(e.summary); return `<a class="mono" href="${esc(jiraUrl(k))}" target="_blank" rel="noopener">${esc(k)} ↗</a>${esc(e.summary.slice(k.length))}`; } const m = e.kind === 'review' && /^(consistent|flag):/.exec(e.summary); return m ? `<b class="${m[1] === 'flag' ? 'amb' : 'ok'}">${m[1]}:</b>${esc(e.summary.slice(m[0].length))}` : esc(e.summary); };
 const TONE: Record<string, string> = { flag: 'amb', pass: 'muted', disagree: 'amb', ask: 'amb', skip: 'amb', error: 'err' };
 
 const STRIP = `<div class="arch" aria-label="Architecture: sources flow through readers, reconciler, Summo, engine, explainer, proposal and the posting guard to the ledger">
@@ -35,7 +36,7 @@ const STRIP = `<div class="arch" aria-label="Architecture: sources flow through 
   <div class="n guard">Posting guard</div><i></i>
   <div class="n">Ledger</div>
 </div>
-<p class="arch-line">One coordinator, nine specialists, one human. No agent can post.</p>`;
+<p class="arch-line">One coordinator, eleven specialists, one human. No agent can post.</p>`;
 
 // Session latency: split each project's events (id order) into runs (a read after a compute starts a new run), then diff stage timestamps.
 type Ev = { id: bigint; projectId: bigint; agent: string; kind: string; refTable: string; refId: bigint; at: { toDate(): Date } };

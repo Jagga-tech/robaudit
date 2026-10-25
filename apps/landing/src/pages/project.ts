@@ -2,13 +2,14 @@
 // Overview = figures + margin + the proposal panel + activity; Sources; Calculations; Proposals (+ "break it").
 import type { Page } from '../lib/app';
 import { connect, call, subscribeExtra, codeOf, ids, type DbConnection } from '../lib/ledger';
-import { esc, clip, all, byId, last, sleep, reduceMotion, usd, dollars, pct, card, tag, sourceLabel, KIND, READER, ACCOUNT, project, proposalStatus, statusTone, live, head, setHtml, disagreement, disagreeLine, DISAGREE, decisionOf, decisionText, guardFlag } from '../lib/ui';
+import { esc, clip, all, byId, last, sleep, reduceMotion, usd, dollars, pct, card, tag, sourceLabel, KIND, READER, ACCOUNT, project, proposalStatus, statusTone, live, head, setHtml, disagreement, disagreeLine, DISAGREE, decisionOf, decisionText, guardFlag, jiraFor, jiraChip, jiraEvents, jiraKey, jiraUrl } from '../lib/ui';
+import './pages.css';
 
 declare const qrcode: any; // qrcode-generator 1.4.4, classic script from cdnjs (workbench.html)
 
 type M = NonNullable<ReturnType<typeof project>>;
 type Line = { account: string; debit: string; credit: string };
-const TABS = ['overview', 'sources', 'calculations', 'proposals'] as const;
+const TABS = ['overview', 'sources', 'calculations', 'proposals', 'jira'] as const;
 // post() checks in its own order (spacetimedb/src/index.ts); a refusal code maps to the check that failed.
 const CHECK_OF: Record<string, number> = { role: 0, not_approved: 1, revision: 1, stale: 1, period_closed: 2, unbalanced: 3, bad_input: 3, duplicate_posting: 4 };
 
@@ -20,7 +21,7 @@ let asking: { pid: bigint; decision: 'return' | 'hold'; draft: string } | null =
 let priya: Promise<DbConnection> | undefined; // second connection, opened only for "Approve as the accountant"
 
 const page: Page = {
-  route: /^\/workbench\/projects\/(\d+)(?:\/(overview|sources|calculations|proposals))?\/?$/,
+  route: /^\/workbench\/projects\/(\d+)(?:\/(overview|sources|calculations|proposals|jira))?\/?$/,
   title: 'Project',
   render(root, ctx, [idText, tabArg]) {
     const pid = BigInt(idText), tab = (tabArg ?? 'overview') as (typeof TABS)[number];
@@ -31,7 +32,7 @@ const page: Page = {
       root.innerHTML = '<p class="empty">This project is not in the ledger. <a href="/workbench/projects">See all projects</a>.</p>';
       return;
     }
-    root.innerHTML = `<nav class="tabs">${TABS.map((t) => `<a href="/workbench/projects/${pid}${t === 'overview' ? '' : '/' + t}" class="${t === tab ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</a>`).join('')}</nav><div class="tabbody"></div>`;
+    root.innerHTML = `<nav class="tabs">${TABS.map((t) => `<a href="/workbench/projects/${pid}${t === 'overview' ? '' : '/' + t}" class="${t === tab ? 'on' : ''}">${t === 'jira' ? 'Jira' : t[0].toUpperCase() + t.slice(1)}</a>`).join('')}</nav><div class="tabbody"></div>`;
     const body = root.querySelector<HTMLElement>('.tabbody')!;
     const $ = (sel: string) => body.querySelector<HTMLElement>(sel)!;
     const m = () => project(d, pid);
@@ -43,7 +44,7 @@ const page: Page = {
       const x = m();
       if (!x) return;
       const pol = last(all(d.policy.iter()));
-      head({ title: x.proj.name, sub: `Aster Robotics · contract ${usd(x.proj.contractValueCents)} · policy v${pol?.version ?? ''} · period ${x.proj.periodOpen ? 'open' : 'closed'}` });
+      head({ title: x.proj.name, sub: `Aster Robotics · contract ${usd(x.proj.contractValueCents)} · policy v${pol?.version ?? ''} · period ${x.proj.periodOpen ? 'open' : 'closed'}`, actions: x.main ? jiraChip(jiraFor(ctx.conn, x.main.id)) : '' });
     }
 
     // ---------- Overview ----------
@@ -257,6 +258,23 @@ const page: Page = {
       };
     }
 
+    // ---------- Jira (mirror log for this project's work items) ----------
+    function jira() {
+      body.innerHTML = `<div class="pg jtab"><p class="jline">Jira is the controller's queue and audit mirror. Nothing posts from Jira; the ledger is the system of record.</p><div data-f="rows"></div></div>`;
+      return () => {
+        const x = m();
+        if (!x) return;
+        const wids = new Set(x.items.map((w) => w.id));
+        const evs = jiraEvents(d).filter((e) => e.projectId === pid || (e.refTable === 'work_item' && wids.has(e.refId))).reverse();
+        setHtml($('[data-f=rows]'), evs.length ? `<table><thead><tr><th>Time</th><th>Issue</th><th>Headline</th></tr></thead><tbody>${evs.map((e) => {
+          const err = e.kind === 'error', key = err ? '' : jiraKey(e.summary), i = e.summary.indexOf(' · ');
+          return `<tr class="${err ? 'jira-err' : ''}"><td class="mono">${e.at.toDate().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</td>` +
+            `<td>${key ? `<a class="jira" style="margin:0" href="${esc(jiraUrl(key))}" target="_blank" rel="noopener">${esc(key)} ↗</a>` : `<span class="mono">${esc(e.kind)}</span>`}</td>` +
+            `<td>${esc(err || i < 0 ? e.summary : e.summary.slice(i + 3))}</td></tr>`;
+        }).join('')}</tbody></table>` : '<p class="empty">No Jira mirror events yet. Start the Jira bridge to mirror work items into SUMMO.</p>');
+      };
+    }
+
     // ---------- Proposals (+ break it) ----------
     function proposals() {
       body.innerHTML = `<div class="plist" data-f="list"></div>
@@ -375,7 +393,7 @@ const page: Page = {
     root.addEventListener('submit', onSubmit);
     root.addEventListener('input', onInput);
 
-    const tabDraw = { overview, sources, calculations, proposals }[tab]();
+    const tabDraw = { overview, sources, calculations, proposals, jira }[tab]();
     const draw = () => {
       const had = document.activeElement?.closest('form.why') != null;
       header(); tabDraw();

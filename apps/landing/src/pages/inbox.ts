@@ -1,7 +1,8 @@
 // Inbox (/workbench): work items waiting on a person. Default route.
 import type { Page } from '../lib/app';
-import { ids } from '../lib/ledger';
-import { esc, all, ago, tag, inbox, live, head, disagreement, decisionOf, decisionText, guardFlag } from '../lib/ui';
+import { ids, subscribeExtra } from '../lib/ledger';
+import { esc, all, ago, tag, inbox, live, head, disagreement, decisionOf, decisionText, guardFlag, jiraFor, jiraChip } from '../lib/ui';
+import './pages.css';
 
 const LABEL: Record<string, string> = { awaiting_clarification: 'awaiting answer', proposed: 'proposed', held: 'held', returned: 'returned', stale: 'stale' };
 
@@ -29,10 +30,11 @@ const page: Page = {
       head({ sub: total ? `${total} ${total === 1 ? 'item waits' : 'items wait'} on a person.` : 'Everything Summo proposes lands here first.' });
       root.innerHTML = total
         ? `<table class="tbl rows"><thead><tr><th>Work item</th><th>Waiting on</th><th>Age</th><th>Status</th></tr></thead><tbody>${flags.map(flagRow).join('')}${rows.map(({ w, who, at }) => { const a = decisionOf(d, w), line = sub(w); return (
-            `<tr data-href="/workbench/projects/${w.projectId}"><td><a href="/workbench/projects/${w.projectId}">${esc(w.title)}</a>${line ? `<p class="small${a ? ' amber' : ''}">${esc(line)}</p>` : ''}</td><td>${a ? 'waiting for new evidence' : `waiting on ${esc(who)}`}</td><td class="mono">${ago(at)}</td>` +
+            `<tr data-href="/workbench/projects/${w.projectId}"><td><a href="/workbench/projects/${w.projectId}">${esc(w.title)}</a>${jiraChip(jiraFor(ctx.conn, w.id))}${line ? `<p class="small${a ? ' amber' : ''}">${esc(line)}</p>` : ''}</td><td>${a ? 'waiting for new evidence' : `waiting on ${esc(who)}`}</td><td class="mono">${ago(at)}</td>` +
             `<td>${tag(LABEL[w.status] ?? w.status, w.status === 'proposed' ? '' : 'amber')}</td></tr>`); }).join('')}</tbody></table>`
         : `<p class="empty big">Nothing waits on a person. Summo is watching ${n} project${n === 1 ? '' : 's'}.</p>`;
     };
+    const extra = subscribeExtra(ctx.conn, ['agent_event'], () => {}, () => {}); // Jira chips; a ledger without the table shows none
     const stop = live(ctx, draw);
     const stopJudge = ctx.convex.onUpdate(ctx.api.managers.current, {}, () => draw());
     const tick = setInterval(draw, 15000); // ages
@@ -41,7 +43,7 @@ const page: Page = {
       if (tr && !(e.target as HTMLElement).closest('a')) ctx.navigate(tr.dataset.href!);
     };
     root.addEventListener('click', onClick);
-    return () => { stop(); stopJudge(); clearInterval(tick); root.removeEventListener('click', onClick); };
+    return () => { stop(); try { extra.unsubscribe(); } catch {} stopJudge(); clearInterval(tick); root.removeEventListener('click', onClick); };
   },
 };
 export default page;
