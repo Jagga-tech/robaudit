@@ -33,7 +33,7 @@ asking <Name>"). The laptop never acts for Summo and the phone never acts for Da
 | SpacetimeDB ledger | Maincloud `wss://maincloud.spacetimedb.com`, database `keel` (dashboard https://spacetimedb.com/keel) | local `ws://127.0.0.1:3000`, db `keel`, laptop on hotspot |
 | Convex | prod `https://hushed-shrimp-24.convex.cloud` | dev `https://lovely-squirrel-569.convex.cloud` |
 | Summo | Azure Container Apps `keel-agent` (resource group `keel-rg`) | laptop `pnpm agent` (never both at once) |
-| Workbench + phone page | Azure Static Web Apps, HTTPS. URL: **TBD** | laptop `vite preview` over HTTPS tunnel, or the video |
+| Workbench + phone page | Azure Static Web App `roboaudit-web`: https://kind-river-0eb9d010f.5.azurestaticapps.net | laptop `vite preview` over HTTPS tunnel, or the video |
 
 The UI build needs only `VITE_CONVEX_URL`, `VITE_STDB_URI`, `VITE_STDB_DB`. No model or voice keys ever
 reach the browser.
