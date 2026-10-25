@@ -488,3 +488,18 @@ The app lives in `apps/web` with package name `@keel/web` and builds with `pnpm 
 ```
 
 Manual deploy without GitHub: `npx @azure/static-web-apps-cli deploy apps/web/dist --deployment-token <token from az staticwebapp secrets list -n roboaudit-web -g keel-rg> --env production`.
+
+## Scroll story and handoff (Figma frames, build exactly this)
+
+Figma page "07 — Landing Page" in file 8gPKZCS1U6j1LiL5fiGmTX:
+
+| Step | Frame | Node | Trigger to the next step |
+|---|---|---|---|
+| 01 Hero | Landing / Hero 1440 — v2 suit | 63:62 | user scrolls |
+| 02 Meet Summo + QR (pinned) | Scroll / 02 Meet Summo + QR | 78:214 | Convex `managers.current()` becomes non-null (judge joined on the phone). No laptop click. |
+| 03 Handoff | Scroll / 03 Handoff — Alex joined, Summo dances | 78:266 | after 1.6 s, auto-scroll |
+| 04 Workbench, live | App / First screen (live) 1440 | 67:120 | judge sends an update from the phone |
+| 04b After the answer | Workbench / 04b After the answer | 78:291 | approve → posted; Reset returns to 02 |
+| Motion spec | Motion spec — scroll, handoff, figures | 78:437 | — |
+
+Rules: the 02→03 handoff must not need a click on the laptop; the figure animation in 04 fires once per clarification confirm (count old→new over 0.9 s, "was X" fades in, margin bar slides and recolors); everything else is instant. Summo's header badge label follows the agent state: watching, reading, asking, proposing, posted, refused. Summo render to reuse: node 63:116 (transparent suit).
