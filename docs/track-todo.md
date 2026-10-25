@@ -12,14 +12,14 @@ Gaps found by checking sponsor criteria against the repo on Oct 25, 01:30 PDT. T
 Submission asks: video opens with the moment; live demo, judges may try their own scenario; one line on the seats; proof of what's real vs simulated.
 
 - [ ] Video opens with the moment (phone rings on the ambiguous note, or month 3 posts silently citing March). Not the architecture.
-- [ ] Devpost: one line on seats. Draft: "Fills the project accountant seat for revenue recognition on fixed-price installs and the deployment manager's clarification loop; the controller keeps the sign-off seat."
-- [ ] Devpost: one block "What's real / what's simulated / how we know". Real: Claude, Gemini, Cartesia, Azure DI, SpacetimeDB Maincloud, Convex prod. Simulated: company, project, six past closes behind the seeded convention, controller identity. How we know: engine answer key, 7 controls as tests, demo script asserts to the dollar, 20-phrase real-API wording set.
+- [x] Devpost: one line on seats. Draft: "Fills the project accountant seat for revenue recognition on fixed-price installs and the deployment manager's clarification loop; the controller keeps the sign-off seat."
+- [x] Devpost: one block "What's real / what's simulated / how we know". Real: Claude, Gemini, Cartesia, Azure DI, SpacetimeDB Maincloud, Convex prod. Simulated: company, project, six past closes behind the seeded convention, controller identity. How we know: engine answer key, 7 controls as tests, demo script asserts to the dollar, 20-phrase real-API wording set.
 - [ ] Controller says "no": `decide(return)` works in the reducer but the agent loop does nothing after. Add: on returned proposal, agent logs the reason and reopens the work item so the next source yields the next rev (~30 lines in `apps/agent/src/loop.ts` + 1 test). Judges may try this live.
-- [ ] Sources that disagree (their example: bank vs ledger vs contract). Ours is reader vs reader on one note. Optional: plant a mismatch between the forecast sheet and the field note so Summo says which it trusted and why. Only after the return path.
+- [x] Sources that disagree (their example: bank vs ledger vs contract). Ours is reader vs reader on one note. Optional: plant a mismatch between the forecast sheet and the field note so Summo says which it trusted and why. Only after the return path.
 
 - [ ] Log failed attempts. Rejected reducers roll back, so duplicate post, wrong role and stale decide leave no `history_event` row. Add reducer `record_rejection` in `spacetimedb/src/index.ts` and call it from the ledger client catch. Shows "post rejected: duplicate_posting" in the history pane.
 - [ ] Devpost: use the phrase "System of Work" (their term). Say agents propose, humans approve, every action logged including rejections.
-- [ ] Mention self-learning on onboarding (S0 convention seeded from six past closes) and self-improving (convention saved on controller approval).
+- [x] Mention self-learning on onboarding (S0 convention seeded from six past closes) and self-improving (convention saved on controller approval).
 
 ## Spacetime main track — all criteria met
 
@@ -27,7 +27,7 @@ Submission asks: video opens with the moment; live demo, judges may try their ow
 - [x] Public repo.
 - [ ] Video (see above).
 - [ ] Redeem promo code `CALHACKS13` on https://spacetimedb.com/keel so the Maincloud db stays live after demo day.
-- [ ] Devpost: name two or three reducers (decide, post, add_source) so judges see it is not "just chat".
+- [x] Devpost: name two or three reducers (decide, post, add_source) so judges see it is not "just chat".
 
 ## Atlassian — Forge app DEPLOYED and verified 2026-10-25 03:35 PDT (Track 2: audit mirror)
 
@@ -36,7 +36,7 @@ Code: `apps/jira-forge` (web trigger) + `apps/jira-bridge` (ledger subscriber). 
 - [x] SUMMO project created; app pointed at SUMMO and redeployed 03:50 PDT. SUMMO-1 is a smoke issue (asked -> proposed -> posted, no transition warnings): delete it and ENGS-30 before the demo.
 - [ ] First rehearsal beat with the bridge running (`pnpm --filter @keel/jira-bridge start`, needs `demo/identities.json` = maincloud tokens and `STDB_URI` = Maincloud): confirm SUMMO-1 appears, then the rev 2 comment. Local SpacetimeDB is on an old module (no `agent_event`), so the bridge only works against a republished server.
 - [ ] Video: 3 min max; show the Jira card move as Summo works (Atlassian requires the video).
-- [ ] Devpost: Track 2 "audit mirror: every ask, proposal, return and post lands in Jira with its reasoning; Jira never posts to the ledger".
+- [x] Devpost: Track 2 "audit mirror: every ask, proposal, return and post lands in Jira with its reasoning; Jira never posts to the ledger".
 - Ceiling: no replay on bridge restart; agent_event rows and rejected attempts not mirrored (no work-item id on them). `storage` from @forge/api is deprecated in favour of @forge/kvs (lint warning only).
 
 ## Microsoft Built for the Real World — eligible, 4 of 5 capabilities strong
@@ -64,7 +64,7 @@ Their hackathon.md template scores: components, features, Convex hosting, auth, 
 
 - [x] Flash model: `gemini-3.5-flash-lite` as second reader (`apps/agent/src/gemini.ts`).
 - [ ] Set `GEMINI_API_KEY` before recording the video, or the Gemini extraction row never shows.
-- [ ] Gemini roles (owned by the Hyphenate agent refactor): reader-gemini plus a Gemini reviewer that checks each proposal (numbers vs calculation, entry balanced, convention cited) and shows "Reviewed by Gemini" on the proposal. Multimodal photo read deferred.
+- [x] Gemini roles (owned by the Hyphenate agent refactor): reader-gemini plus a Gemini reviewer that checks each proposal (numbers vs calculation, entry balanced, convention cited) and shows "Reviewed by Gemini" on the proposal. Multimodal photo read deferred.
 
 ## MLH Commit Fellowship
 

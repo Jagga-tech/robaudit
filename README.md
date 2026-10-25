@@ -1,137 +1,121 @@
 # RoboAudit
 
-RoboAudit is a project-close accounting agent for robotics companies that install fixed-price systems. When a cost forecast, a field note or a commissioning log changes, it reads the evidence, asks the deployment manager one clarifying question by voice if the wording is ambiguous, recomputes revenue with tested cost-to-cost arithmetic, and prepares an adjusting entry. A controller approves and posts it; the model never produces a number that gets posted.
+RoboAudit keeps revenue current on fixed-price robotics installations recognized with cost-to-cost. It is used by three people: the project accountant (whose revenue-close work Summo does), the controller (who approves and posts), and the deployment manager on site (who answers Summo's questions from a phone). Summo, the agent, reads field notes, cost forecasts, photographed forecast sheets and commissioning logs; asks the deployment manager one question by voice when the wording is ambiguous or two readers disagree; recomputes progress and revenue with a deterministic engine in integer cents; and proposes an adjusting entry with an explanation. Summo never posts, and no model output is ever a posted amount: the ledger refuses `post` from anyone but the controller.
 
-Built at Cal Hacks 13.0. Design: `docs/superpowers/specs/2026-10-24-keel-design.md`. Team source doc: `docs/one-pager.md`.
+Built at Cal Hacks 13.0. Design: `docs/superpowers/specs/2026-10-24-keel-design.md`. Submission text: `docs/devpost.md`. Sponsor-by-sponsor detail: [docs/sponsors.md](docs/sponsors.md).
 
-> The agent service is called **Summo** internally; RoboAudit is the platform. UI labels (`@keel/*` packages and database `keel` keep the internal codename) use "Summo" for the agent.
+## Live demo
 
-## How we use Convex
+| What | Where |
+|---|---|
+| Web app | https://kind-river-0eb9d010f.5.azurestaticapps.net: `/` landing with QR, `/workbench` controller's app, `/phone` deployment manager's page |
+| Jira mirror | Project `SUMMO` on https://one-atlas-udgh.atlassian.net |
+| Ledger | SpacetimeDB Maincloud, database `keel` (`wss://maincloud.spacetimedb.com`, https://spacetimedb.com/keel) |
+| Phone channel | Convex production deployment `hushed-shrimp-24` (`https://hushed-shrimp-24.convex.cloud`) |
+| Agent | Azure Container Apps `keel-agent` (resource group `keel-rg`) |
 
-Convex runs the voice clarification call between Summo and the deployment manager's phone: the `clarifications` table and its mutations move a call through ringing, answering and confirmed; scheduled actions call Cartesia for TTS and STT; file storage holds the question and answer audio; and the landing, workbench and phone pages subscribe live, so the phone rings and the transcript streams in without a refresh. Convex never touches money. Details, file pointers and the commit log are in [hackathon.md](hackathon.md).
+The company (Aster Robotics), its Oakland project and its data are fictional and seeded from `demo/seed.json`.
 
 ## Architecture
 
-Three things are kept apart: language, arithmetic, and permission to write.
+Language, arithmetic and permission to write are kept apart. Each agent is an object with a name, a seat and a `may` list of ledger reducers (`apps/agent/src/bus.ts`); calling anything outside the list throws, and `post` is on no agent's list.
+
+| Agent | Seat | Tools | May write |
+|---|---|---|---|
+| `guard` | Input control: screens every note before any model reads it | Deterministic rules (`apps/agent/src/agents/guard.ts`) | `record_extraction` (flag row only) |
+| `summo` | Coordinator, project accountant | Routes each source through the others (`agents/summo.ts`) | `record_calculation`, `propose`, `open_work_item`, `mark_milestone_met` |
+| `reader-claude` | Reader A | Claude `claude-opus-5-5` (`extract.ts`) | `record_extraction` |
+| `reader-gemini` | Reader B, independent | Gemini `gemini-3.5-flash-lite` (`gemini.ts`), 5 s cap | `record_extraction` |
+| `document-reader` | Scanning clerk | Azure AI Document Intelligence (`azure-di.ts`) | `record_extraction` |
+| `reconciler` | Sheet vs cost export on incurred; cost export wins | Code, no model (`agents/reconciler.ts`) | nothing |
+| `field-liaison` | Asks the site and brings the answer back | Convex + Cartesia (`agents/field-liaison.ts`) | `open_clarification`, `resolve_clarification` |
+| `engine` | Calculator | `@keel/engine`, integer cents, no I/O | nothing |
+| `explainer` | Writes the memo; any $-figure not derived from the inputs is replaced by a template | Claude (`agents/explainer.ts`) | nothing |
+| `learner` | Proposes conventions from past closes | Claude (`learn.ts`); not wired into the live loop | nothing |
+| `reviewer` | Checks figures, balance and cited convention before the controller sees it | Gemini (`agents/reviewer.ts`), 5 s cap | nothing (log only) |
+| `jira-mirror` | Keeps the Jira tracker current | Atlassian Forge web trigger (`apps/jira-bridge`, `apps/jira-forge`) | `log_agent_event` only |
+| posting guard | The `post` reducer: controller role, approved, current revision, period open, balanced, unique posting ref | SpacetimeDB (`spacetimedb/src/index.ts`) | the ledger itself |
+
+Every agent step is written to the `agent_event` table and shown on `/workbench/agents`.
 
 ```
-                 ┌──────────────┐  evidence rows, proposals      ┌──────────────────┐
-  Claude reads → │ agent service│ ──────────────────────────────▶│  SpacetimeDB     │◀── workbench UI
-  (+Gemini 2nd)  │  (Node/TS)   │◀────────────────────────────── │  ledger module   │
-                 └──────┬───────┘  subscribes: work items,       │  (TS reducers)   │
-                        │           stale flags, approvals       └──────────────────┘
-      ask / confirmed   │
-                        ▼
-                 ┌──────────────┐  TTS/STT actions   ┌──────────┐
-                 │   Convex     │ ◀────────────────▶ │ Cartesia │
-                 │ clarification│                    └──────────┘
-                 │   channel    │◀── phone page, workbench call pane
-                 └──────────────┘
+  phone (/phone) ── note / photo / voice answer ──▶ Convex (clarifications, storage, Cartesia actions)
+        │                                                     ▲            │ confirmed answer
+        │ add_source                                   ask    │            ▼
+        ▼                                             field-liaison ◀── poll
+  SpacetimeDB ledger ──subscribe──▶ Summo ──▶ guard ──▶ reader-claude ┐
+   (reducers, roles,                  │      (flag→stop)  reader-gemini ┼─▶ agree? ── no ──▶ ask
+    history_event,                    │                  document-reader┘ + reconciler
+    agent_event)                      ▼
+        ▲                          engine ──▶ explainer ──▶ reviewer ──▶ propose (rev N)
+        │                                                                     │
+        │  decide(approve|return|hold), post  ◀── controller (/workbench) ◀───┘
+        │
+        └─ work_item changes ──▶ jira-bridge ──▶ Forge web trigger ──▶ Jira SUMMO (mirror; never writes back)
+
+  every agent step ──▶ agent_event        every reducer call ──▶ history_event
 ```
 
-| Part | Role | Where |
-|---|---|---|
-| Claude (`claude-opus-5-5`) | Reads notes into facts, writes the question, writes the explanation. Text only. | `apps/agent/src/{claude,extract,explain,learn}.ts`, `apps/agent/prompts/` |
-| Engine | Computes progress, revenue, contract asset, margin, adjustment, entry. Integer cents, no I/O. | `packages/engine` |
-| SpacetimeDB | Holds the ledger. Reducers enforce roles, revisions, staleness, balance, period, posting-ref uniqueness. Posts. | `spacetimedb/` |
-| Convex | Runs the clarification call: live queries, mutations, actions, file storage, scheduler. Never touches money. | `convex/` |
-| Cartesia | Speaks the question (Sonic TTS) and transcribes the answer (Ink STT), inside Convex actions. | `convex/voice.ts` |
-| Gemini | Independent second reader on extraction; disagreement forces a clarification. | `apps/agent/src/gemini.ts` |
-| Agent loop | Subscribes to the ledger, calls the above in order, bridges Convex confirmations back. | `apps/agent/src/{loop,bridge,main}.ts` |
-| Dev harness | Unstyled page with a button per demo beat and a live table dump. Not the demo UI. | `apps/harness` |
+## Sponsors and tracks
+
+| Track | What we use it for | Where in the code | How to see it in the demo | Proof | Honest notes |
+|---|---|---|---|---|---|
+| Hyphenate: The Hyphenated Enterprise: Autonomous Systems for Finance | Summo fills the project accountant's revenue-close seat; controller keeps sign-off | `apps/agent/src/agents/`, `packages/engine`, `spacetimedb/src/index.ts` | Judge's note → phone rings → numbers move → controller approves; month 3 runs with no call and cites the convention | `docs/proof.md` §2 (16 planted errors) | One controller plays reviewer and approver in the demo; the ledger has the roles for two people. A controller Return/Hold is recorded, but Summo does not act on it yet. |
+| Spacetime: Best Use of Spacetime | The ledger: 15 tables, 16 reducers; controls are reducers | `spacetimedb/src/{schema,index,guards}.ts` | Workbench "Break it": approve as accountant, stale after new source, post twice; all refused with the reducer's message | `packages/ledger-client/test/ledger.e2e.test.ts` (11) | All tables are `public: true`; auth is four fixed demo tokens. Rejected calls roll back and leave no history row. |
+| Convex: Best use of Convex | The voice clarification call: live queries, mutations, actions, file storage, `action-retrier` component, Convex Auth (Anonymous) | `convex/{clarifications,voice,transcript,managers,auth}.ts`, `convex/convex.config.ts` | Phone rings and the transcript lands without refresh; "<Name> joined" on the laptop | `convex/test/channel.e2e.test.ts` (5) | Convex never touches money; the UI is hosted on Azure, not Convex. Presence is a hand-written `managers` table, not the presence component. |
+| Cartesia: Best Use of Cartesia | Speaks the question (Sonic `sonic-3.6`), transcribes the answer (Ink `ink-2`); the recording becomes evidence | `convex/voice.ts` | Phone plays the question; the judge's answer is transcribed; Evidence plays the judge's voice back | `apps/landing/tests/phone.e2e.mjs` (7 scenarios, real Cartesia) | STT is only exercised from the phone page. |
+| Microsoft: Built for the Real World | Summo runs on Azure Container Apps; web app on Azure Static Web Apps | `apps/agent/Dockerfile`, `infra/azure/containerapp.md`, `.github/workflows/{build-agent-image,deploy-web}.yml` | Live URL above; `pnpm demo --remote` against the Azure agent | `docs/proof.md` §4 (remote runs) | Customer understanding rests on one public SEC filing, no customer interview. |
+| Microsoft: Azure AI Document Intelligence | OCR of printed and photographed forecast sheets; reconciler records sheet vs cost-export disagreement | `apps/agent/src/azure-di.ts`, `agents/document-reader.ts`, `agents/reconciler.ts` | Phone "Photograph the forecast sheet"; the `azure-di` extraction row and disagreement line | `apps/agent/test/azure-di.test.ts`, `azure-di-photo.test.ts`; `docs/benchmark.md` §B | Claude is called directly, not through Azure AI Foundry. |
+| Atlassian: Best Agent (Track 2, audit mirror) | Every ask, proposal, approval, return and post lands in Jira `SUMMO` with its reasoning | `apps/jira-forge/src/index.js`, `apps/jira-bridge/src/{main,event}.ts` | Jira chips on Inbox rows, Jira tab per project, Connections and Agents pages; the SUMMO board | `apps/jira-bridge/test/event.test.ts` (3) | Jira never posts to the ledger. No replay on bridge restart; rejected attempts are not mirrored. |
+| MLH: Best Use of Gemini API | Independent second reader and proposal reviewer | `apps/agent/src/gemini.ts`, `agents/reader-gemini.ts`, `agents/reviewer.ts` | `gemini` extraction row beside `claude`; "Reviewed by Gemini" on the proposal; readers disagree → Summo asks | `docs/eval-promptfoo.md` (Gemini 36/36); `apps/agent/test/gemini.test.ts` | Free-tier key: timeouts and 429s happen; Summo continues on Claude alone by design. Text only, no multimodal call. |
+| MLH: Commit Fellowship Prize Category | Working prototype on a real accounting problem | whole repo | Live URL above | `docs/proof.md` | Requires opting in on Devpost and the supplemental form. |
+
+## Proof it works
+
+- [docs/proof.md](docs/proof.md): what is real vs simulated, 16 planted errors with the answer key and the test that pins each, live run log.
+- [docs/eval-promptfoo.md](docs/eval-promptfoo.md): independent Promptfoo harness, 79/79 (Claude 36/36, Gemini 36/36, engine 7/7).
+- [docs/benchmark.md](docs/benchmark.md): `pnpm bench` through the live multi-agent loop: reading 20/20, planted errors 11/11, 0 chain violations in 22 proposals, confirm → compute p50 0.77 s.
+- Tests: engine 8, ledger 11, agent 120 (plus 7 skipped without keys), jira-bridge 3, Convex 5, phone e2e 7 scenarios.
 
 ## Run it
 
-Requires Node 20, pnpm 10, and the `spacetime` CLI (2.13).
+Prerequisites: Node 20, pnpm 10, the `spacetime` CLI (2.13), a Convex account. Copy `.env.example` to `.env`.
+
+`.env` keys: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL` (optional), `CARTESIA_API_KEY`, `CARTESIA_VOICE_ID`, `AZURE_DI_ENDPOINT`, `AZURE_DI_KEY`, `CONVEX_URL`, `STDB_URI`, `STDB_DB`, `STDB_AGENT_TOKEN` (container only), `JIRA_WEBTRIGGER_URL`, `SUMMO_WEBHOOK_SECRET`. Web (`.env.local`): `VITE_STDB_URI`, `VITE_STDB_DB`, `VITE_CONVEX_URL`, `VITE_JIRA_SITE` (optional). Cartesia runs inside Convex, so also `npx convex env set CARTESIA_API_KEY <key>`. Without `ANTHROPIC_API_KEY` the agent runs in mock mode.
+
+Local stack, in order (each long-running command in its own terminal):
 
 ```sh
 pnpm install
-
-spacetime start                 # leave running (or: pnpm stdb:start)
-pnpm stdb:publish               # publishes db "keel" to local, wipes data
-pnpm stdb:gen                   # optional: regenerate packages/bindings (committed)
-
-npx convex login                # first time only, for a cloud deployment
-npx convex dev                  # leave running; writes CONVEX_URL to .env.local
+spacetime start                              # or: pnpm stdb:start
+pnpm stdb:publish                            # publishes keel-local, wipes data
+npx convex dev                               # writes CONVEX_URL to .env.local
+pnpm agent                                   # Summo
+pnpm --filter @keel/jira-bridge start        # optional Jira mirror
+pnpm --filter @keel/web dev                  # web app
 ```
-
-Keys: `cp .env.example .env` and fill in
-
-- `ANTHROPIC_API_KEY` (Claude; without it the agent runs in `MOCK: anthropic` mode)
-- `CARTESIA_API_KEY` (and optionally `CARTESIA_VOICE_ID`)
-- `GEMINI_API_KEY` (second reader)
-- `STDB_URI` / `STDB_DB` default to `ws://127.0.0.1:3000` / `keel`
-
-Cartesia runs inside Convex, so the Convex deployment needs its own copy:
-
-```sh
-npx convex env set CARTESIA_API_KEY <key>
-```
-
-Then:
-
-```sh
-pnpm --filter @keel/agent start     # agent loop (or: pnpm agent)
-
-pnpm demo                           # full 9-beat demo with asserts; exits 1 on MISMATCH
-pnpm demo --require-real            # same, but fails if Claude or Cartesia is mocked
-pnpm demo --reset-only              # reset to S0 and assert it (~0.5 s); use between judges
-
-pnpm --filter @keel/harness dev     # dev harness (Vite)
-```
-
-`pnpm demo` runs the agent loop in-process, so do not run it while `pnpm --filter @keel/agent start` is also running.
 
 Tests:
 
 ```sh
-pnpm test                               # all workspace packages
-pnpm --filter @keel/ledger-client test  # ledger controls; needs spacetime running + published, skips otherwise
-pnpm test:convex                        # Convex channel; needs npx convex dev running, skips otherwise
+pnpm test                                    # all workspace packages
+pnpm --filter @keel/ledger-client test       # needs spacetime running + published; resets the db
+pnpm test:convex                             # needs npx convex dev
+pnpm --filter @keel/web test:phone           # needs ledger, Convex and a running agent
+pnpm eval                                    # Promptfoo, real Claude + Gemini
+pnpm bench                                   # scratch db keel-bench only
 ```
 
-The ledger and Convex e2e tests reset the shared `keel` database. Do not run them during a live demo.
-
-## Web app
-
-`apps/landing` is `@keel/web`, a Vite multi-page app:
-
-- `/` landing page with the QR handoff to the phone
-- `/workbench` sidebar app, client-routed: Inbox, Projects, Project, Close, Evidence, Audit trail, Policies, Connections, Team
-- `/phone` judge page
-
-Run locally (`.env.local` at the repo root):
+Demo script (asserts every figure in nine beats, exits 1 on mismatch):
 
 ```sh
-VITE_STDB_URI=ws://127.0.0.1:3000
-VITE_CONVEX_URL=https://hushed-shrimp-24.convex.cloud
+pnpm demo                  # runs the agent in-process; do not run alongside pnpm agent
+pnpm demo --require-real   # fails if Claude or Cartesia is mocked
+pnpm demo --remote         # a deployed agent is connected; skips the in-process loop
+pnpm demo --reset-only     # reset to S0 and assert it; use between judges
 ```
 
-```sh
-pnpm --filter @keel/web dev        # dev server
-pnpm --filter @keel/web build      # outputs apps/landing/dist
-pnpm --filter @keel/web test:phone # phone page e2e (Playwright)
-```
-
-Deploy: push to branch `summo` -> GitHub Actions (`.github/workflows/deploy-web.yml`) builds with Maincloud and Convex prod URLs -> Azure Static Web App https://kind-river-0eb9d010f.5.azurestaticapps.net. SPA routes (`/workbench/*`, `/phone`) are rewritten by `apps/landing/public/staticwebapp.config.json`; dev and preview do the same in `vite.config.ts`.
-
-## Stage runbook
-
-Deployments: Summo agent on Azure Container Apps `keel-agent` (resource group `keel-rg`, image from GitHub Actions → `keelacr06512.azurecr.io/keel-agent`); laptop `pnpm agent` is the fallback (never both at once). Convex dev `https://lovely-squirrel-569.convex.cloud` (rehearsal), Convex prod `https://hushed-shrimp-24.convex.cloud` (demo). SpacetimeDB Maincloud: database `keel` at `wss://maincloud.spacetimedb.com` (dashboard https://spacetimedb.com/keel); local `ws://127.0.0.1:3000` is the fallback. Role tokens differ per server: keep `demo/identities.local.json` and `demo/identities.maincloud.json` and copy the right one to `demo/identities.json`.
-
-Start order:
-
-1. `spacetime start`
-2. `pnpm stdb:publish`
-3. `npx convex dev`
-4. `until pnpm agent; do sleep 1; done` (restart loop)
-5. UI
-
-Reset between judges: `pnpm demo --reset-only`.
-
-If a beat stalls, restart the agent; recovery is restart-safe.
-
-Known gaps (two crash windows): a crash between `record_calculation` and `propose`, and between Convex `ask` and `open_clarification`.
+The ledger, Convex and phone e2e tests reset the shared database. Do not run them during a live demo.
 
 **Local database name:** the laptop fallback ledger is `keel-local` (`.env` STDB_DB, `.env.local` VITE_STDB_DB); Maincloud is `keel`. The old local `keel` is orphaned by an identity change and should not be used.
 
@@ -140,74 +124,33 @@ Known gaps (two crash windows): a crash between `record_calculation` and `propos
 1. Check services: Azure agent healthy (`az containerapp revision list -n keel-agent -g keel-rg`), Maincloud answers (`spacetime sql keel "select count(*) from proposal" --server maincloud`), Convex prod reachable.
 2. Laptop opens the Azure URL, not localhost, so the QR encodes the public phone URL.
 3. Phone opens `/phone`.
-4. Start the Jira bridge on the laptop with the Maincloud env (`STDB_URI`/`STDB_DB` pointing at Maincloud, plus `JIRA_WEBTRIGGER_URL` and `SUMMO_WEBHOOK_SECRET`): `pnpm --filter @keel/jira-bridge start`.
-5. Reset between judges: `cp demo/identities.maincloud.json demo/identities.json`, then `pnpm demo --reset-only`.
-6. Fallbacks, in order: Convex dev URL (`https://lovely-squirrel-569.convex.cloud`); laptop agent `pnpm agent` (only after stopping the Azure one); local SpacetimeDB; the video.
+4. Start the Jira bridge on the laptop with `STDB_URI`/`STDB_DB` pointing at Maincloud plus `JIRA_WEBTRIGGER_URL` and `SUMMO_WEBHOOK_SECRET`: `pnpm --filter @keel/jira-bridge start`.
+5. Identities: role tokens differ per server. Keep `demo/identities.local.json` and `demo/identities.maincloud.json`; `cp demo/identities.maincloud.json demo/identities.json`.
+6. Reset between judges: `pnpm demo --reset-only`.
+7. Fallbacks, in order: Convex dev (`https://lovely-squirrel-569.convex.cloud`); laptop agent `until pnpm agent; do sleep 1; done` (only after stopping the Azure one, never both); local SpacetimeDB; the video.
 
-## Controls that are tested
+If a beat stalls, restart the agent; recovery is restart-safe except two crash windows: between `record_calculation` and `propose`, and between Convex `ask` and `open_clarification`.
 
-| # | Control | Pinned by |
-|---|---|---|
-| 1 | Answer key reproduced by code | `packages/engine/test/engine.test.ts`: `before`, `additional`, `new total`, `month 3` |
-| 2 | Ambiguous note -> work item `awaiting_clarification`, no proposal until confirmed | `packages/ledger-client/test/ledger.e2e.test.ts`: `control 2: ambiguous note -> awaiting_clarification, no new proposal`; `apps/agent/test/loop.test.ts`: `(a) ambiguous note -> openClarification + convex ask, no propose`, `(f) unflagged "another $50,000", no convention -> ...` |
-| 3 | Same `postingRef` twice -> second `post` rejected | `ledger.e2e.test.ts`: `control 3: same postingRef twice -> duplicate_posting` |
-| 4 | `post` from accountant identity -> rejected | `ledger.e2e.test.ts`: `control 4: post as accountant -> role` |
-| 5 | New source while a proposal is open -> proposal `stale`, `decide` rejected | `ledger.e2e.test.ts`: `control 5: new source after propose -> stale; decide rejects stale` |
-| 6 | "new total" answer -> 66.67% / +166,667 | `engine.test.ts`: `new total` |
-| 7 | Month 3 with saved convention -> no clarification, convention cited | `loop.test.ts`: `(c) saved convention -> month-3 note proposes 3810 bp with no question`, `(g) unflagged "another $50,000" with convention -> ...`; `scripts/demo.ts` beat 9 (Convex `byWorkItem` count unchanged, explanation contains `another_means`) |
+## Repo map
 
-Also tested: `propose is idempotent per calculationId`, `closePeriod then post -> period_closed`, `addSource: invoice proposal (calculationId 0) survives, revenue proposal goes stale` (ledger e2e); `(d) same source delivered twice -> one propose`, `explain throws -> no calculation, no propose` (agent loop); `entries balance` (engine).
+| Path | What |
+|---|---|
+| `apps/agent` | `@keel/agent`: Summo and the other agents, Claude/Gemini/Azure DI clients, Dockerfile |
+| `apps/landing` | `@keel/web`: Vite multi-page app (`/`, `/workbench`, `/phone`), phone e2e |
+| `apps/jira-bridge` | `@keel/jira-bridge`: ledger subscriber that POSTs work-item changes to Forge |
+| `apps/jira-forge` | Atlassian Forge app (one web trigger) |
+| `apps/harness` | Unstyled dev harness, one button per demo beat |
+| `packages/engine` | `@keel/engine`: cost-to-cost arithmetic, integer cents |
+| `packages/ledger-client` | `@keel/ledger-client`: SpacetimeDB connection by role, ledger e2e tests |
+| `packages/bindings` | Generated SpacetimeDB TypeScript bindings (`pnpm stdb:gen`) |
+| `spacetimedb` | Ledger module: schema, reducers, seed |
+| `convex` | Clarification channel, Cartesia actions, auth, e2e test |
+| `eval` | Promptfoo config, provider and grader |
+| `scripts` | `demo.ts`, `bench.ts` |
+| `demo` | Seed data and demo identities |
+| `infra/azure` | Container Apps runbook |
+| `docs` | Proof, eval, benchmark, demo flow, frontend guide, Devpost text, sponsors |
 
-Full proof (planted errors with answer key, test set, live runs): [docs/proof.md](docs/proof.md).
+## Team and naming
 
-## Demo answer key
-
-Must match to the dollar.
-
-| Measure | Before | After ("additional") |
-|---|---|---|
-| Contract value | $1,000,000 | $1,000,000 |
-| Eligible costs incurred | $400,000 | $400,000 |
-| Estimated remaining costs | $400,000 | $600,000 |
-| Estimated total costs | $800,000 | $1,000,000 |
-| Progress (incurred ÷ total) | 50% | 40% |
-| Cumulative revenue | $500,000 | $400,000 |
-| Billed to date | $300,000 | $300,000 |
-| Contract asset | $200,000 | $100,000 |
-| Expected margin | $200,000 (20%) | $0 (0%) -> loss warning |
-
-Proposed adjustment: Dr Revenue 100,000 / Cr Contract asset 100,000. "New total" branch: total 600,000, 66.7%, revenue 666,667, +166,667.
-
-Month 3 ("another $50,000 for conveyor rework", convention `additional`): remaining 650,000, total 1,050,000, progress 38.10%, cumulative revenue 380,952, adjustment -19,048, margin -50,000 -> controller escalation.
-
-Commissioning log with acceptance -> invoice proposal Dr Accounts receivable 200,000 / Cr Contract asset 200,000.
-
-## Demo ordering notes for the UI
-
-- Approve and post rev 2 before adding any new source (commissioning log or month-3 note). `add_source` marks the open revenue proposal `stale`, and `decide` rejects a stale proposal. Invoice proposals (`calculationId` 0) are not staled by a new source.
-- Order: confirm -> rev 2 appears (about 0.5-1 s, the bridge polls every 1 s) -> approve -> post -> commissioning log -> invoice proposal -> month-3 note -> rev 3.
-- Approve is two reducer calls back to back: `decide(approve)` then `post`. `decide(approve)` saves the pending convention.
-- Rev 2 is a loss warning (margin $0 counts as a loss; explanation starts `ESCALATION:`). Narrate it as expected at 1:30.
-- Each answered clarification is one Convex row. Month 3 creates none, so `clarifications.active` returns null after confirm and the phone page should go idle.
-- The Convex `confirm` answer is normalized to `additional` / `new_total`; free text such as "it's additional" works. Text matching neither leaves the clarification open.
-- Never hardcode ids: auto-increment sequences do not restart on `reset_demo`. Find the project by name, the work item by project, proposals by work item and revision.
-- Phone audio: 16 kHz mono PCM16 WAV (44-byte header) uploaded via `generateUploadUrl`, then `submitAnswerAudio`. No webm/opus. Fallback: browser `SpeechRecognition` -> `confirm`.
-- Stage reset: `pnpm demo --reset-only`.
-
-## What is seeded vs live
-
-Seeded (S0, `demo/seed.json`, restored by `reset_demo`): the Oakland deployment project ($1M contract), policy v3, contract, cost export, forecast v1, invoice, six historical close notes, the approved convention `remaining_estimate_means = future_costs_only` (examples from the six closes), the pending `acceptance` milestone ($200,000), and work item with proposal rev 1 already posted as `OAK-2026-09-R1`. Demo identities: `demo/identities.json` (accountant, deployment manager, controller, agent).
-
-Live during the demo: the note, Claude's extraction, the clarification question and its audio, the manager's answer and transcript, the calculation, the explanation, rev 2 and rev 3 proposals, the approval and posting, the `another_means = additional` convention, the milestone invoice proposal, and every `history_event`.
-
-Verified so far only with Claude and Cartesia mocked (`pnpm demo` passes twice from reset). Run `pnpm demo --require-real` once keys are set.
-
-## Production gaps
-
-- Accounting scope: one performance obligation, fixed price, cost-to-cost only. General ASC 606 is out of scope.
-- No ERP connectors; sources are text rows.
-- Auth is four fixed demo tokens and a role column. All SpacetimeDB tables are `public: true`. `demo/identities.json` holds bearer tokens.
-- `seed` / `reset_demo` have no role check.
-- `source.hash` is FNV-1a 32-bit: change detection, not tamper evidence.
-- Escalation is a calculation `lossWarning` plus an `ESCALATION:` explanation prefix; there is no separate escalation record.
-- Local Convex (`127.0.0.1:3210`) is not reachable from a phone; the demo needs a cloud Convex deployment.
+RoboAudit is the platform. Summo is the agent. `keel` is the code codename: `@keel/*` packages, the SpacetimeDB database `keel`, and the `keel-*` Azure resources.

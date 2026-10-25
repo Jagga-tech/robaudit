@@ -56,14 +56,14 @@ Public evidence. Symbotic, a warehouse-automation company, disclosed a material 
 
 ## Tracks
 
-- Hyphenate — The Hyphenated Enterprise: Autonomous Systems for Finance
-- Spacetime — Best Use of Spacetime
-- Convex — Best use of Convex
-- Cartesia — Best Use of Cartesia
-- Microsoft — Built for the Real World
-- Atlassian — Best Agent. Submitting for: Best Agent. The Jira mirror is visible in the workbench: Inbox chips, a Jira tab per project, Connections and Agents.
-- MLH — Commit Fellowship Prize Category (opt in on Devpost and complete the supplemental form)
-- MLH — Best Use of Gemini API
+- Hyphenate — The Hyphenated Enterprise: Autonomous Systems for Finance. Verify: send a note from `/phone`, answer the call, watch the figures move on the `/workbench` project page; the agent chain is on `/workbench/agents`; the planted errors are in `docs/proof.md`.
+- Spacetime — Best Use of Spacetime. Verify: the controls are reducers in `spacetimedb/src/index.ts` (`decide`, `post`, `add_source`); the workbench "Break it" buttons show each refusal (wrong role, stale, duplicate posting).
+- Convex — Best use of Convex. Verify: `convex/` (live queries, mutations, Cartesia actions, file storage, `action-retrier` component in `convex/convex.config.ts`, Anonymous auth); the phone rings and the transcript streams without a refresh.
+- Cartesia — Best Use of Cartesia. Verify: `convex/voice.ts` (Sonic speaks the question, Ink transcribes the answer); on Evidence, click the figure and the judge's own answer plays.
+- Microsoft — Built for the Real World. Verify: Summo runs on Azure Container Apps (`infra/azure/containerapp.md`); photograph a forecast sheet on `/phone` and the Azure Document Intelligence row appears (`apps/agent/src/azure-di.ts`).
+- Atlassian — Best Agent. Submitting for: Best Agent (Track 2, audit mirror): every ask, proposal, return and post lands in Jira project SUMMO with its reasoning; Jira never posts to the ledger. Verify: `apps/jira-forge` + `apps/jira-bridge`; in the workbench, Inbox chips, a Jira tab per project, Connections and Agents.
+- MLH — Commit Fellowship Prize Category. Verify: the live prototype and `docs/proof.md` (opt in on Devpost and submit the supplemental form).
+- MLH — Best Use of Gemini API. Verify: `apps/agent/src/agents/reader-gemini.ts` and `reviewer.ts`; the `gemini` extraction row beside `claude` and "Reviewed by Gemini" on the proposal.
 
 ## Built with
 

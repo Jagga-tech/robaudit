@@ -12,13 +12,13 @@ const ROSTER: Agent[] = [
   { name: 'reader-claude', seat: 'Reader A · junior accountant reading the mail', tools: 'Claude Opus 5.5', may: ['record_extraction'] },
   { name: 'reader-gemini', seat: 'Reader B · junior accountant reading the mail', tools: 'Gemini 3.5 Flash Lite', may: ['record_extraction'] },
   { name: 'document-reader', seat: 'Scanning clerk', tools: 'Azure Document Intelligence', may: ['record_extraction'] },
-  { name: 'reconciler', seat: 'Reconciliation', tools: 'Claude Opus 5.5', may: ['record_extraction (disagreement record)'] },
+  { name: 'reconciler', seat: 'Reconciliation', tools: 'deterministic rule: cost export is the system of record', may: ['record_extraction (disagreement record)'] },
   { name: 'field-liaison', seat: 'The person who chases the site', tools: 'Convex + Cartesia', may: ['open_clarification', 'resolve_clarification'] },
   { name: 'engine', seat: 'Deterministic calculator', tools: '@keel/engine', may: [] },
   { name: 'explainer', seat: 'Writes the memo', tools: 'Claude Opus 5.5', may: [] },
   { name: 'reviewer', seat: 'Second pair of eyes before the controller', tools: 'Gemini 3.5 Flash Lite', may: [] },
   { name: 'jira-mirror', seat: 'The clerk who keeps the tracker current', tools: 'Atlassian Forge web trigger', may: [] },
-  { name: 'learner', seat: 'Policy analyst', tools: 'Claude Opus 5.5', may: ['save pending conventions'] },
+  { name: 'learner', seat: 'Policy analyst (onboarding, not in the live loop)', tools: 'Claude Opus 5.5', may: ['proposes conventions; writes nothing until the controller approves'] },
 ];
 const NOTHING: Record<string, string> = { engine: 'nothing · returns numbers', explainer: 'nothing · text only', reviewer: 'nothing · writes only its log', 'jira-mirror': 'log only' };
 // review summaries start with "consistent:" (green) or "flag:" (amber)
