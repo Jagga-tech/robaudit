@@ -86,3 +86,5 @@ on this subscription. The working path:
    `az containerapp update -n keel-agent -g keel-rg --image keelacr06512.azurecr.io/keel-agent:<sha>`.
 5. Logs: `az containerapp logs show -n keel-agent -g keel-rg --follow`.
 6. Stop the cloud agent (to run the laptop one instead): `az containerapp update -n keel-agent -g keel-rg --min-replicas 0 --max-replicas 0`; re-enable with 1/1. Never run both at once against the same ledger.
+7. The app is in **single revision mode** (`az containerapp revision set-mode --mode single`). Keep it that way: in multiple-revision mode an image update leaves the old revision active and two Summo instances run against one ledger (observed 2026-10-25; per-source idempotency held, but do not rely on it).
+8. Secret changes need a restart: `az containerapp revision restart -n keel-agent -g keel-rg --revision $(az containerapp revision list -n keel-agent -g keel-rg -o tsv --query '[?properties.active].name' | head -1)`.
