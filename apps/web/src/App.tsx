@@ -1,9 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { PhoneDrawer } from './components/PhoneDrawer';
 import { AuditReplay } from './pages/AuditReplay';
 import { CommandCenter } from './pages/CommandCenter';
 import { Investigation } from './pages/Investigation';
 import { Approvals, Ledger, ManagerPage, Policies, Project } from './pages/secondary';
+
+// Marketing page, loaded on demand so the app bundle is unchanged.
+const Landing = lazy(() => import('./marketing/Landing'));
 
 export function App() {
   return (
@@ -17,6 +21,7 @@ export function App() {
         <Route path="/policies" element={<Policies />} />
         <Route path="/projects" element={<Project />} />
         <Route path="/m" element={<ManagerPage />} />
+        <Route path="/intro" element={<Suspense fallback={<div style={{ minHeight: '100vh', background: '#060A14' }} />}><Landing /></Suspense>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <PhoneDrawer />
