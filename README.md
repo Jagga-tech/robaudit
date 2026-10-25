@@ -90,7 +90,7 @@ The ledger and Convex e2e tests reset the shared `keel` database. Do not run the
 
 ## Stage runbook
 
-Deployments: Convex dev `https://lovely-squirrel-569.convex.cloud` (rehearsal), Convex prod `https://hushed-shrimp-24.convex.cloud` (demo). SpacetimeDB Maincloud: database `keel` at `wss://maincloud.spacetimedb.com` (dashboard https://spacetimedb.com/keel); local `ws://127.0.0.1:3000` is the fallback. Role tokens differ per server: keep `demo/identities.local.json` and `demo/identities.maincloud.json` and copy the right one to `demo/identities.json`.
+Deployments: Summo agent on Azure Container Apps `keel-agent` (resource group `keel-rg`, image from GitHub Actions → `keelacr06512.azurecr.io/keel-agent`); laptop `pnpm agent` is the fallback (never both at once). Convex dev `https://lovely-squirrel-569.convex.cloud` (rehearsal), Convex prod `https://hushed-shrimp-24.convex.cloud` (demo). SpacetimeDB Maincloud: database `keel` at `wss://maincloud.spacetimedb.com` (dashboard https://spacetimedb.com/keel); local `ws://127.0.0.1:3000` is the fallback. Role tokens differ per server: keep `demo/identities.local.json` and `demo/identities.maincloud.json` and copy the right one to `demo/identities.json`.
 
 Start order:
 

@@ -68,3 +68,21 @@ STDB_URI=... STDB_DB=... CONVEX_URL=... pnpm demo --remote
 ```bash
 until pnpm agent; do sleep 1; done
 ```
+
+## What actually worked on 2026-10-24 (subscription blocks ACR Tasks)
+
+`az acr build` and `az containerapp up --source .` both fail with `TasksOperationsNotAllowed`
+on this subscription. The working path:
+
+1. Registry `keelacr06512` (Basic, admin enabled) in `keel-rg`, environment `keel-env` (eastus).
+2. GitHub Actions workflow `.github/workflows/build-agent-image.yml` builds
+   `apps/agent/Dockerfile` and pushes `keelacr06512.azurecr.io/keel-agent:{latest,sha}`.
+   Secrets `ACR_LOGIN_SERVER`, `ACR_USERNAME`, `ACR_PASSWORD` on the repo. Trigger:
+   `gh workflow run "Build Summo agent image" --ref summo`, or any push touching apps/agent.
+3. `az containerapp create --name keel-agent ... --image keelacr06512.azurecr.io/keel-agent:latest`
+   with secrets anthropic-key, azure-di-endpoint, azure-di-key, stdb-agent-token and env
+   STDB_URI=wss://maincloud.spacetimedb.com STDB_DB=keel CONVEX_URL=https://hushed-shrimp-24.convex.cloud.
+4. Roll a new image: rerun the workflow, then
+   `az containerapp update -n keel-agent -g keel-rg --image keelacr06512.azurecr.io/keel-agent:<sha>`.
+5. Logs: `az containerapp logs show -n keel-agent -g keel-rg --follow`.
+6. Stop the cloud agent (to run the laptop one instead): `az containerapp update -n keel-agent -g keel-rg --min-replicas 0 --max-replicas 0`; re-enable with 1/1. Never run both at once against the same ledger.
