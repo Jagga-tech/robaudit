@@ -1,7 +1,7 @@
 // One project (/workbench/projects/:id[/tab]): the old single-page workbench, reorganised into tabs.
 // Overview = figures + margin + the proposal panel + activity; Sources; Calculations; Proposals (+ "break it").
 import type { Page } from '../lib/app';
-import { connect, call, codeOf, ids, type DbConnection } from '../lib/ledger';
+import { connect, call, subscribeExtra, codeOf, ids, type DbConnection } from '../lib/ledger';
 import { esc, clip, all, byId, last, sleep, reduceMotion, usd, dollars, pct, card, tag, sourceLabel, KIND, READER, ACCOUNT, project, proposalStatus, statusTone, live, head, setHtml, disagreement, disagreeLine, DISAGREE, decisionOf, decisionText } from '../lib/ui';
 
 declare const qrcode: any; // qrcode-generator 1.4.4, classic script from cdnjs (workbench.html)
@@ -181,6 +181,12 @@ const page: Page = {
         const label = s.kind === 'note' ? `Site update · ${clip(s.text, 24)}` : sourceLabel(s);
         return `<button class="chip" type="button" data-src="${s.id}"${audio}>${audio ? '▶ ' : ''}${esc(label)}${disagreement(d, s.id) ? ' ' + tag(DISAGREE, 'amber') : ''}</button>`;
       });
+      let rv = '<p class="small rv">Not reviewed</p>'; // agent_event may be absent (older ledger): guard
+      try {
+        const evs = all(d.agentEvent.iter()).filter((e) => e.kind === 'review');
+        const ev = last(evs.filter((e) => e.refTable === 'proposal' && e.refId === p.id).sort(byId)) ?? last(evs.filter((e) => e.refTable === 'calculation' && e.refId === p.calculationId).sort(byId));
+        if (ev) { const m = /^(consistent|flag):\s*/.exec(ev.summary); rv = `<p class="small rv"><i class="rvdot ${m?.[1] === 'flag' ? 'amb' : 'ok'}"></i>Reviewed by Gemini: ${esc(m ? ev.summary.slice(m[0].length) : ev.summary)}</p>`; }
+      } catch {}
       const st = proposalStatus(p, x.postingOf);
       const t = st === 'open' ? tag('awaiting Dana', 'amber') : tag(st, statusTone(st));
       const ui = tickState(p.id);
@@ -197,7 +203,7 @@ const page: Page = {
       return `<article class="proposal${decidable && !pg && p.status === 'open' ? ' open' : ''}">` +
         `<h3>Proposal rev ${p.revision} ${t}</h3>${no ? `<p class="small amber">${esc(decisionText({ by: no.by, reason: no.reason, held: no.decision === 'hold' }))}</p>` : ''}${x.items.length > 1 && wi ? `<p class="small">${esc(wi.title)}</p>` : ''}` +
         `<div class="entry">${lines.map((l) => { const isDr = BigInt(l.debit) > 0n; return `<div class="${isDr ? 'dr' : 'cr'}"><span>${isDr ? 'Dr' : 'Cr'}</span><span>${esc(ACCOUNT[l.account] ?? l.account)}</span><span>${usd(isDr ? BigInt(l.debit) : BigInt(l.credit))}</span></div>`; }).join('')}</div>` +
-        `<div class="expl">${expl.map((y) => `<p class="${y.startsWith('ESCALATION:') ? 'esc' : ''}">${esc(y)}</p>`).join('')}</div>` +
+        `<div class="expl">${expl.map((y) => `<p class="${y.startsWith('ESCALATION:') ? 'esc' : ''}">${esc(y)}</p>`).join('')}</div>` + rv +
         (evidence.length ? `<p class="small">Evidence</p><div class="evid">${evidence.join('')}</div>` : '') +
         (saved ? `<p class="saved">Convention saved: ${esc(saved.key.replace(/_/g, ' '))} ${esc(saved.value)}</p>`
           : pending ? `<p class="small">Approving saves: ${esc(`${pending.template}.${pending.key} = ${pending.value}`)}</p>` : '') +
@@ -374,9 +380,10 @@ const page: Page = {
       const i = body.querySelector<HTMLInputElement>('form.why input'); // a re-render must not eat what Dana typed
       if (i && asking && i.value !== asking.draft) { i.value = asking.draft; if (had) i.focus(); }
     };
+    const extra = subscribeExtra(ctx.conn, ['agent_event'], () => {}, () => {}); // review notes; a ledger without the table just shows "Not reviewed"
     const stop = live(ctx, draw);
     const stopJudge = ctx.convex.onUpdate(ctx.api.managers.current, {}, () => draw()); // join card + "asking <Name>"
-    return () => { stop(); stopJudge(); root.removeEventListener('click', onClick); root.removeEventListener('submit', onSubmit); root.removeEventListener('input', onInput); };
+    return () => { stop(); stopJudge(); try { extra.unsubscribe(); } catch {} root.removeEventListener('click', onClick); root.removeEventListener('submit', onSubmit); root.removeEventListener('input', onInput); };
   },
 };
 export default page;

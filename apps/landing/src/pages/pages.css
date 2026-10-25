@@ -107,3 +107,10 @@
 .pg .go:hover{color:var(--pg-strong)}
 .pg tr.agentrow td{color:var(--pg-muted);font-size:12px;padding:5px 12px 5px 0;background:#FAFBFA}
 @media (max-width:640px){ .pg .chain .ev{grid-template-columns:70px minmax(0,1fr);row-gap:0} .pg .chain .sum{grid-column:1/-1;white-space:normal} }
+
+.pg .split{margin:0 0 10px;font-size:12.5px}
+.pg .sum b{font-weight:600;margin-right:4px}
+.rv{display:flex;align-items:center;gap:6px}
+.rvdot{width:8px;height:8px;border-radius:50%;flex:none;background:#2E8B57}
+.rvdot.amb{background:#C77A00}
+.pg .sum b.ok{color:#2E8B57}

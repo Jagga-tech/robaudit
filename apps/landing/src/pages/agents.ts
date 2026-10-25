@@ -15,9 +15,12 @@ const ROSTER: Agent[] = [
   { name: 'field-liaison', seat: 'The person who chases the site', tools: 'Convex + Cartesia', may: ['open_clarification', 'resolve_clarification'] },
   { name: 'engine', seat: 'Deterministic calculator', tools: '@keel/engine', may: [] },
   { name: 'explainer', seat: 'Writes the memo', tools: 'Claude Opus 5.5', may: [] },
+  { name: 'reviewer', seat: 'Second pair of eyes before the controller', tools: 'Gemini 3.5 Flash Lite', may: [] },
   { name: 'learner', seat: 'Policy analyst', tools: 'Claude Opus 5.5', may: ['save pending conventions'] },
 ];
-const NOTHING: Record<string, string> = { engine: 'nothing · returns numbers', explainer: 'nothing · text only' };
+const NOTHING: Record<string, string> = { engine: 'nothing · returns numbers', explainer: 'nothing · text only', reviewer: 'nothing · writes only its log' };
+// review summaries start with "consistent:" (green) or "flag:" (amber)
+const sumHtml = (e: { kind: string; summary: string }) => { const m = e.kind === 'review' && /^(consistent|flag):/.exec(e.summary); return m ? `<b class="${m[1] === 'flag' ? 'amb' : 'ok'}">${m[1]}:</b>${esc(e.summary.slice(m[0].length))}` : esc(e.summary); };
 const TONE: Record<string, string> = { disagree: 'amb', ask: 'amb', skip: 'amb', error: 'err' };
 
 const STRIP = `<div class="arch" aria-label="Architecture: sources flow through readers, reconciler, Summo, engine, explainer, proposal and the posting guard to the ledger">
@@ -31,7 +34,7 @@ const STRIP = `<div class="arch" aria-label="Architecture: sources flow through 
   <div class="n guard">Posting guard</div><i></i>
   <div class="n">Ledger</div>
 </div>
-<p class="arch-line">One coordinator, eight specialists, one human. No agent can post.</p>`;
+<p class="arch-line">One coordinator, nine specialists, one human. No agent can post.</p>`;
 
 const page: Page = {
   route: /^\/workbench\/agents$/,
@@ -66,7 +69,7 @@ const page: Page = {
         return `<tr><td><span class="dot${live ? ' live' : ''}" title="${live ? 'active in the last minute' : 'quiet'}"></span></td>
           <td><b class="${a.name === 'summo' ? 'summo' : ''}">${a.name}</b><div class="muted">${esc(a.seat)}</div></td>
           <td>${esc(a.tools)}</td><td class="mays">${may}</td>
-          <td>${e ? `<span class="mono ${TONE[e.kind] ?? ''}">${esc(e.kind)}</span> ${esc(e.summary)} <span class="muted">· ${ago(e.at.toDate())}</span>` : '<span class="muted">—</span>'}</td></tr>`;
+          <td>${e ? `<span class="mono ${TONE[e.kind] ?? ''}">${esc(e.kind)}</span> ${sumHtml(e)} <span class="muted">· ${ago(e.at.toDate())}</span>` : '<span class="muted">—</span>'}</td></tr>`;
       };
       const projects = [...d.project.iter()];
       const shown = evs.filter((e) => (!fProject || String(e.projectId) === fProject) && (!fAgent || e.agent === fAgent));
@@ -77,13 +80,14 @@ const page: Page = {
           <span class="mono muted">${t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
           <span class="${e.agent === 'summo' ? 'summo' : ''}">${esc(e.agent)}</span>
           <span class="mono ${TONE[e.kind] ?? ''}">${esc(e.kind)}</span>
-          <span class="sum">${esc(e.summary)}</span>${link(e)}</li>`;
+          <span class="sum">${sumHtml(e)}</span>${link(e)}</li>`;
       }).join('');
       const opt = (v: string, label: string, cur: string) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label)}</option>`;
 
       root.innerHTML = `<div class="pg">
         ${STRIP}
         <h2>Roster</h2>
+        <p class="muted split">Claude: reader, explainer, learner · Gemini: reader, reviewer · code: Summo, reconciler, engine, field liaison, posting guard · Azure: document reader</p>
         <div class="tbl-wrap"><table class="roster">
           <thead><tr><th></th><th>Agent</th><th>Tools</th><th>May</th><th>Last event</th></tr></thead>
           <tbody>${ROSTER.map(row).join('')}
