@@ -8,7 +8,7 @@ One page of where everything lives. Open items are in `docs/track-todo.md`.
 |---|---|
 | Web app (landing, workbench, phone) | https://www.robaudit.us |
 | Custom domain (DNS not set yet) | https://www.robaudit.us (Porkbun DNS: ALIAS @, CNAME www -> SWA host, TXT @ = `_3i24sgtlce8kd1mhd916uww5gbgkmj2`) |
-| Repo (public, default branch `summo`) | https://github.com/Jagga-tech/robaudit |
+| Repo (public, default branch `main`; `summo` is the working branch, fast-forwarded into `main`) | https://github.com/Jagga-tech/robaudit |
 | SpacetimeDB Maincloud db `keel` | https://spacetimedb.com/keel (redeem `CALHACKS13`) |
 | Convex prod | https://hushed-shrimp-24.convex.cloud |
 | Convex dev (rehearsal) | https://lovely-squirrel-569.convex.cloud |

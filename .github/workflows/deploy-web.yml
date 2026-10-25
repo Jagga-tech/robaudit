@@ -3,7 +3,7 @@ name: Deploy Robaudit web to Azure Static Web Apps
 on:
   workflow_dispatch:
   push:
-    branches: [summo]
+    branches: [main, summo]
     paths:
       - 'apps/landing/**'
       - 'packages/bindings/**'

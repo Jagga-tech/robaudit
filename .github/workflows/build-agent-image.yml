@@ -3,7 +3,7 @@ name: Build Summo agent image
 on:
   workflow_dispatch:
   push:
-    branches: [summo]
+    branches: [main, summo]
     paths:
       - 'apps/agent/**'
       - 'packages/**'
