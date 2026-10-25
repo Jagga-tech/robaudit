@@ -23,7 +23,8 @@ Submission asks: video opens with the moment; live demo, judges may try their ow
 
 ## Spacetime main track — all criteria met
 
-- [ ] USER: republish the module to Maincloud so `record_rejection` exists there: `spacetime publish keel --server maincloud --yes --module-path spacetimedb` (adds a reducer, keeps data). Until then the workbench's refusal logging is a silent no-op on Maincloud.
+- [x] Maincloud republished 05:40 PDT with `record_rejection` (verified with `spacetime describe`). Data kept.
+- [ ] Azure agent: after the image build for 5b3e71f finishes, roll a new revision so the Container App pulls `:latest` (`az containerapp update -n keel-agent -g keel-rg --revision-suffix r5b3e71f`). Needed for the return/hold reaction on stage.
 
 - [x] Primary functionality on Spacetime (ledger + 15 reducers).
 - [x] Public repo.
