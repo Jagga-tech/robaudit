@@ -325,12 +325,34 @@ function Closing() {
 function Footer() {
   return (
     <footer className="foot">
-      <div className="wrap foot-in">
-        <a href="#top" className="wordmark wm-sm"><Mark size={20} />{BRAND}</a>
-        <span>Built at Cal Hacks 13.0. Agent: {AGENT}. Arithmetic: @keel/engine.</span>
-        <span>{COMPANY} and the Oakland deployment are demo data.</span>
-        <Link to={DEMO} className="foot-link">Open the app<ArrowUpRight size={13} /></Link>
+      <div className="wrap">
+        <div className="foot-grid">
+          <div className="foot-brand">
+            <a href="#top" className="wordmark wm-sm"><Mark size={20} />{BRAND}</a>
+            <p>Evidence-first revenue decisions for fixed-price robotics deployments. Built at Cal Hacks 13.0.</p>
+          </div>
+          <nav className="foot-col" aria-label="Page">
+            <h4>Page</h4>
+            <a href="#how">How it works</a>
+            <a href="#product">Product</a>
+            <a href="#trace">Trace the dollar</a>
+            <a href="#controls">Controls</a>
+          </nav>
+          <nav className="foot-col" aria-label="Demo">
+            <h4>Demo</h4>
+            <Link to={DEMO}>Command center<ArrowUpRight size={12} /></Link>
+            <Link to="/m">Manager phone<ArrowUpRight size={12} /></Link>
+            <Link to="/audit">Evidence trail<ArrowUpRight size={12} /></Link>
+          </nav>
+          <div className="foot-col">
+            <h4>Under the hood</h4>
+            <span>Agent: {AGENT}</span>
+            <span>Arithmetic: @keel/engine</span>
+            <span>{COMPANY} is demo data</span>
+          </div>
+        </div>
       </div>
+      <div className="foot-mark serif" aria-hidden>{BRAND}</div>
     </footer>
   );
 }
