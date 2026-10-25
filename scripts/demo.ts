@@ -61,16 +61,18 @@ try {
     return items[0].id;
   };
 
+  // 0. mode check (before any reset)
+  const cvxEnv = spawnSync('npx', ['convex', 'env', 'list'], { cwd: root, encoding: 'utf8' }).stdout ?? '';
+  const realCartesia = /^CARTESIA_API_KEY=\S/m.test(cvxEnv); // never printed
+  console.log(`modes: claude=${hasKey ? 'REAL' : 'MOCK'} cartesia=${realCartesia ? 'REAL' : 'MOCK'}`);
+  if (args.includes('--require-real') && !(hasKey && realCartesia)) throw new Mismatch('--require-real: a mock is active');
+
   // 1. reset
   const oak = await reset();
   beat('1 reset_demo -> S0 (1 posted proposal, 5000 bp)');
   if (args.includes('--reset-only')) throw 'done';
 
   // 2. agent loop in-process
-  const cvxEnv = spawnSync('npx', ['convex', 'env', 'list'], { cwd: root, encoding: 'utf8' }).stdout ?? '';
-  const realCartesia = /^CARTESIA_API_KEY=\S/m.test(cvxEnv); // never printed
-  console.log(`modes: claude=${hasKey ? 'REAL' : 'MOCK'} cartesia=${realCartesia ? 'REAL' : 'MOCK'}`);
-  if (args.includes('--require-real') && !(hasKey && realCartesia)) throw new Mismatch('--require-real: a mock is active');
   const [agent, accountant] = await Promise.all([connectAs('agent'), connectAs('accountant')]);
   conns.push(agent, accountant);
   await until('agent/accountant see reset', () => agent.db.workItem.id.find(oak) && accountant.db.workItem.id.find(oak), 5000);
@@ -80,7 +82,7 @@ try {
     state: () => ({
       projects: [...d.project.iter()], sources: [...d.source.iter()], conventions: [...d.convention.iter()],
       workItems: [...d.workItem.iter()], calculations: [...d.calculation.iter()], extractions: [...d.extraction.iter()],
-      milestones: [...d.contractMilestone.iter()], clarificationRefs: [...d.clarificationRef.iter()],
+      milestones: [...d.contractMilestone.iter()], clarificationRefs: [...d.clarificationRef.iter()], proposals: [...d.proposal.iter()],
     }),
     onSourceInsert: (cb) => d.source.onInsert((_ctx, row) => cb(row)),
     recordExtraction: (a) => r.recordExtraction(a), openClarification: (a) => r.openClarification(a),
@@ -128,14 +130,17 @@ try {
   eq('rev2 lossWarning', c2.lossWarning, true);
   eq('rev2 entry', entry(p2.entryJson), 'Dr Revenue 10000000 / Cr ContractAsset 10000000');
   ok('rev2 explanation non-empty', p2.explanation.trim());
-  ok(`rev2 pendingConventionJson another_means/additional (got ${p2.pendingConventionJson})`, /another_means/.test(p2.pendingConventionJson) && /additional/.test(p2.pendingConventionJson));
+  const pc = JSON.parse(p2.pendingConventionJson) as { template?: string; key?: string; value?: string };
+  eq('rev2 pending convention template', pc.template, 'forecast');
+  eq('rev2 pending convention key', pc.key, 'another_means');
+  eq('rev2 pending convention value', pc.value, 'additional');
   beat('6 rev 2: 40%, $400k revenue, $100k asset, $0 margin, loss warning');
 
   // 7. controller approves and posts
   await controller.reducers.decide({ proposalId: p2.id, revision: 2, decision: 'approve', reason: '' });
   await controller.reducers.post({ proposalId: p2.id, revision: 2, postingRef: 'OAK-R2' });
-  ok('posting OAK-R2 exists', [...db.posting.iter()].some((x) => x.proposalId === p2.id && x.postingRef === 'OAK-R2'));
-  ok('convention another_means=additional approved', [...db.convention.iter()].some((c) => c.template === 'forecast' && c.key === 'another_means' && c.value === 'additional' && c.approvedBy));
+  await until('posting OAK-R2 exists', () => [...db.posting.iter()].some((x) => x.proposalId === p2.id && x.postingRef === 'OAK-R2'));
+  await until('convention another_means=additional approved', () => [...db.convention.iter()].some((c) => c.template === 'forecast' && c.key === 'another_means' && c.value === 'additional' && c.approvedBy));
   beat('7 approved + posted OAK-R2, convention saved');
 
   // 8. commissioning log -> milestone invoice
@@ -144,12 +149,13 @@ try {
   const inv = await until('work item "Milestone invoice: acceptance"', () => [...db.workItem.iter()].find((w) => w.id > maxWi && w.title === 'Milestone invoice: acceptance'));
   const pInv = await until('invoice proposal', () => proposalOn(inv.id, 1));
   eq('invoice entry', entry(pInv.entryJson), 'Dr AccountsReceivable 20000000 / Cr ContractAsset 20000000');
-  eq('acceptance milestone status', [...db.contractMilestone.iter()].find((m) => m.projectId === projectId && m.name === 'acceptance')?.status, 'met');
+  await until('acceptance milestone met', () => [...db.contractMilestone.iter()].find((m) => m.projectId === projectId && m.name === 'acceptance')?.status === 'met');
   beat('8 acceptance met -> invoice Dr AR 200,000 / Cr ContractAsset 200,000');
 
   // 9. month 3: convention applies, no call
+  const before = Math.max(...[...db.proposal.iter()].filter((p) => p.workItemId === oak).map((p) => p.revision));
   await addSource('note', 'another $50,000 for conveyor rework');
-  const p3 = await until('Oakland proposal with progressBp 3810', () => [...db.proposal.iter()].find((p) => p.workItemId === oak && p.revision > 2 && db.calculation.id.find(p.calculationId)?.progressBp === 3810));
+  const p3 = await until('new Oakland proposal (revision > before) with progressBp 3810', () => [...db.proposal.iter()].find((p) => p.workItemId === oak && p.revision > before && db.calculation.id.find(p.calculationId)?.progressBp === 3810));
   eq('Convex clarifications for Oakland (no new call)', await clarCount(), clarAfter5);
   ok(`rev ${p3.revision} explanation cites another_means`, p3.explanation.includes('another_means'));
   beat(`9 month 3: rev ${p3.revision} 3810 bp, no call, convention cited`);
