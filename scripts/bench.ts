@@ -36,7 +36,7 @@ const usd = (c: bigint) => `${c < 0n ? '-' : ''}$${(c < 0n ? -c : c) / 100n}`.re
 
 const cvx = new ConvexHttpClient(process.env.CONVEX_URL);
 /** Convex Auth: anonymous session so the call mutations (confirm/decline) accept us. */
-async function signInAnon(c: ConvexHttpClient) { const r: any = await c.action(anyApi.auth.signIn, { provider: 'anonymous' }); c.setAuth(r.tokens.token); }
+async function signInAnon(c: ConvexHttpClient) { try { const r: any = await c.action(anyApi.auth.signIn, { provider: 'anonymous' }); c.setAuth(r.tokens.token); } catch (e: any) { console.warn('convex anonymous sign-in unavailable on this deployment; continuing without a session:', String(e?.message ?? e).slice(0, 80)); } }
 await signInAnon(cvx);
 await cvx.query(anyApi.clarifications.active, {}); // reachability check, same client the demo uses
 const o = { uri: URI, db: DB };

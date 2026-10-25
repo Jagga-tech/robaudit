@@ -45,7 +45,7 @@ const entry = (json: string) => (JSON.parse(json) as { account: string; debit: s
 
 const cvx = new ConvexHttpClient(process.env.CONVEX_URL);
 /** Convex Auth: anonymous session so the call mutations (confirm/decline) accept us. */
-async function signInAnon(c: ConvexHttpClient) { const r: any = await c.action(anyApi.auth.signIn, { provider: 'anonymous' }); c.setAuth(r.tokens.token); }
+async function signInAnon(c: ConvexHttpClient) { try { const r: any = await c.action(anyApi.auth.signIn, { provider: 'anonymous' }); c.setAuth(r.tokens.token); } catch (e: any) { console.warn('convex anonymous sign-in unavailable on this deployment; continuing without a session:', String(e?.message ?? e).slice(0, 80)); } }
 await signInAnon(cvx);
 const controller = await connectAs('controller');
 const conns: DbConnection[] = [controller];
