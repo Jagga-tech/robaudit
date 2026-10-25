@@ -6,6 +6,7 @@ import './pages.css';
 
 const ACCOUNTS = ['Revenue', 'ContractAsset', 'AccountsReceivable', 'ContractLiability'];
 let chosen: bigint | undefined, withPending = false; // survive re-mounts
+    try { const q = new URLSearchParams(location.search).get('project'); if (q) chosen = BigInt(q); } catch {} // deep link ?project=<id>
 
 const page: Page = {
   route: /^\/workbench\/books\/?$/,
@@ -58,7 +59,8 @@ const page: Page = {
       setHtml(out, `<h2>Trial balance</h2><table class="tbl tb"><thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th>${withPending ? '<th class="num grey">Debit incl. unposted</th><th class="num grey">Credit incl. unposted</th>' : ''}</tr></thead><tbody>` +
         [...all2.keys()].map((a) => `<tr><td>${esc(ACCOUNT[a] ?? a)}</td>${cols(base.get(a) ?? 0n)}${pcols(all2.get(a)!)}</tr>`).join('') +
         `<tr class="total"><td>Total</td><td class="num">${usd(dr)}</td><td class="num">${usd(cr)}</td>${withPending ? `<td class="num grey">${usd(pdr)}</td><td class="num grey">${usd(pcr)}</td>` : ''}</tr></tbody></table>` +
-        `<p class="balcheck ${balanced ? 'ok' : 'bad'}">${balanced ? `Balanced: debits = credits · ${usd(dr)}` : `Not balanced: debits ${usd(dr)} ≠ credits ${usd(cr)}`}</p>` +
+        (dr === 0n && cr === 0n ? `<p class="small">Nothing posted on this project yet. Approve the open proposal, or tick “Include unposted proposals” to preview the position.</p>`
+          : `<p class="balcheck ${balanced ? 'ok' : 'bad'}">${balanced ? `Balanced: debits = credits · ${usd(dr)}` : `Not balanced: debits ${usd(dr)} ≠ credits ${usd(cr)}`}</p>`) +
         `<p class="small memo">Memo · Cost of revenue ${incurred !== undefined ? usd(incurred) : '—'} (costs incurred to date, from the cost export) is booked in the cost system, not in these entries. Cash and bank are outside this ledger.</p>` +
         `<h2>Journal</h2>` + (journal.length ? `<table class="tbl journal"><thead><tr><th>Ref</th><th>Date</th><th>Approver</th><th>Account</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>${journal.map(entryRows).join('')}</tbody></table>` : '<p class="empty">Nothing posted yet.</p>'));
     };
