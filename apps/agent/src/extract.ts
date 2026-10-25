@@ -1,5 +1,6 @@
 import { hasKey, prompt, structured } from "./claude.js";
 import { Extraction } from "./schemas.js";
+import { extractWithGemini } from "./gemini.js";
 
 const SYSTEM = prompt("extract");
 const NUM = String.raw`(\d[\d,]*(?:\.\d+)?)(?:\s?([kKmM]))?(?![A-Za-z\d])`;
@@ -27,6 +28,10 @@ export function normalizeFacts(noteText: string, x: Extraction): Extraction {
 
 export async function extract(noteText: string, sourceId: number): Promise<Extraction> {
   if (hasKey) return normalizeFacts(noteText, await structured(Extraction, SYSTEM, `<note source_id="${sourceId}">${noteText}</note>`));
+  return mockExtract(noteText);
+}
+
+export function mockExtract(noteText: string): Extraction {
   // ponytail: deterministic mock only knows the demo's "another $X" ambiguity
   const m = noteText.match(/\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM]\b)?/);
   if (/\banother\b/i.test(noteText) && m) {
@@ -43,4 +48,37 @@ export async function extract(noteText: string, sourceId: number): Promise<Extra
     return { facts: [{ kind: "milestone", amountText: "", quote: ms[0], charStart: ms.index!, charEnd: ms.index! + ms[0].length }], ambiguity: none };
   }
   return { facts: [], ambiguity: none };
+}
+
+type Reader = (noteText: string, sourceId: number) => Promise<Extraction>;
+export type Both = { claude: Extraction; gemini: Extraction | null; agreed: boolean; merged: Extraction };
+const GEMINI_TIMEOUT_MS = 5000;
+let warned = false;
+const primaryAmount = (x: Extraction) => {
+  const f = x.facts.find((f) => f.kind === "remaining_update");
+  return f ? parseAmountCents(f.quote) : undefined; // undefined = no fact, null = unparseable
+};
+
+// Claude is primary; Gemini is an independent second reader whose failure never blocks the flow.
+export async function extractBoth(noteText: string, sourceId: number, readers: { claude: Reader; gemini: Reader } = { claude: extract, gemini: extractWithGemini }): Promise<Both> {
+  let timer: NodeJS.Timeout | undefined;
+  const second = Promise.race([
+    readers.gemini(noteText, sourceId),
+    new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error("gemini timeout")), GEMINI_TIMEOUT_MS); }),
+  ]).catch(() => {
+    if (!warned) { warned = true; console.log("second reader unavailable"); }
+    return null;
+  }).finally(() => clearTimeout(timer));
+  const [claude, gemini] = await Promise.all([readers.claude(noteText, sourceId), second]);
+  if (!gemini) return { claude, gemini, agreed: true, merged: claude };
+  const a = primaryAmount(claude), b = primaryAmount(gemini);
+  if (claude.ambiguity.flag === gemini.ambiguity.flag && a === b) return { claude, gemini, agreed: true, merged: claude };
+  const show = (v: bigint | null | undefined, x: Extraction) => v === undefined ? "no remaining-forecast update" : v === null ? `"${x.facts.find((f) => f.kind === "remaining_update")!.quote}"` : `$${v / 100n}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const bothAmounts = a != null && b != null;
+  const merged: Extraction = { ...claude, ambiguity: {
+    flag: true, kind: "other",
+    question: `Two independent readers disagree on this note: Claude read ${show(a, claude)}${claude.ambiguity.flag ? " (ambiguous)" : ""}, Gemini read ${show(b, gemini)}${gemini.ambiguity.flag ? " (ambiguous)" : ""}. Which is right?`,
+    options: bothAmounts ? ["additional", "new_total"] : claude.ambiguity.options,
+  } };
+  return { claude, gemini, agreed: false, merged };
 }

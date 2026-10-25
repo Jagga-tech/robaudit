@@ -9,10 +9,11 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
-    "zod": "^4.6.7",
+    "@google/genai": "^2.31.0",
+    "@keel/bindings": "workspace:*",
     "@keel/engine": "workspace:*",
     "@keel/ledger-client": "workspace:*",
-    "@keel/bindings": "workspace:*",
-    "convex": "^1.48.0"
+    "convex": "^1.48.0",
+    "zod": "^4.6.7"
   }
 }

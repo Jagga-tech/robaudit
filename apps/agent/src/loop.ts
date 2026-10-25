@@ -37,6 +37,8 @@ export type Deps = {
   ledger: Ledger;
   convex: { ask(a: { workItemId: string; question: string; options: string[] }): Promise<string>; byWorkItem(workItemId: string): Promise<ConvexClarification[]> };
   extract(text: string, sourceId: number): Promise<Extraction>;
+  /** Two-reader extraction (Claude + Gemini). Absent = `extract` as the only reader. */
+  extractBoth?(text: string, sourceId: number): Promise<{ claude: Extraction; gemini: Extraction | null; agreed: boolean; merged: Extraction }>;
   explain(input: { before: ComputeOut; after: ComputeOut; adjustmentCents: bigint; convention: string; evidence: string[] }): Promise<Explanation>;
 };
 
@@ -66,16 +68,22 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
   if (!['note', 'forecast', 'commissioning_log'].includes(src.kind)) return;
   if (handled(ledger.state(), src)) return; // restart-safe
   log(`source ${src.id} (${src.kind}) -> extract`);
-  const x = await deps.extract(src.text, Number(src.id));
+  const both = deps.extractBoth
+    ? await deps.extractBoth(src.text, Number(src.id))
+    : await deps.extract(src.text, Number(src.id)).then((c) => ({ claude: c, gemini: null, agreed: true, merged: c }));
+  if (!both.agreed) log(`source ${src.id}: readers disagree -> ${both.merged.ambiguity.question}`);
+  const x = both.merged;
   const fact = x.facts.find((f) => f.kind === 'remaining_update');
   const amount = factAmount(fact, src.text);
   const claudeFlag = x.ambiguity.flag;
-  const ambiguous = claudeFlag || (src.kind !== 'commissioning_log' && amount != null && isAdditiveWording(fact!.quote || src.text));
-  const question = claudeFlag ? x.ambiguity.question : 'Is the $X additional to the current remaining forecast, or the new total remaining?';
+  const ambiguous = claudeFlag || (src.kind !== 'commissioning_log' && amount != null && isAdditiveWording(`${fact!.quote} ${src.text}`));
+  const question = claudeFlag ? x.ambiguity.question : `Is the ${amount != null ? usd(amount) : 'amount'} additional to the current remaining forecast, or the new total remaining?`;
   const options = claudeFlag ? x.ambiguity.options : ['additional', 'new_total'];
   // ambiguityFlag must match what we act on: open_clarification binds to the newest flagged extraction.
   await ledger.recordExtraction({ sourceId: src.id, reader: READER, factsJson: JSON.stringify(x.facts), ambiguityFlag: ambiguous, ambiguityText: ambiguous ? question : x.ambiguity.question });
-  log(`extraction recorded: ${x.facts.length} fact(s), ambiguous=${ambiguous}`);
+  const g = both.gemini;
+  if (g) await ledger.recordExtraction({ sourceId: src.id, reader: 'gemini', factsJson: JSON.stringify(g.facts), ambiguityFlag: g.ambiguity.flag, ambiguityText: g.ambiguity.question });
+  log(`extraction recorded: ${x.facts.length} fact(s), ambiguous=${ambiguous}${g ? `, second reader ${both.agreed ? 'agrees' : 'disagrees'}` : ''}`);
 
   if (src.kind === 'commissioning_log') return milestoneInvoice(src, x, deps);
   if (amount == null) return log(`source ${src.id}: no remaining_update amount, nothing to propose`);

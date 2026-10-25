@@ -124,6 +124,20 @@ describe('agent loop', () => {
     expect(p.evidenceSourceIdsCsv).toBe(String(log.id));
   });
 
+  it('quote is just the amount, note says "another" -> guard still fires (convention applies / clarification asked)', async () => {
+    const note = 'another $50,000 for conveyor rework';
+    const withConv = fake(unflagged('$50,000', '$50,000'), { remaining: 60000000n, convention: true });
+    await handleNewSource(withConv.add('note', note), withConv.deps);
+    expect(withConv.named('ask')).toHaveLength(0);
+    expect(withConv.named('openClarification')).toHaveLength(0);
+    expect(withConv.named('recordCalculation')[0]).toMatchObject({ progressBp: 3810 });
+    expect(withConv.named('propose')).toHaveLength(1);
+    const noConv = fake(unflagged('$50,000', '$50,000'), { remaining: 60000000n });
+    await handleNewSource(noConv.add('note', note), noConv.deps);
+    expect(noConv.named('openClarification')).toHaveLength(1);
+    expect(noConv.named('propose')).toHaveLength(0);
+  });
+
   it('(f) unflagged "another $50,000", no convention -> clarification bound to this note, no propose', async () => {
     const f = fake(unflagged('another $50,000', '$50,000'), { remaining: 60000000n });
     f.s.extractions.push({ sourceId: 5n, reader: 'claude', factsJson: '[]', ambiguityFlag: true }); // older ambiguous source
@@ -132,7 +146,7 @@ describe('agent loop', () => {
     expect(f.named('recordExtraction')[0]).toMatchObject({ ambiguityFlag: true, ambiguityText: expect.stringContaining('additional') });
     expect(f.s.clarificationRefs[0].sourceId).toBe(src.id);
     expect(f.named('openClarification')).toHaveLength(1);
-    expect(f.named('ask')[0]).toMatchObject({ question: 'Is the $X additional to the current remaining forecast, or the new total remaining?', options: ['additional', 'new_total'] });
+    expect(f.named('ask')[0]).toMatchObject({ question: 'Is the $50,000 additional to the current remaining forecast, or the new total remaining?', options: ['additional', 'new_total'] });
     expect(f.named('propose')).toHaveLength(0);
   });
 

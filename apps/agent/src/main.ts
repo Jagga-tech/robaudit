@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { ConvexHttpClient } from 'convex/browser';
 import { anyApi } from 'convex/server';
 import { connectAs, type DbConnection } from '@keel/ledger-client';
-import { extract } from './extract.js';
+import { extract, extractBoth } from './extract.js';
 import { explain } from './explain.js';
 import { log, startLoop, type Deps, type Ledger, type SourceRow } from './loop.js';
 
@@ -41,7 +41,7 @@ const deps: Deps = {
     ask: (a) => cvx.mutation(anyApi.clarifications.ask, a),
     byWorkItem: (workItemId) => cvx.query(anyApi.clarifications.byWorkItem, { workItemId }),
   },
-  extract, explain,
+  extract, extractBoth, explain,
 };
 // Seed sources (S0, re-inserted by reset_demo) are history, not new evidence.
 const stop = startLoop(deps, { isSeed: (s: SourceRow) => s.kind !== 'commissioning_log' && seedTexts.has(s.text) });
