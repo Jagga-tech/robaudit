@@ -9,6 +9,7 @@
  */
 
 import type * as clarifications from "../clarifications.js";
+import type * as managers from "../managers.js";
 import type * as transcript from "../transcript.js";
 import type * as voice from "../voice.js";
 
@@ -20,6 +21,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   clarifications: typeof clarifications;
+  managers: typeof managers;
   transcript: typeof transcript;
   voice: typeof voice;
 }>;

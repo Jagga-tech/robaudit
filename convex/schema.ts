@@ -28,4 +28,5 @@ export default defineSchema({
     text: v.string(),
     isFinal: v.boolean(),
   }).index("by_clarification", ["clarificationId", "seq"]),
+  managers: defineTable({ name: v.string(), joinedAt: v.number(), active: v.boolean() }),
 });

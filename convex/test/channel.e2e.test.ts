@@ -84,3 +84,15 @@ describe.skipIf(!url)("clarification channel e2e", () => {
     expect(await c.query(api.clarifications.active, {})).toBeNull();
   });
 });
+
+describe.skipIf(!url)("manager presence e2e", () => {
+  it("join/leave drives current", async () => {
+    const c = new ConvexHttpClient(url!);
+    await c.mutation(api.managers.join, { name: "Alex" });
+    expect((await c.query(api.managers.current, {}))?.name).toBe("Alex");
+    const sam = await c.mutation(api.managers.join, { name: "Sam" });
+    expect((await c.query(api.managers.current, {}))?.name).toBe("Sam");
+    await c.mutation(api.managers.leave, { id: sam });
+    expect(await c.query(api.managers.current, {})).toBeNull();
+  });
+});
