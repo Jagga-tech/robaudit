@@ -6,15 +6,18 @@ const SYSTEM = prompt("extract");
 const NUM = String.raw`(\d[\d,]*(?:\.\d+)?)(?:\s?([kKmM]))?(?![A-Za-z\d])`;
 const WORD_MULT = /^\s*(million|billion|thousand|mm|bn)\b/i;
 
-// $-anchored figure first; bare number only when the string has no "$". Null if a word multiplier follows.
+// $-anchored figure first; bare number only when the string has no "$". Null if a word multiplier follows ("grand" = k).
+// A leading "-" / "minus" (the prompt's reduction marker) makes it negative.
 export function parseAmountCents(amountText: string): bigint | null {
+  const neg = /^\s*(-|\u2212|minus\b)/i.test(amountText);
   const m = amountText.includes("$")
     ? amountText.match(new RegExp(String.raw`\$\s?` + NUM))
     : amountText.match(new RegExp(NUM));
-  if (!m || WORD_MULT.test(amountText.slice(m.index! + m[0].length))) return null;
-  const mult = { k: 1e3, m: 1e6 }[m[2]?.toLowerCase() as "k" | "m"] ?? 1;
+  const rest = m ? amountText.slice(m.index! + m[0].length) : "";
+  if (!m || WORD_MULT.test(rest)) return null;
+  const mult = { k: 1e3, m: 1e6 }[m[2]?.toLowerCase() as "k" | "m"] ?? (!m[2] && /^\s*grand\b/i.test(rest) ? 1e3 : 1);
   const n = Number(m[1].replace(/,/g, ""));
-  return Number.isFinite(n) ? BigInt(Math.round(n * mult * 100)) : null;
+  return Number.isFinite(n) ? BigInt(Math.round(n * mult * 100)) * (neg ? -1n : 1n) : null;
 }
 
 // Real-model offsets are untrusted: recompute from the quote, drop facts whose quote isn't in the note.

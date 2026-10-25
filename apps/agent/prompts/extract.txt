@@ -5,11 +5,11 @@ The user message contains one note inside <note source_id="..."> tags. Character
 Facts
 - Extract every fact that carries an amount of money or marks a milestone. Ignore chit-chat (weather, crew mood, logistics) — a note with no such facts gets an empty facts list.
 - kind:
-  - remaining_update: a statement about the cost still needed to finish the project (remaining forecast, cost to complete).
+  - remaining_update: a statement about the cost still needed to finish the project (remaining forecast, cost to complete, "need X to finish", "X more", "X less", "under/over by X", "add X to the forecast", "it'll run X"). When a note has several figures, the remaining_update is the one about finishing; money already spent is a separate cost fact.
   - cost: money already spent or committed (invoices received, costs incurred).
   - milestone: commissioning or acceptance language, e.g. "commissioning complete", "throughput test passed", "acceptance signed". Use milestone even when no money is mentioned.
   - other: any remaining money fact that fits none of the above.
-- amountText: the money figure exactly as written (e.g. "$200,000", "200k"); empty string if the fact has no amount.
+- amountText: the money figure as written (e.g. "$200,000", "200k", "80 grand"); empty string if the fact has no amount. If the note says the cost to finish went DOWN by that figure ("50k less", "$60,000 under", "saved $25,000"), put a leading minus: "-50k", "-$60,000". Never add a minus for "down to" / "came down to" (that figure is the new total). If the amount is spelled out in words ("two hundred thousand"), copy the words as written.
 - quote: the exact substring of the note that supports the fact, copied character for character.
 - charStart / charEnd: offsets of quote in the note, so that note.slice(charStart, charEnd) === quote.
 
@@ -19,3 +19,20 @@ Ambiguity
 - When flagged as additional_vs_total: question is one sentence addressed to the deployment manager asking whether the figure is on top of the current remaining forecast or is the new total remaining; options are exactly ["additional", "new_total"].
 - Use kind "other" only for a different ambiguity that would change the accounting, with a one-sentence question and short options.
 - Otherwise: flag false, kind "none", question "", options [].
+
+Phrasing rules (the manager writes in their own words)
+- Added-on figure, ambiguous: "another", "more", "extra", "additional", "add X", "X more than we thought", "bump by X", "run another 80 grand" -> remaining_update, flag true, additional_vs_total. Ask even when "add to the forecast" sounds clear: we still confirm whether it is on top or the new total.
+- Stated total, NOT ambiguous (flag false): "new total remaining is X", "new number to finish is X", "we now expect X to complete", "cost to complete is now X", "remaining came down to X".
+- Reduction, NOT ambiguous (flag false): "X less", "under by X", "X under on <area>", "saved X", "savings of X" on what is left to do -> remaining_update with a minus amountText. A reduction can only lower the remaining forecast, so no question.
+- Over budget: "X over budget on <area>" is a remaining_update and IS ambiguous (spent already vs still to come): flag true, additional_vs_total, question "Is the X additional cost still to come, or is it the new total remaining?" (with X as written).
+- Spelled-out amount ("another two hundred thousand"): still a remaining_update with the words as amountText, and flag it as usual.
+
+Examples (note -> facts; ambiguity)
+- "we need another $200,000 to finish" -> remaining_update "$200,000"; flag true additional_vs_total.
+- "we spent 20k on cranes and need another 100k to finish" -> cost "20k", remaining_update "100k"; flag true additional_vs_total.
+- "the new number to finish is 550k" -> remaining_update "550k"; flag false.
+- "we found savings, finishing should cost 50k less" -> remaining_update "-50k"; flag false.
+- "we're $60,000 under on electrical" -> remaining_update "-$60,000"; flag false.
+- "remaining came down to $350,000" -> remaining_update "$350,000"; flag false.
+- "we're $75,000 over budget on conveyors" -> remaining_update "$75,000"; flag true additional_vs_total.
+- "commissioning complete, throughput test passed" -> milestone, amountText ""; flag false.

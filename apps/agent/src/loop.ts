@@ -56,7 +56,19 @@ const entryJson = (lines: EntryLine[]) => JSON.stringify(lines.map((l) => ({ acc
 
 // ponytail: keyword heuristic backing up Claude's flag; misses paraphrases ("on top of", "bump by"), upgrade = stricter extract prompt or a second classifier
 export const isAdditiveWording = (text: string): boolean =>
-  /\b(another|additional|more|extra)\b/i.test(text) && !/\b(new total|total remaining|remaining (is|of|now))\b/i.test(text);
+  /\b(another|additional|more|extra|add(ed)?|grand|bump(ed)?|over budget|overrun)\b/i.test(text) && !/\b(new total|total remaining|remaining (is|of|now)|new number|is now|now expect|down to)\b/i.test(text);
+
+// ponytail: keyword heuristic for savings. "down to" names the new total; "less/under/saved" lowers the remaining (negative additional, no question).
+export const isReductionWording = (text: string): Convention | null =>
+  /\b(came )?down to\b/i.test(text) ? 'new_total' : /\b(less|under|saved|savings?|lower|cheaper)\b/i.test(text) ? 'additional' : null;
+
+// Reduction read from the fact's quote, the model's minus sign, or (only when the note has no additive wording) the whole note.
+const reductionOf = (f: Extraction['facts'][number], noteText: string): Convention | null =>
+  isReductionWording(f.quote) ?? (/^\s*(-|\u2212|minus\b)/i.test(f.amountText) ? 'additional' : null)
+    ?? (isAdditiveWording(noteText) ? null : isReductionWording(noteText));
+const abs = (c: bigint) => (c < 0n ? -c : c);
+/** Signed update for a convention: negative only for an additive reduction ("50k less"); a total is always the magnitude. */
+const signed = (mag: bigint, convention: Convention, red: Convention | null) => (convention === 'additional' && red === 'additional' ? -mag : mag);
 
 // Amount comes from the quote (verified to be in the note); Claude's amountText only if it also appears in the note.
 const factAmount = (f: Extraction['facts'][number] | undefined, noteText: string) =>
@@ -101,15 +113,24 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
   if (!both.agreed) log(`source ${src.id}: readers disagree -> ${both.merged.ambiguity.question}`);
   const x = both.merged;
   const fact = amountFact(x.facts, src.text, x.ambiguity.kind === 'additional_vs_total' || isAdditiveWording(src.text));
-  const amount = factAmount(fact, src.text);
+  const parsed = factAmount(fact, src.text);
+  const amount = parsed == null ? null : abs(parsed); // magnitude; direction comes from reductionOf
+  const red = fact && src.kind !== 'commissioning_log' ? reductionOf(fact, src.text) : null;
   // Seeded convention remaining_estimate_means=future_costs_only: a "Remaining Estimate" figure is the new total remaining, no question.
   const reConv = ledger.state().conventions.find((c) => c.template === 'forecast' && c.key === 'remaining_estimate_means');
   const remainingEstimate = !!(reConv && fact && amount != null && both.agreed && !isAdditiveWording(src.text)
     && /remaining estimate/i.test(`${src.text.slice(Math.max(0, fact.charStart - 40), Math.max(0, fact.charStart))} ${fact.quote}`));
-  const claudeFlag = x.ambiguity.flag && !remainingEstimate;
-  const ambiguous = claudeFlag || (src.kind !== 'commissioning_log' && amount != null && isAdditiveWording(`${fact!.quote} ${src.text}`));
-  const question = claudeFlag ? x.ambiguity.question : `Is the ${amount != null ? usd(amount) : 'amount'} additional to the current remaining forecast, or the new total remaining?`;
-  const options = claudeFlag ? x.ambiguity.options : ['additional', 'new_total'];
+  // A savings cut bigger than what is left can't be "less": ask instead of booking a negative remaining.
+  const remainingNow = red === 'additional' && amount != null ? baseline(ledger.state(), src.projectId).snap.remaining : null;
+  const overdrawn = remainingNow != null && remainingNow - amount! < 0n;
+  // Reduction wording settles the reading (unless readers disagree on the amount); otherwise Claude's flag or the additive guard.
+  const claudeFlag = x.ambiguity.flag && !remainingEstimate && !(red && both.agreed && amount != null);
+  const ambiguous = overdrawn || claudeFlag || (!red && src.kind !== 'commissioning_log' && amount != null && isAdditiveWording(`${fact!.quote} ${src.text}`));
+  const noAmount = amount == null ? ' (Amount not stated in figures in the note.)' : '';
+  const question = overdrawn
+    ? `The note lowers the cost to finish by ${usd(amount!)}, but only ${usd(remainingNow!)} remains. Is ${usd(amount!)} additional (a reduction) or the new total remaining?`
+    : (claudeFlag ? x.ambiguity.question : `Is the ${amount != null ? usd(amount) : 'amount'} additional to the current remaining forecast, or the new total remaining?`) + noAmount;
+  const options = claudeFlag && !overdrawn ? x.ambiguity.options : ['additional', 'new_total'];
   // ambiguityFlag must match what we act on: open_clarification binds to the newest flagged extraction.
   await ledger.recordExtraction({ sourceId: src.id, reader: READER, factsJson: JSON.stringify(x.facts), ambiguityFlag: ambiguous, ambiguityText: ambiguous ? question : x.ambiguity.question });
   const g = both.gemini;
@@ -117,18 +138,18 @@ export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void>
   log(`extraction recorded: ${x.facts.length} fact(s), ambiguous=${ambiguous}${g ? `, second reader ${both.agreed ? 'agrees' : 'disagrees'}` : ''}`);
 
   if (src.kind === 'commissioning_log') return milestoneInvoice(src, x, deps);
-  if (amount == null) return log(`source ${src.id}: no remaining_update amount, nothing to propose`);
-  if (remainingEstimate) return proposeForecast(src, amount, 'new_total', [`Convention v${reConv!.policyVersion}: remaining_estimate_means = ${reConv!.value} (a Remaining Estimate is the new total remaining)`], '', deps);
-  if (!ambiguous) return proposeForecast(src, amount, 'new_total', [], '', deps);
+  if (amount == null && !ambiguous) return log(`source ${src.id}: no remaining_update amount, nothing to propose`);
+  if (amount != null && remainingEstimate) return proposeForecast(src, amount, 'new_total', [`Convention v${reConv!.policyVersion}: remaining_estimate_means = ${reConv!.value} (a Remaining Estimate is the new total remaining)`], '', deps);
+  if (amount != null && !ambiguous) return proposeForecast(src, signed(amount, red ?? 'new_total', red), red ?? 'new_total', [], '', deps);
   const conv = ledger.state().conventions.find((c) => c.template === 'forecast' && c.key === 'another_means');
-  if (conv && both.agreed) { // readers disagreeing on the amount is not something a convention can answer
+  if (conv && both.agreed && amount != null && !overdrawn) { // readers disagreeing on the amount is not something a convention can answer
     log(`convention another_means = ${conv.value} (policy v${conv.policyVersion}) applies; no question`);
-    return proposeForecast(src, amount, conv.value as Convention, [`Convention v${conv.policyVersion}: another_means = ${conv.value}`], '', deps);
+    return proposeForecast(src, signed(amount, conv.value as Convention, red), conv.value as Convention, [`Convention v${conv.policyVersion}: another_means = ${conv.value}`], '', deps);
   }
   const workItemId = baseline(ledger.state(), src.projectId).workItemId;
   const convexId = await deps.convex.ask({ workItemId: String(workItemId), question, options });
   await ledger.openClarification({ workItemId, convexId, question });
-  log(`clarification opened on work item ${workItemId} (convex ${convexId}): ${question}`);
+  log(`clarification opened on work item ${workItemId} (convex ${convexId}): ${question}${amount == null ? ' [amount unknown]' : ''}`);
 }
 
 /** Called by the bridge once Convex reports the clarification confirmed. */
@@ -146,10 +167,12 @@ export async function proposeFromClarification(ref: ClarificationRefRow, answer:
   const note = s.sources.find((x) => x.id === ref.sourceId);
   const ext = s.extractions.find((e) => e.sourceId === ref.sourceId && e.reader === READER);
   const fact = ext && note && amountFact(JSON.parse(ext.factsJson) as Extraction['facts'], note.text, true); // a clarification was asked, so it was additive
-  const amount = note && factAmount(fact, note.text);
-  if (!note || amount == null) return log(`clarification ${ref.id}: source ${ref.sourceId} has no amount; nothing to propose`);
+  const parsed = note && factAmount(fact, note.text);
+  // ponytail: "amount not stated" is a log line only; a ledger history note needs a reducer (spacetimedb is out of this module's scope)
+  if (!note || parsed == null) return log(`clarification ${ref.id}: amount not stated in source ${ref.sourceId}; no proposal`);
+  const red = reductionOf(fact!, note.text);
   const clar = maxBy(s.sources.filter((x) => x.kind === 'clarification' && x.parentSourceId === note.id));
-  await proposeForecast(note, amount, answer, clar ? [clar.text] : [], JSON.stringify({ template: 'forecast', key: 'another_means', value: answer }), deps, clar?.id);
+  await proposeForecast(note, signed(abs(parsed), answer, red), answer, clar ? [clar.text] : [], JSON.stringify({ template: 'forecast', key: 'another_means', value: answer }), deps, clar?.id);
 }
 
 /** Both or neither pattern ("additional, not a new total") = unclear -> null, the caller re-asks as text. */
@@ -176,6 +199,7 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   const { ledger } = deps;
   const { workItemId, snap } = baseline(ledger.state(), src.projectId);
   const next = { ...snap, remaining: applyUpdate(snap.remaining, amount, convention) };
+  if (next.remaining < 0n) return log(`source ${src.id}: ${convention} ${usd(amount)} would make remaining ${usd(next.remaining)}; not proposed`);
   const before = compute(snap), after = compute(next);
   const adj = adjustment(before.cumRevenue, after.cumRevenue);
   const input: ExplainInput = {

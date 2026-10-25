@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { isAzureDiReal, readForecastDocument } from '../src/azure-di.ts';
+import { isAzureDiReal, readForecastDocument } from '../src/azure-di';
 
 const dir = new URL('./fixtures/sheets/', import.meta.url);
 
