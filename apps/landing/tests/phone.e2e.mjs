@@ -106,11 +106,12 @@ await scenario('b', async () => {
   assert((await page.textContent('h1.q')).includes('$200,000'), 'question restored');
   await shot(page, 'b1-ringing-after-reload');
   // connection loss: cut both sockets -> one-line "Reconnecting…", then both clients come back by themselves
-  await page.waitForFunction(() => document.getElementById('conn').textContent === 'ledger: online · convex: online', null, { timeout: 15_000 });
+  await page.waitForFunction(() => /^ledger: online · convex: online/.test(document.getElementById('conn').textContent), null, { timeout: 15_000 });
   drop();
   await page.waitForFunction(() => document.getElementById('conn').textContent === 'Reconnecting…', null, { timeout: 10_000 });
   await shot(page, 'b2-reconnecting');
-  await page.waitForFunction(() => document.getElementById('conn').textContent === 'ledger: online · convex: online', null, { timeout: 40_000 });
+  await page.waitForFunction(() => /^ledger: online · convex: online/.test(document.getElementById('conn').textContent), null, { timeout: 40_000 });
+  await page.waitForFunction(() => /session: ok/.test(document.getElementById('conn').textContent), null, { timeout: 6_000 });
   assert(await page.locator('#talk').count() === 1, 'still on Ringing after reconnect');
   results.b_reconnect = 'both sockets cut -> Reconnecting… -> ledger online + convex online, Ringing kept';
   await ctx.close();
@@ -174,6 +175,11 @@ await scenario('f', async () => {
   await join(page, 'Fay');
   const id = await ask();
   await page.waitForSelector('#talk', { timeout: 15_000 });
+  // confirm requires a session: a plain unauthenticated client is rejected
+  const neg = await new ConvexHttpClient(cvx.url).mutation(api.clarifications.confirm, { id, answer: 'additional', speaker: 'anon' }).then(() => null, (e) => String(e.message));
+  console.log('negative confirm error:', neg);
+  assert(neg && /nauthenticated|Server Error/.test(neg), `unauthenticated confirm should be rejected, got: ${neg}`);
+  const r = await cvx.action(api.auth.signIn, { provider: 'anonymous' }); cvx.setAuth(r.tokens.token);
   await cvx.mutation(api.clarifications.confirm, { id, answer: 'additional', speaker: 'Node script' });
   await page.waitForSelector('#send', { timeout: 10_000 });
   const note = await page.textContent('.note');
