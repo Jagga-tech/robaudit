@@ -45,6 +45,7 @@ import PostReducer from "./post_reducer";
 import ProposeReducer from "./propose_reducer";
 import RecordCalculationReducer from "./record_calculation_reducer";
 import RecordExtractionReducer from "./record_extraction_reducer";
+import RecordRejectionReducer from "./record_rejection_reducer";
 import RegisterDemoUserReducer from "./register_demo_user_reducer";
 import ResetDemoReducer from "./reset_demo_reducer";
 import ResolveClarificationReducer from "./resolve_clarification_reducer";
@@ -270,6 +271,7 @@ const reducersSchema = __reducers(
   __reducerSchema("propose", ProposeReducer),
   __reducerSchema("record_calculation", RecordCalculationReducer),
   __reducerSchema("record_extraction", RecordExtractionReducer),
+  __reducerSchema("record_rejection", RecordRejectionReducer),
   __reducerSchema("register_demo_user", RegisterDemoUserReducer),
   __reducerSchema("reset_demo", ResetDemoReducer),
   __reducerSchema("resolve_clarification", ResolveClarificationReducer),

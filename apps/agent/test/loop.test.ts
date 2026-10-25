@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleNewSource, isAdditiveWording, normalizeAnswer, startLoop, type Deps, type LedgerState, type SourceRow } from '../src/loop';
 import { pollConfirmed } from '../src/agents/field-liaison';
+import { summo } from '../src/agents/summo';
 import type { Extraction } from '../src/schemas';
 import { ambiguous, fake, inputs, unflagged } from './fake-deps';
 
@@ -238,6 +239,28 @@ describe('agent loop', () => {
     f.s.proposals.push({ calculationId: 21n, status: 'returned' });
     await handleNewSource(f.add('note', 'another $50,000 for conveyor rework'), f.deps);
     expect(JSON.parse(f.named('recordCalculation')[0].inputsJson).remainingCents).toBe('45000000');
+  });
+
+  it('returned rev: next source proposes the next rev and cites the return reason', async () => {
+    const f = fake(unflagged('another $50,000', '$50,000'), { convention: true });
+    f.s.calculations.push({ id: 21n, workItemId: 10n, forecastSourceId: 4n, inputsJson: inputs(60000000n) });
+    f.s.proposals.push({ id: 70n, workItemId: 10n, revision: 2, calculationId: 21n, status: 'returned' });
+    f.s.approvals!.push({ proposalId: 70n, revision: 2, decision: 'return', by: 'Dana', reason: 'check the forecast date' });
+    await handleNewSource(f.add('note', 'another $50,000 for conveyor rework'), f.deps);
+    const prop = f.named('propose')[0];
+    expect(prop).toBeTruthy();
+    expect(prop.explanation).toContain('Rework of rev 2, returned by Dana: check the forecast date');
+  });
+
+  it('controller returns a proposal -> agent acknowledges on the record, proposes nothing', async () => {
+    const f = fake(unflagged('another $50,000', '$50,000'), { convention: true });
+    f.s.proposals.push({ id: 70n, workItemId: 10n, revision: 2, calculationId: 20n, status: 'returned' });
+    await summo.handlers.decision({ proposalId: 70n, revision: 2, decision: 'return', by: 'Dana', reason: 'check the forecast date' }, f.deps);
+    const ev = f.events.find((e) => e.kind === 'rework');
+    expect(ev?.summary).toContain('rev 2 returned by Dana: check the forecast date');
+    expect(f.named('propose')).toHaveLength(0);
+    await summo.handlers.decision({ proposalId: 70n, revision: 2, decision: 'approve', by: 'Dana', reason: '' }, f.deps);
+    expect(f.events.filter((e) => e.kind === 'rework')).toHaveLength(1);
   });
 
   it('note with no dollar figure -> no ask, no propose', async () => {

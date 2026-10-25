@@ -9,7 +9,8 @@ type ConventionRow = { template: string; key: string; value: string; policyVersi
 type WorkItemRow = { id: bigint; projectId: bigint; title: string };
 type CalculationRow = { id: bigint; workItemId: bigint; inputsJson: string; forecastSourceId: bigint };
 type ExtractionRow = { sourceId: bigint; reader: string; factsJson: string; ambiguityFlag: boolean };
-type ProposalRow = { id?: bigint; calculationId: bigint; status: string };
+type ProposalRow = { id?: bigint; workItemId?: bigint; revision?: number; calculationId: bigint; status: string };
+export type ApprovalRow = { proposalId: bigint; revision: number; decision: string; by: string; reason: string };
 type MilestoneRow = { id: bigint; projectId: bigint; name: string; amountCents: bigint; status: string };
 export type ClarificationRefRow = { id: bigint; workItemId: bigint; sourceId: bigint; convexId: string; status: string; answer: string; speaker: string; audioStorageId: string };
 export type LedgerState = {
@@ -17,12 +18,15 @@ export type LedgerState = {
   sources: (SourceRow & { parentSourceId: bigint })[];
   conventions: ConventionRow[]; workItems: WorkItemRow[]; calculations: CalculationRow[];
   extractions: ExtractionRow[]; milestones: MilestoneRow[]; clarificationRefs: ClarificationRefRow[]; proposals: ProposalRow[];
+  approvals?: ApprovalRow[]; // controller decisions (approve | return | hold); optional so partial test ledgers still work
 };
 
 // Reducer calls take the generated bindings' camelCase arg objects, so the real adapter is `conn.reducers`.
 export type Ledger = {
   state(): LedgerState;
   onSourceInsert(cb: (s: SourceRow) => void): void;
+  /** Controller decisions as they land; optional, the agent reacts to return/hold. */
+  onApprovalInsert?(cb: (a: ApprovalRow) => void): void;
   recordExtraction(a: { sourceId: bigint; reader: string; factsJson: string; ambiguityFlag: boolean; ambiguityText: string }): Promise<void>;
   openClarification(a: { workItemId: bigint; convexId: string; question: string }): Promise<void>;
   resolveClarification(a: { clarificationId: bigint; answer: string; speaker: string; audioStorageId: string }): Promise<void>;

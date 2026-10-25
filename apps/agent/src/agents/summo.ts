@@ -3,7 +3,7 @@ import { parseAmountCents } from '../extract.js';
 import type { Extraction } from '../schemas.js';
 import type { Disagreement, ExplainInput } from '../explain.js';
 import { attempt, createBus, guardedLedger, log, say, type Agent } from '../bus.js';
-import type { ClarificationRefRow, Deps, LedgerState, SourceRow } from '../loop.js';
+import type { ApprovalRow, ClarificationRefRow, Deps, LedgerState, SourceRow } from '../loop.js';
 import { abs, baseline, engine, maxBy, usd } from './engine.js';
 import { explainer, disagreementSentence } from './explainer.js';
 import { documentReader } from './document-reader.js';
@@ -162,7 +162,8 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
     : '';
   // The source disagreement is always stated, whether or not the model wrote it.
   const said = disagreement && !/system of record/i.test(`${x.summary} ${x.whyRevenueMoved}`) ? disagreementSentence(disagreement) : '';
-  const explanation = [escalation, ...citations, x.summary, x.whyRevenueMoved, said, x.whatDidNotChange].filter(Boolean).join('\n');
+  const rework = reworkOf(ledger.state(), workItemId); // controller said no last time: say what this revision answers
+  const explanation = [escalation, rework, ...citations, x.summary, x.whyRevenueMoved, said, x.whatDidNotChange].filter(Boolean).join('\n');
   const evidence = [src.id, ...(extraEvidenceId ? [extraEvidenceId] : [])].join(',');
   const entry = engine.handlers.revenueEntry(adj);
   // Reviewer reads the finished proposal; a flag only appends a line (Dana decides), it never blocks or rewrites.
@@ -207,11 +208,32 @@ async function milestoneInvoice(src: SourceRow, x: Extraction, deps: Deps) {
 }
 
 /** Subscribe to new sources (deduped, one event at a time on the bus) and poll Convex for confirmations every second. Returns stop(). */
+/** The latest return/hold on this work item's current revision, as one line for the next proposal; '' when none. */
+export function reworkOf(state: ReturnType<Deps['ledger']['state']>, workItemId: bigint): string {
+  const mine = state.proposals.filter((p) => p.workItemId === workItemId && (p.status === 'returned' || p.status === 'held'));
+  const top = mine.reduce<typeof mine[number] | undefined>((m, p) => (!m || (p.revision ?? 0) > (m.revision ?? 0) ? p : m), undefined);
+  const a = top && (state.approvals ?? []).filter((x) => x.proposalId === top.id && x.revision === top.revision).at(-1);
+  return a ? `Rework of rev ${a.revision}, ${a.decision === 'hold' ? 'held' : 'returned'} by ${a.by}${a.reason ? `: ${a.reason}` : ''}. This revision answers that with the evidence below.` : '';
+}
+
+/** A controller decision landed. Return/hold: acknowledge on the record and wait for new evidence; the next source yields the next revision. */
+export async function handleDecision(a: ApprovalRow, deps: Deps): Promise<void> {
+  if (a.decision !== 'return' && a.decision !== 'hold') return;
+  const { ledger } = deps;
+  const p = ledger.state().proposals.find((x) => x.id === a.proposalId);
+  const w = p?.workItemId != null ? ledger.state().workItems.find((x) => x.id === p.workItemId) : undefined;
+  const projectId = w?.projectId ?? ledger.state().projects[0]?.id ?? 0n;
+  await say(ledger, NAME, projectId, 'rework', `rev ${a.revision} ${a.decision === 'hold' ? 'held' : 'returned'} by ${a.by}${a.reason ? `: ${a.reason}` : ''}; waiting for new evidence on ${w?.title ?? `proposal ${a.proposalId}`}`, 'work_item', w?.id ?? 0n);
+  log(`rev ${a.revision} ${a.decision} by ${a.by}: ${a.reason || '(no reason)'}; next source on work item ${w?.id ?? '?'} proposes rev ${a.revision + 1}`);
+}
+
 export function start(deps: Deps, opts: { isSeed?: (s: SourceRow) => boolean; pollMs?: number } = {}): () => void {
   const seen = new Set<string>(), handledConvex = new Set<string>(), attempts = new Map<string, number>();
   const bus = createBus();
   bus.on('source', (e) => attempt(e.key, seen, attempts, () => handleNewSource(e.source, deps)));
   bus.on('poll', () => fieldLiaison.handlers.poll(deps, handledConvex, attempts));
+  bus.on('approval', (e) => handleDecision(e.approval, deps));
+  deps.ledger.onApprovalInsert?.((a) => { bus.emit({ kind: 'approval', approval: a }); });
   const onSource = (s: SourceRow) => {
     const key = `${s.id}:${s.text}`; // ponytail: text in key guards against id reuse after reset_demo
     if (seen.has(key) || opts.isSeed?.(s)) return;
@@ -232,5 +254,5 @@ export function start(deps: Deps, opts: { isSeed?: (s: SourceRow) => boolean; po
 
 export const summo = {
   name: NAME, seat: 'project accountant', may: MAY,
-  handlers: { source: handleNewSource, proposeFromClarification, start },
+  handlers: { source: handleNewSource, proposeFromClarification, decision: handleDecision, start },
 } satisfies Agent<unknown>;

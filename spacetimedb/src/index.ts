@@ -60,6 +60,16 @@ export const logAgentEvent = spacetimedb.reducer(
   }
 );
 
+// Failed attempts: a rejected reducer rolls back, so the caller records the refusal here. Any registered role may; actor is the caller.
+export const recordRejection = spacetimedb.reducer(
+  { projectId: t.u64(), reducer: t.string(), message: t.string() },
+  (ctx, { projectId, reducer, message }) => {
+    requireRole(ctx, 'accountant', 'deployment_manager', 'controller', 'agent');
+    const pid = projectId !== 0n ? projectId : ctx.db.project.iter().next().value?.id ?? 0n; // ponytail: 0 = the demo's single project
+    log(ctx, pid, 'rejected', 0n, `${reducer ? reducer + ' ' : ''}rejected: ${message.slice(0, 300)}`);
+  }
+);
+
 export const addSource = spacetimedb.reducer(
   { projectId: t.u64(), kind: t.string(), text: t.string(), parentSourceId: t.u64(), version: t.u32() },
   (ctx, { projectId, kind, text, parentSourceId, version }) => {

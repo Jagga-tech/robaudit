@@ -23,7 +23,7 @@ export function fake(extraction: Extraction, opts: { remaining?: bigint; convent
     conventions: opts.convention ? [{ template: 'forecast', key: 'another_means', value: 'additional', policyVersion: 3 }] : [],
     workItems: [{ id: 10n, projectId: P, title: 'Oakland deployment: forecast v1 close' }],
     calculations: [{ id: 20n, workItemId: 10n, forecastSourceId: 3n, inputsJson: inputs(opts.remaining ?? 40000000n) }],
-    extractions: [], clarificationRefs: [], proposals: [{ calculationId: 20n, status: 'posted' }],
+    extractions: [], clarificationRefs: [], proposals: [{ calculationId: 20n, status: 'posted' }], approvals: [],
     milestones: [{ id: 30n, projectId: P, name: 'acceptance', amountCents: 20000000n, status: 'pending' }],
   };
   const calls: [string, any][] = [];

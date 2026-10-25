@@ -73,7 +73,12 @@ describe.skipIf(!up)('ledger controls (live SpacetimeDB)', () => {
   it('control 3: same postingRef twice -> duplicate_posting', async () => {
     const p = await approvedProposal();
     await controller.reducers.post({ proposalId: p.id, revision: p.revision, postingRef: 'TEST-R1' });
-    await expect(controller.reducers.post({ proposalId: p.id, revision: p.revision, postingRef: 'TEST-R1' })).rejects.toThrow(/duplicate_posting/);
+    const err = await controller.reducers.post({ proposalId: p.id, revision: p.revision, postingRef: 'TEST-R1' }).then(() => '', (e) => String(e.message));
+    expect(err).toMatch(/duplicate_posting/);
+    // the refusal is recorded by the caller (rollback leaves no row otherwise)
+    await controller.reducers.recordRejection({ projectId: 0n, reducer: 'post', message: err });
+    const row = await waitFor(controller, () => [...controller.db.historyEvent.iter()].find((h) => h.kind === 'rejected' && h.summary.includes('duplicate_posting')));
+    expect(row.actor).toBe('Dana');
   });
 
   it('control 4: post as accountant -> role', async () => {

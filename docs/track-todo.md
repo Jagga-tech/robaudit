@@ -14,14 +14,16 @@ Submission asks: video opens with the moment; live demo, judges may try their ow
 - [ ] Video opens with the moment (phone rings on the ambiguous note, or month 3 posts silently citing March). Not the architecture.
 - [x] Devpost: one line on seats. Draft: "Fills the project accountant seat for revenue recognition on fixed-price installs and the deployment manager's clarification loop; the controller keeps the sign-off seat."
 - [x] Devpost: one block "What's real / what's simulated / how we know". Real: Claude, Gemini, Cartesia, Azure DI, SpacetimeDB Maincloud, Convex prod. Simulated: company, project, six past closes behind the seeded convention, controller identity. How we know: engine answer key, 7 controls as tests, demo script asserts to the dollar, 20-phrase real-API wording set.
-- [ ] STILL OPEN 05:05 (checked code, not done by the other agent): Controller says "no": `decide(return)` works in the reducer but the agent loop does nothing after. Add: on returned proposal, agent logs the reason and reopens the work item so the next source yields the next rev (~30 lines in `apps/agent/src/loop.ts` + 1 test). Judges may try this live.
+- [x] DONE 05:30: controller says "no": Summo subscribes to approvals; on return/hold it writes an agent_event `rework` with the reason and waits; the next source proposes rev N+1 whose explanation opens with "Rework of rev N, returned by Dana: <reason>". Tests: loop.test.ts x2. No ledger change. Add: on returned proposal, agent logs the reason and reopens the work item so the next source yields the next rev (~30 lines in `apps/agent/src/loop.ts` + 1 test). Judges may try this live.
 - [x] Sources that disagree (their example: bank vs ledger vs contract). Ours is reader vs reader on one note. Optional: plant a mismatch between the forecast sheet and the field note so Summo says which it trusted and why. Only after the return path.
 
-- [ ] STILL OPEN 05:05 (checked code, not done): Log failed attempts. Rejected reducers roll back, so duplicate post, wrong role and stale decide leave no `history_event` row. Add reducer `record_rejection` in `spacetimedb/src/index.ts` and call it from the ledger client catch. Shows "post rejected: duplicate_posting" in the history pane.
+- [x] DONE 05:30 (needs Maincloud republish, see below): failed attempts logged. New reducer `record_rejection` writes history_event kind `rejected`; the workbench `call()` wrapper records every refusal (duplicate post, wrong role, stale decide, closed period). Test: ledger e2e control 3. Old note: rejected reducers roll back, so duplicate post, wrong role and stale decide leave no `history_event` row. Add reducer `record_rejection` in `spacetimedb/src/index.ts` and call it from the ledger client catch. Shows "post rejected: duplicate_posting" in the history pane.
 - [ ] Devpost: use the phrase "System of Work" (their term). Say agents propose, humans approve, every action logged including rejections.
 - [x] Mention self-learning on onboarding (S0 convention seeded from six past closes) and self-improving (convention saved on controller approval).
 
 ## Spacetime main track — all criteria met
+
+- [ ] USER: republish the module to Maincloud so `record_rejection` exists there: `spacetime publish keel --server maincloud --yes --module-path spacetimedb` (adds a reducer, keeps data). Until then the workbench's refusal logging is a silent no-op on Maincloud.
 
 - [x] Primary functionality on Spacetime (ledger + 15 reducers).
 - [x] Public repo.

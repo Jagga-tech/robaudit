@@ -1,4 +1,4 @@
-import type { Ledger, SourceRow } from './loop.js';
+import type { ApprovalRow, Ledger, SourceRow } from './loop.js';
 import { appendLog, errCode } from './logfile.js';
 
 export const log = (...a: unknown[]) => console.log(new Date().toISOString(), '[agent]', ...a);
@@ -16,7 +16,7 @@ export async function attempt(key: string, done: Set<string>, attempts: Map<stri
 }
 
 // ---- bus: typed events, handlers run one event at a time (serial), errors logged and swallowed ----
-export type BusEvent = { kind: 'source'; source: SourceRow; key: string } | { kind: 'poll' };
+export type BusEvent = { kind: 'source'; source: SourceRow; key: string } | { kind: 'poll' } | { kind: 'approval'; approval: ApprovalRow };
 type Handler<K extends BusEvent['kind']> = (e: Extract<BusEvent, { kind: K }>) => Promise<void>;
 
 export function createBus() {
@@ -25,7 +25,7 @@ export function createBus() {
   return {
     on<K extends BusEvent['kind']>(kind: K, h: Handler<K>) { handlers.set(kind, [...(handlers.get(kind) ?? []), h]); },
     emit(e: BusEvent): Promise<void> {
-      const what = e.kind === 'source' ? `source ${e.source.id}` : 'convex poll';
+      const what = e.kind === 'source' ? `source ${e.source.id}` : e.kind === 'approval' ? `decision on proposal ${e.approval.proposalId}` : 'convex poll';
       return (chain = chain.then(async () => { for (const h of handlers.get(e.kind) ?? []) await h(e); })
         .catch((err) => log(`ERROR ${what}:`, err?.message ?? err)));
     },
@@ -33,7 +33,7 @@ export function createBus() {
 }
 
 // ---- agents: a name, a seat, the reducers it may call, its handlers; every action is logged to agent_event ----
-export type Kind = 'read' | 'agree' | 'disagree' | 'reconcile' | 'ask' | 'answer' | 'compute' | 'explain' | 'propose' | 'review' | 'learn' | 'skip' | 'error' | 'flag' | 'pass';
+export type Kind = 'read' | 'agree' | 'disagree' | 'reconcile' | 'ask' | 'answer' | 'compute' | 'explain' | 'propose' | 'review' | 'learn' | 'skip' | 'error' | 'flag' | 'pass' | 'rework';
 export type Agent<H> = { name: string; seat: string; may: readonly string[]; handlers: H };
 
 /** Every ledger reducer an agent could reach for, `post` included (a human approval; no agent may call it). */

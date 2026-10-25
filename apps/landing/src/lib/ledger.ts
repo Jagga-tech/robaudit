@@ -34,6 +34,7 @@ export async function connect(role: Role, name = NAMES[role], tables = TABLES): 
   });
   const me = conn.db.user.identity.find(conn.identity!);
   if (!me || me.role !== role || me.name !== name) await conn.reducers.registerDemoUser({ name, role });
+  rejectionConn = conn;
   for (const t of tables) {
     const tbl = (conn.db as any)[t.replace(/_(\w)/g, (_: string, x: string) => x.toUpperCase())];
     tbl.onInsert(bump); tbl.onUpdate?.(bump); tbl.onDelete(bump);
@@ -59,9 +60,15 @@ export function subscribeExtra(conn: DbConnection, tables: string[], onApplied: 
     .subscribe(tables.map((t) => `SELECT * FROM ${t}`));
 }
 
-/** Await a reducer call: null when it succeeded, otherwise the SenderError message ("code: message"). */
-export async function call(p: Promise<unknown>): Promise<string | null> {
-  try { await p; return null; } catch (e: any) { return String(e?.message ?? e); }
+let rejectionConn: DbConnection | null = null; // the last connection made here records refusals (controller on the workbench)
+/** Await a reducer call: null when it succeeded, otherwise the SenderError message ("code: message").
+ *  A refusal is also written to history_event (kind `rejected`) so failed attempts are on the record. */
+export async function call(p: Promise<unknown>, reducer = ''): Promise<string | null> {
+  try { await p; return null; } catch (e: any) {
+    const message = String(e?.message ?? e);
+    (rejectionConn?.reducers as any)?.recordRejection?.({ projectId: 0n, reducer, message }).catch(() => {}); // older servers lack the reducer
+    return message;
+  }
 }
 
 const CODES = ['role', 'revision', 'stale', 'period_closed', 'unbalanced', 'duplicate_posting', 'not_approved', 'not_found', 'bad_input'];
