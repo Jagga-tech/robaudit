@@ -72,3 +72,11 @@ Judged 25% each: problem/originality, use of Cartesia (core + natural voice), ex
 - [ ] Video: one complete voice flow first (question spoken, answer recorded, transcript shown, evidence playback), then the problem. Keep their 2-minute shape in mind; the Hyphenate cut opens with the moment, which is the same scene.
 - [ ] Devpost Cartesia paragraph: name Sonic 3.6 and Ink, say the recording is evidence, mention mock/fallback behaviour honestly.
 - Weak spot: one short recorded answer, not a conversation; no Managed Agents. Say so rather than overclaim.
+
+## Added 06:30 PDT after reading the Devpost prize list (cal-hacks-13-0.devpost.com)
+
+- [ ] Atlassian: the Devpost prize is "Best Agent / Best Security Solution for Agents" and asks you to name the track in the description. Ours is **Best Security Solution for Agents** (Track 2). Devpost text fixed.
+- [ ] Figma — Best Figma Workflow Hack ($1,000 + recruiting session): we are prepared (`docs/figma-stage-log.md`, Figma file, Figma Slides). Needs: file shared to Anyone, Figma embeds on Devpost, Edu verified, 3-min video.
+- [ ] Cal Hacks — Most Technically Complex Hack: enter it; general judging criteria are application, intentionality, functionality, creativity, technical complexity.
+- [ ] Possible but unchecked criteria: [Anthropic] Claude for Public Benefit ($4,998 + credits; "public benefit" is a stretch for corporate finance), [Armadin] Best Security Hack (guard agent, segregation of duties, refusal log could fit). Ask at their tables before ticking.
+- Not entered on purpose: Solana, Tiger Data, Vultr, Snowflake, Visa, Fetch.ai, Meta, Factory, Apify, Creao, Bitdeer, Elastic, Capital One, CRS, Moss, SpaceXSI, Coinbase, Notability, Mana, Bright Data.

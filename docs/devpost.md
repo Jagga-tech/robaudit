@@ -97,8 +97,11 @@ Multiple performance obligations and variable consideration, ERP connectors, rea
 - Convex — Best use of Convex. Verify: `convex/` (live queries, mutations, Cartesia actions, file storage, `action-retrier` component in `convex/convex.config.ts`, Anonymous auth); the phone rings and the transcript streams without a refresh.
 - Cartesia — Best Use of Cartesia. Verify: `convex/voice.ts` (Sonic speaks the question, Ink transcribes the answer); on Evidence, click the figure and the judge's own answer plays.
 - Microsoft — Built for the Real World. Verify: Summo runs on Azure Container Apps (`infra/azure/containerapp.md`); photograph a forecast sheet on `/phone` and the Azure Document Intelligence row appears (`apps/agent/src/azure-di.ts`).
-- Atlassian — Best Agent. Submitting for: Best Agent (Track 2, audit mirror): every ask, proposal, return and post lands in Jira project SUMMO with its reasoning; Jira never posts to the ledger. Verify: `apps/jira-forge` + `apps/jira-bridge`; in the workbench, Inbox chips, a Jira tab per project, Connections and Agents.
+- Atlassian — Best Agent / Best Security Solution for Agents. Submitting for: **Best Security Solution for Agents** (Track 2, audit mirror): every ask, proposal, return and post lands in Jira project SUMMO with its reasoning; Jira never posts to the ledger. Verify: `apps/jira-forge` + `apps/jira-bridge`; in the workbench, Inbox chips, a Jira tab per project, Connections and Agents.
 - MLH — Commit Fellowship Prize Category. Verify: the live prototype and `docs/proof.md` (opt in on Devpost and submit the supplemental form).
+- Cal Hacks — Most Technically Complex Hack. Verify: three live backends (SpacetimeDB ledger, Convex voice channel, Azure agent), two model readers plus a reviewer, OCR, a phone channel, a Jira mirror; `README.md` architecture and repo map.
+- Figma — Best Figma Workflow Hack (Idea to Demo). Stage log: `docs/figma-stage-log.md`; file https://www.figma.com/design/8gPKZCS1U6j1LiL5fiGmTX (page 08 handoff); slides https://www.figma.com/slides/6OP6R1iZp5DaZT7m6FsKoT.
+- MLH — Best Domain Name from GoDaddy Registry: robaudit.us.
 - MLH — Best Use of Gemini API. Verify: `apps/agent/src/agents/reader-gemini.ts` and `reviewer.ts`; the `gemini` extraction row beside `claude` and "Reviewed by Gemini" on the proposal.
 
 ## Sponsor tracks, in each judge's own terms
@@ -127,7 +130,7 @@ The voice channel: `clarifications` and `transcriptSegments` tables with indexes
 
 Voice is the channel, not a feature. Sonic 3.6 speaks the question; Ink transcribes the answer over WebSocket; both run inside Convex actions so the key never reaches the browser, with retries. Edge cases handled: mic denied falls back to tap-to-answer, failed upload, declined call, stale question. The phone tells the manager the answer is recorded and kept as evidence. Known limits: one short recorded answer per question, not a conversation; no Managed Agents.
 
-### Atlassian: Agentic Workforce Challenge, Track 2
+### Atlassian: Best Security Solution for Agents (Track 2)
 
 An audit mirror for an agent that acts: a Forge app with one web trigger, fed by a bridge that subscribes to the ledger. Each Summo work item becomes a Jira issue in project SUMMO when Summo asks a question; each proposal, approval, return, hold and posting becomes a comment and a column move, labels for loss warnings and rework. Jira never writes to the ledger, so the agent's work is reviewable where the team already works without giving Jira money access.
 
@@ -155,4 +158,5 @@ typescript, node.js, pnpm, spacetimedb, convex, cartesia, claude, anthropic, gem
 - [ ] Video demo linked; it opens with the moment
 - [ ] Verify exact track names on Hive
 - [ ] MLH Commit Fellowship: opted in and supplemental form submitted
-- [ ] Select every track above in the Devpost prize list, including GoDaddy Registry (not in our original list)
+- [ ] Select every track above in the Devpost prize list: Hyphenate, Spacetime, Convex, Cartesia, Microsoft, Atlassian (say "Best Security Solution for Agents"), MLH Gemini, MLH GoDaddy, MLH Commit, Figma Workflow, Cal Hacks Most Technically Complex
+- [ ] Figma track: file sharing set to Anyone with the link; Figma files embedded in the Devpost page; Edu verified; stage log pasted
