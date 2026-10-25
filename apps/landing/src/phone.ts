@@ -445,7 +445,7 @@ function boot() {
 
   function renderHome() {
     app.innerHTML = `
-      <h1>${mode === 'intake' ? 'Summo will call you with a few questions.' : mode === 'project' ? 'Anything changed on site this week? Send it.' : `Hi ${esc(me!.name)}. Send Summo a site update.`}</h1>
+      <h1>${mode === 'intake' ? 'Summo will ask you a few questions right here.' : mode === 'project' ? 'Anything changed on site this week? Send it.' : `Hi ${esc(me!.name)}. Send Summo a site update.`}</h1>
       <div class="field">
         <textarea id="text" aria-label="Site update" placeholder="e.g. conveyor rework is going to run another 80 grand"></textarea>
         <button class="mic" id="mic" type="button" aria-label="Speak the update" ${SR ? '' : 'hidden'}>${MIC_SVG}</button>

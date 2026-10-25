@@ -59,7 +59,7 @@ const page: Page = {
         <div class="fig"><div class="big" data-f="rev">…</div><div class="was" data-f="wasRev"></div><div class="lbl">revenue recognized</div><small data-f="subRev"></small></div></div>
         <div class="margin"><div class="mline">Expected margin <b data-f="margin"></b><span class="warn" data-f="loss" hidden>loss warning · escalated to Dana</span></div><div class="track"><i data-f="bar"></i></div></div>
         <h2>Activity</h2><ul class="list" data-f="activity"></ul></section>
-        <aside class="side"><div class="joincard" data-f="join"><h3>Scan to be the deployment manager</h3><p>Summo will read your update, call your phone with one question, and book the result with your name on it.</p><div class="qr" data-f="qr"></div><code data-f="qrUrl"></code></div><div data-f="prop"></div></aside></div>`;
+        <aside class="side"><div class="joincard" data-f="join"><h3>Scan to be the deployment manager</h3><p>Summo will read your update, ask you one question on your phone, and book the result with your name on it.</p><div class="qr" data-f="qr"></div><code data-f="qrUrl"></code></div><div data-f="prop"></div></aside></div>`;
       const url = location.origin + '/phone';
       try { const q = qrcode(0, 'M'); q.addData(url); q.make(); $('[data-f=qr]').innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace(/fill="black"/g, 'fill="#0B1215"'); }
       catch { $('[data-f=qr]').textContent = 'QR unavailable'; }
