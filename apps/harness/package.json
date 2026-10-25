@@ -1,0 +1,12 @@
+{
+  "name": "@keel/harness",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite" },
+  "dependencies": {
+    "@keel/bindings": "workspace:*",
+    "convex": "^1.48.0",
+    "spacetimedb": "2.13.*",
+    "vite": "^5.4.0"
+  }
+}
