@@ -7,7 +7,7 @@ reset, and what the Azure additions change. Build nothing until this is agreed.
 
 | Component | Dev (today) | Demo / "prod" target | Why |
 |---|---|---|---|
-| SpacetimeDB ledger (`keel`) | local `spacetime start` :3000 | **SpacetimeDB Maincloud** (`spacetime publish keel --server maincloud`) | Phone + laptop + agent reach one URL; survives laptop sleep |
+| SpacetimeDB ledger (`keel`) | local `spacetime start` :3000 | **SpacetimeDB Maincloud** `keel` (published 2026-10-24, https://spacetimedb.com/keel) | Phone + laptop + agent reach one URL; survives laptop sleep |
 | Convex clarification channel | cloud dev deployment `lovely-squirrel-569.convex.cloud` (already live) | **Convex production deployment** `hushed-shrimp-24.convex.cloud` (deployed 2026-10-24; `npx convex deploy`) | Prod URL is stable; dev deployment stays for rehearsals |
 | Agent service (`apps/agent`) | `pnpm agent` on the laptop | **Azure Container Apps** (one container, min 1 replica, restart-on-exit) with a laptop fallback | Keeps running when the laptop is busy with the UI; Microsoft track hosting story |
 | Document ingestion | none | **Azure AI Document Intelligence** (prebuilt-layout) called from the agent on `source.kind = scanned_forecast` | "Document-to-decision" for the Microsoft track; photo of a forecast sheet becomes forecast v2 |
