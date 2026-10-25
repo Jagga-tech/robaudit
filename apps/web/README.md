@@ -4,7 +4,7 @@ The workbench, evidence replay, and the deployment manager's phone screen.
 
 ```bash
 pnpm install
-pnpm --filter @keel/web dev        # http://localhost:5173  (phone view: /m)
+pnpm --filter @keel/web dev        # http://localhost:5173  (phone view: /m, launch page: /intro)
 pnpm --filter @keel/web test       # 8 unit tests
 pnpm --filter @keel/web build      # typecheck + production build
 ```
@@ -37,4 +37,5 @@ Force a mode with `?mode=demo` or `?mode=live`. **Reset demo** (badge menu) rest
 - `src/data/` — `model.ts` (table types), `liveBackend.ts`, `demoBackend.ts`, `select.ts` (all derived view models), `KeelProvider.tsx`.
 - `src/components/` — `ForecastBridge`, `investigation` (sources, ambiguity, entry, agent panel, stepper), `ManagerClarify`, `PhoneDrawer`, `Shell`, `ui`.
 - `src/pages/` — `CommandCenter`, `Investigation`, `AuditReplay`, plus the approvals, ledger, policies and project pages.
+- `src/marketing/` — the `/intro` launch page (lazy-loaded). Its figures come from `demo/seed.json` through `@keel/engine` (`scenario.ts`); styles are scoped under `.lp`. Screenshots in `public/landing/` were captured from the offline demo with the agent labelled Summo and the platform RoboAudit.
 - `src/styles/` — design tokens taken from the Figma variables (same names as their code syntax).
