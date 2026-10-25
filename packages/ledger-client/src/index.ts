@@ -13,7 +13,7 @@ export const STDB_URI = process.env.STDB_URI ?? 'http://127.0.0.1:3000';
 export const STDB_DB = process.env.STDB_DB ?? 'keel';
 const IDS_FILE = fileURLToPath(new URL('../../../demo/identities.json', import.meta.url));
 const NAMES: Record<Role, string> = {
-  accountant: 'Priya', deployment_manager: 'Matt', controller: 'Dana', agent: 'Keel Agent',
+  accountant: 'Priya', deployment_manager: 'Matt', controller: 'Dana', agent: 'Summo',
 };
 const TABLES = [
   'user', 'project', 'policy', 'convention', 'source', 'extraction', 'clarification_ref', 'work_item',

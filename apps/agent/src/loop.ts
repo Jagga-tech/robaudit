@@ -214,6 +214,7 @@ async function proposeForecast(src: SourceRow, amount: bigint, convention: Conve
   });
   const calc = await waitFor(`calculation for source ${src.id}`, () => maxBy(ledger.state().calculations.filter((c) => c.forecastSourceId === src.id)), CALC_WAIT_MS);
   log(`calculation ${calc.id}: remaining ${usd(next.remaining)} (${convention}), progress ${after.progressBp} bp, cum revenue ${usd(after.cumRevenue)}, adjustment ${usd(adj)}${after.margin.lossWarning ? ', LOSS WARNING' : ''}`);
+  if (adj === 0n) return log(`no revenue change: cumulative revenue unchanged at ${usd(after.cumRevenue)}`); // an empty entry would fail post as unbalanced
   const x = await checkedExplain(input, amount, deps);
 
   const escalation = after.margin.lossWarning

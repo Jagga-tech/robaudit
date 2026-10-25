@@ -100,6 +100,13 @@ describe('agent loop', () => {
     expect(f.named('propose')).toHaveLength(1);
   });
 
+  it('(h0) forecast leaving remaining unchanged -> calculation recorded, no propose', async () => {
+    const f = fake(unflagged('the new total remaining is $400,000', '$400,000'));
+    await handleNewSource(f.add('note', 'the new total remaining is $400,000'), f.deps);
+    expect(f.named('recordCalculation')).toHaveLength(1);
+    expect(f.named('propose')).toHaveLength(0);
+  });
+
   it('(h) unflagged "new total remaining is $600,000" -> no clarification, new_total', async () => {
     const f = fake(unflagged('the new total remaining is $600,000', '$600,000'));
     await handleNewSource(f.add('note', 'the new total remaining is $600,000'), f.deps);

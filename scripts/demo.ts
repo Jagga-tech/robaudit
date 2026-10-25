@@ -55,6 +55,10 @@ try {
     await controller.reducers.resetDemo({});
     // stale ringing/answering clarifications would otherwise shadow this run's call (resetOpen may not be deployed yet)
     await cvx.mutation(anyApi.clarifications.resetOpen, {}).catch((e) => console.log(`resetOpen unavailable: ${e?.message ?? e}`));
+    try { // the judge from the last run would otherwise stay "joined"
+      const cur = (await cvx.query(anyApi.managers.current, {})) as { _id: string } | null;
+      if (cur) await cvx.mutation(anyApi.managers.leave, { id: cur._id });
+    } catch (e: any) { console.log(`managers unavailable: ${e?.message ?? e}`); }
     const p = oakland();
     const items = [...db.workItem.iter()].filter((w) => w.projectId === p.id);
     eq('S0 work items', items.length, 1);

@@ -161,7 +161,7 @@ What each code means for the UI:
 - `revision`: not the latest revision, or the proposal was already decided.
 - `stale`: new evidence arrived after this proposal. Message: `stale: proposal <id> is stale`.
 - `period_closed`: the project period is closed.
-- `unbalanced` or `bad_input`: something is wrong with the entry. An empty entry (zero adjustment) gives `unbalanced: debits 0 != credits 0`.
+- `unbalanced` or `bad_input`: something is wrong with the entry. A zero adjustment never reaches `post`: the agent records no proposal for it.
 - `duplicate_posting`: `postingRef <ref> already posted`, or `proposal <id> already posted as <ref>`.
 - `not_approved`: `post` was called before `decide`.
 - `not_found`: a bad id.
@@ -202,7 +202,7 @@ export const ids = (csv: string) => csv.split(',').filter(Boolean).map(BigInt);
 | `approval` | id, proposalId, revision, decision (`approve`/`return`/`hold`), by, reason, at | |
 | `posting` | id, proposalId, revision, postingRef (unique), linesJson, postedBy, postedAt | The seed has `OAK-2026-09-R1`. |
 | `contractMilestone` | id, projectId, name, amountCents, status (`pending`/`met`/`invoiced`) | `acceptance`, $200,000. |
-| `historyEvent` | id, projectId (0 for user/convention events), kind, refId, summary, actor, at | Append-only log. `actor` is the caller's registered name (the judge's name for phone sources). The agent identity is registered as `Keel Agent` (`packages/ledger-client/src/index.ts`): display every row whose actor's `user.role === 'agent'` (or `actor === 'Keel Agent'`) as "Summo". |
+| `historyEvent` | id, projectId (0 for user/convention events), kind, refId, summary, actor, at | Append-only log. `actor` is the caller's registered name (the judge's name for phone sources). The agent identity registers as `Summo` (`packages/ledger-client/src/index.ts`); `registerDemoUser` updates an existing row's name on reconnect, but `reset_demo` keeps user rows and old `historyEvent.actor` strings stay as written, so still display every row whose actor's `user.role === 'agent'` (or `actor === 'Keel Agent'`) as "Summo". |
 
 `extraction.factsJson`: for `claude`/`gemini`, an array of facts (`kind`, `quote`, `amountText`, `charStart`, `charEnd`); for `azure-di`, `{ text, tables }` where `tables` is `string[][][]` (rows of cell strings).
 
@@ -415,7 +415,7 @@ async function sendForecast(file: File) {
 
 Summo fetches the bytes from Convex storage, writes an `extraction` with `reader === 'azure-di'` (`factsJson` = `{ text, tables }`), then a `claude` extraction on the OCR text, then a `calculation` and `proposal` whose `evidenceSourceIds` contains the scanned source id. A "Remaining Estimate" figure is read as the new total remaining and the explanation cites `Convention v3: remaining_estimate_means = future_costs_only`; no call is made. Design "Reading document" for 3–8 s. Without Azure keys the agent's mock OCR always returns $600,000, whatever was photographed.
 
-Sheets: `apps/agent/test/fixtures/sheets/forecast-{550k,600k,700k,350k}.{jpg,pdf}`. Expected values are in `docs/demo-flow.md` (after an approved "additional": $550k → 42.11%, $421,053, +$21,053; $700k → 36.36%, $363,636, −$36,364; $350k → 53.33%, $533,333, +$133,333; $600k → zero adjustment, empty entry, `post` fails `unbalanced`).
+Sheets: `apps/agent/test/fixtures/sheets/forecast-{550k,600k,700k,350k}.{jpg,pdf}`. Expected values are in `docs/demo-flow.md` (after an approved "additional": $550k → 42.11%, $421,053, +$21,053; $700k → 36.36%, $363,636, −$36,364; $350k → 53.33%, $533,333, +$133,333; $600k → zero adjustment: calculation recorded, no proposal, show "No revenue change").
 
 ## 9. "Break it" buttons (laptop)
 
@@ -468,7 +468,7 @@ Ordering rules:
 
 - **Ids shift after every reset.** Look rows up by name, title or kind each time, never by a cached id.
 - `resetDemo` clears every table except `user`. After a reset you do not need to call `registerDemoUser` again.
-- `pnpm demo --reset-only` calls `resetDemo` and Convex `resetOpen`, but not `managers.leave`. The Reset button must do all three.
+- `pnpm demo --reset-only` calls `resetDemo`, Convex `resetOpen` and `managers.leave`. The Reset button must do all three.
 - `demo/identities.json` holds the Node tokens used by `pnpm agent` and `pnpm demo` (gitignored). Browser tokens live in `localStorage` under `keel-token-<role>`. They are different identities with the same names, which is fine. Tokens are per server: a local token does not work on Maincloud. To start fresh, clear localStorage.
 - `addSource`, `registerDemoUser` and `resetDemo` have no role check. `decide`, `post`, `closePeriod` and `saveConvention` require controller.
 - Node has no global WebSocket, so `@keel/ledger-client` polyfills it with `ws`. Browsers have one natively, so don't import ledger-client.
@@ -476,5 +476,5 @@ Ordering rules:
 - Do not run `pnpm demo` (without `--remote`) or `pnpm agent` while `keel-agent` is running. Two agents process each source and ask Convex twice.
 - `getUserMedia`, the camera input and SpeechRecognition need a secure context (https). iOS Safari plays audio only after a tap; start question playback from the Answer tap.
 - When `CARTESIA_API_KEY` is not set in the Convex env, the question audio is 0.5 s of silence and the transcript is `MOCK: it's additional`. Keep the question text on screen.
-- A zero adjustment (e.g. the $600,000 sheet after an approved "additional") produces an empty entry; `post` refuses it with `unbalanced`. Show "No change to the books" instead of an Approve button when `lines(p.entryJson).length === 0`.
+- A zero adjustment (e.g. the $600,000 sheet after an approved "additional") gets a calculation but no proposal. Show "No revenue change" (no Approve button) when the newest calculation has no proposal.
 - The "Change the forecast" button text is fixed so Summo reads it without a call (a "Remaining Estimate" figure). Do not change it to "another …" after a convention is saved unless you want the convention path.

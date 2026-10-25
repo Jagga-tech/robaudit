@@ -77,8 +77,8 @@ Expected values after step 5 approved "additional" (baseline remaining $600,000,
 | $700,000 | 36.36% | $363,636 | $63,636 | −$100,000 (loss) | −$36,364 | Dr Revenue / Cr Contract asset 36,364 |
 | $350,000 | 53.33% | $533,333 | $233,333 | $250,000 | +$133,333 | Dr Contract asset / Cr Revenue 133,333 |
 
-**Do not hand out the $600,000 sheet after an "additional" answer.** It produces an empty entry, and
-`post` fails with `unbalanced: debits 0 != credits 0`. Hand out $550k, $700k or $350k. The $600,000
+**The $600,000 sheet after an "additional" answer changes nothing.** Cumulative revenue is unchanged, so the
+agent records a calculation but creates no proposal (the UI should show "No revenue change"). Hand out $550k, $700k or $350k for a visible change. The $600,000
 sheet is the right one only when nothing has been approved since reset (from S0: 40.00%, −$100,000,
 the same answer key as "additional").
 
@@ -162,8 +162,7 @@ stays, new adjustment").
    `clarifications.resetOpen({})`, Convex `managers.leave({ id: current._id })` if a manager is joined.
 2. Confirm on the laptop: one work item `posted`, 50.00% / $500,000, QR showing, no "joined" line.
 3. If the button fails: `pnpm demo --reset-only --remote` with `.env` pointing at Maincloud and Convex
-   prod. This resets the ledger and calls `resetOpen`, but not `managers.leave`; clear the manager from the
-   Convex dashboard or let the next `managers.join` replace it (join deactivates the previous manager).
+   prod. This resets the ledger, calls `resetOpen` and also `managers.leave` for the current manager.
 4. Summo needs no restart. Ids keep counting after reset; the UI must look rows up by name.
 
 ## 30-minute pre-judging checklist

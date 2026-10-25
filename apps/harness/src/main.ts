@@ -3,7 +3,7 @@ import { ConvexClient } from 'convex/browser';
 import { api } from '../../../convex/_generated/api';
 
 type Role = 'accountant' | 'deployment_manager' | 'controller' | 'agent';
-const NAMES: Record<Role, string> = { accountant: 'Priya', deployment_manager: 'Matt', controller: 'Dana', agent: 'Keel Agent' };
+const NAMES: Record<Role, string> = { accountant: 'Priya', deployment_manager: 'Matt', controller: 'Dana', agent: 'Summo' };
 const TABLES = ['user', 'project', 'policy', 'convention', 'source', 'extraction', 'clarification_ref', 'work_item',
   'calculation', 'proposal', 'approval', 'posting', 'contract_milestone', 'history_event'];
 
