@@ -8,3 +8,5 @@ spacetimedb/dist/
 .convex/
 .superpowers/
 *.log
+
+.env.local

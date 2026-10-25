@@ -1,0 +1,31 @@
+{
+  "project": { "name": "Oakland deployment", "company": "Aster Robotics", "contractValueCents": 100000000, "periodOpen": true },
+  "policy": { "version": 3, "text": "Cost-to-cost, single performance obligation, fixed price", "approvedBy": "Controller" },
+  "sources": [
+    { "kind": "contract", "version": 1, "text": "Aster Robotics / Oakland deployment: fixed-price contract, total consideration $1,000,000. Single performance obligation: deliver, install and commission the robotaxi depot fleet. Milestone billing: acceptance $200,000." },
+    { "kind": "cost_export", "version": 1, "text": "Cost export through 2026-09-30. Incurred to date: $400,000.", "incurredCents": 40000000 },
+    { "kind": "forecast", "version": 1, "text": "Forecast v1 (Deployment manager). Remaining Estimate: $400,000.", "remainingCents": 40000000 },
+    { "kind": "invoice", "version": 1, "text": "Invoices billed to date: $300,000.", "billedCents": 30000000 },
+    { "kind": "note", "version": 1, "text": "Close 2026-03 (Fremont pilot): manager wrote 'Remaining Estimate 120k'. Confirmed: Remaining Estimate means future costs only, excluding incurred." },
+    { "kind": "note", "version": 1, "text": "Close 2026-04 (Fremont pilot): 'Remaining Estimate now 90k'. Treated as future costs only; incurred unchanged." },
+    { "kind": "note", "version": 1, "text": "Close 2026-05 (San Jose depot): 'Remaining Estimate 310k after lidar swap'. Remaining Estimate means future costs only." },
+    { "kind": "note", "version": 1, "text": "Close 2026-06 (San Jose depot): 'Remaining Estimate 240k'. Future costs only; not a revised total." },
+    { "kind": "note", "version": 1, "text": "Close 2026-07 (Phoenix depot): 'Remaining Estimate 500k'. Controller confirmed: future costs only." },
+    { "kind": "note", "version": 1, "text": "Close 2026-08 (Phoenix depot): 'Remaining Estimate 410k'. Remaining Estimate means future costs only, as in every prior close." }
+  ],
+  "convention": { "template": "forecast", "key": "remaining_estimate_means", "value": "future_costs_only", "policyVersion": 3, "approvedBy": "Controller" },
+  "milestone": { "name": "acceptance", "amountCents": 20000000, "status": "pending" },
+  "workItem": { "title": "Oakland deployment: forecast v1 close", "status": "posted", "assignedRole": "controller" },
+  "calculation": { "progressBp": 5000, "cumRevenueCents": 50000000, "contractAssetCents": 20000000, "marginCents": 20000000, "lossWarning": false },
+  "proposal": {
+    "revision": 1,
+    "status": "posted",
+    "entry": [
+      { "account": "ContractAsset", "debit": "50000000", "credit": "0" },
+      { "account": "Revenue", "debit": "0", "credit": "50000000" }
+    ],
+    "explanation": "Cost-to-cost: incurred $400,000 / est. total $800,000 = 50%. Cumulative revenue $500,000; billed $300,000; contract asset $200,000.",
+    "postingRef": "OAK-2026-09-R1",
+    "postedBy": "Controller"
+  }
+}
