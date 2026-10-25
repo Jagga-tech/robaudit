@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildEvent, type Rows } from '../src/event.js';
+import { buildEvent, mirrorSummary, type Rows } from '../src/event.js';
 
 const rows: Rows = {
   projects: [{ id: 1n, name: 'Oakland' }],
@@ -22,4 +22,8 @@ describe('buildEvent', () => {
     expect(buildEvent(rows, wi('awaiting_clarification')).detail).toBe('Additional, or the new total?');
     expect(buildEvent(rows, wi('returned'))).toMatchObject({ actor: 'Dana', detail: 'check the forecast date', labels: ['needs-rework'] });
   });
+});
+
+describe('mirrorSummary', () => {
+  it('key · headline', () => expect(mirrorSummary('SUMMO-4', 'Rev 2 approved')).toBe('SUMMO-4 · Rev 2 approved'));
 });

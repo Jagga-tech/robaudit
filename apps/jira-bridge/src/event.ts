@@ -45,3 +45,6 @@ export function buildEvent(r: Rows, w: WorkItem): JiraEvent {
   }
   return ev;
 }
+
+// Pure: the agent_event summary the workbench shows next to a work item.
+export const mirrorSummary = (issueKey: string, headline: string) => `${issueKey} · ${headline}`;
