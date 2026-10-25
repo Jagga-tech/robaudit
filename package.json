@@ -6,7 +6,7 @@
   "scripts": {
     "test": "pnpm -r --if-present test",
     "stdb:start": "spacetime start",
-    "stdb:publish": "spacetime publish keel --server local --yes --delete-data=always",
+    "stdb:publish": "spacetime publish keel-local --server local --yes --delete-data=always",
     "stdb:gen": "spacetime generate --lang typescript --out-dir packages/bindings/src --module-path spacetimedb",
     "agent": "pnpm --filter @keel/agent start",
     "demo": "tsx scripts/demo.ts",

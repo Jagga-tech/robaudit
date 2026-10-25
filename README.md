@@ -133,6 +133,8 @@ If a beat stalls, restart the agent; recovery is restart-safe.
 
 Known gaps (two crash windows): a crash between `record_calculation` and `propose`, and between Convex `ask` and `open_clarification`.
 
+**Local database name:** the laptop fallback ledger is `keel-local` (`.env` STDB_DB, `.env.local` VITE_STDB_DB); Maincloud is `keel`. The old local `keel` is orphaned by an identity change and should not be used.
+
 ## Stage start order (day of)
 
 1. Check services: Azure agent healthy (`az containerapp revision list -n keel-agent -g keel-rg`), Maincloud answers (`spacetime sql keel "select count(*) from proposal" --server maincloud`), Convex prod reachable.
