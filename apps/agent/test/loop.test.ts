@@ -189,12 +189,13 @@ describe('agent loop', () => {
   it('normalizeAnswer', () => {
     expect(normalizeAnswer("it's additional")).toBe('additional');
     expect(normalizeAnswer('new total')).toBe('new_total');
-    expect(normalizeAnswer('additional, not a new total')).toBeNull();
+    expect(normalizeAnswer('additional, not a new total')).toBe('additional'); // an explicit negated "new total" decides
+    expect(normalizeAnswer('extra on top of the total')).toBeNull(); // both kinds, no explicit phrase: ask
     expect(normalizeAnswer('no idea')).toBeNull();
   });
 
   it('unclear Convex answer -> fallbackText, not resolved; re-confirmed later -> resolved', async () => {
-    const f = fake(ambiguous('$200,000'), { confirmed: { answer: 'additional, not a new total', speaker: 'Matt' } });
+    const f = fake(ambiguous('$200,000'), { confirmed: { answer: 'extra on top of the total', speaker: 'Matt' } });
     await handleNewSource(f.add('note', 'we need another $200,000 to finish'), f.deps);
     const handled = new Set<string>();
     await pollConfirmed(f.deps, handled);
