@@ -1,20 +1,114 @@
-# Robaudit
+<p align="center">
+  <img src="apps/landing/public/robaudit-logo.png" alt="Robaudit" width="180">
+</p>
 
-Robaudit keeps revenue current on fixed-price robotics installations recognized with cost-to-cost. It is used by three people: the project accountant (whose revenue-close work Summo does), the controller (who approves and posts), and the deployment manager on site (who answers Summo's questions from a phone). Summo, the agent, reads field notes, cost forecasts, photographed forecast sheets and commissioning logs; asks the deployment manager one question by voice when the wording is ambiguous or two readers disagree; recomputes progress and revenue with a deterministic engine in integer cents; and proposes an adjusting entry with an explanation. Summo never posts, and no model output is ever a posted amount: the ledger refuses `post` from anyone but the controller.
+<h1 align="center">Robaudit</h1>
 
-Built at Cal Hacks 13.0. Design: `docs/superpowers/specs/2026-10-24-keel-design.md`. Submission text: `docs/devpost.md`. Sponsor-by-sponsor detail: [docs/sponsors.md](docs/sponsors.md).
+<p align="center"><b>Project-close accounting for robotics installs. Summo does the close; a person posts.</b></p>
+
+<p align="center">
+  <a href="https://www.robaudit.us">www.robaudit.us</a> ·
+  <a href="https://www.robaudit.us/workbench">workbench</a> ·
+  <a href="https://www.robaudit.us/phone">judge phone</a> ·
+  <a href="docs/devpost.md">Devpost text</a> ·
+  <a href="docs/proof.md">proof</a>
+</p>
+
+<p align="center">
+  <img src="apps/landing/public/summo-suit.png" alt="Summo, the Robaudit agent: a fuzzy green character in a charcoal suit" width="240">
+</p>
+
+## Meet Summo
+
+Summo is the agent inside Robaudit. It fills the project accountant's revenue-close seat on fixed-price robotics installations recognized with cost-to-cost, and the part of the controller's week spent chasing deployment managers. It never takes the approver's seat.
+
+What Summo does, every time a source lands:
+
+1. **Reads** the field note, forecast sheet, phone photo or commissioning log. Two independent readers, Claude Opus 5.5 and Gemini 3.5 Flash Lite; a deterministic guard screens the text first.
+2. **Asks** the deployment manager one question by phone when the wording is ambiguous or the readers disagree. Cartesia speaks it and transcribes the answer; the recording becomes evidence.
+3. **Computes** progress, revenue, contract asset and margin with an engine in integer cents. No model output is ever a posted amount.
+4. **Proposes** the adjusting entry with an explanation that cites its evidence and any convention it relied on. Gemini reviews it before the controller sees it.
+5. **Waits.** The controller approves and posts, returns, or holds. Every call, including refused ones, is a row in the ledger. A confirmed answer the controller approves becomes a convention, and next month there is no call.
+
+The ledger is SpacetimeDB. The phone call runs on Convex. Summo runs on Azure. Jira mirrors the work. Built at Cal Hacks 13.0 by a team of four; the company in the demo (Aster Robotics, Oakland project) is fictional and seeded from `demo/seed.json`.
 
 ## Live demo
 
 | What | Where |
 |---|---|
-| Web app | https://kind-river-0eb9d010f.5.azurestaticapps.net: `/` landing with QR, `/workbench` controller's app, `/phone` deployment manager's page |
+| Web app | https://www.robaudit.us: `/` landing with QR, `/workbench` controller's app, `/phone` deployment manager's page |
 | Jira mirror | Project `SUMMO` on https://one-atlas-udgh.atlassian.net |
 | Ledger | SpacetimeDB Maincloud, database `keel` (`wss://maincloud.spacetimedb.com`, https://spacetimedb.com/keel) |
 | Phone channel | Convex production deployment `hushed-shrimp-24` (`https://hushed-shrimp-24.convex.cloud`) |
 | Agent | Azure Container Apps `keel-agent` (resource group `keel-rg`) |
 
-The company (Aster Robotics), its Oakland project and its data are fictional and seeded from `demo/seed.json`.
+## Tracks
+
+One section per sponsor: what we use it for, where it lives, how to see it in the demo, the proof, and the honest limits.
+
+### Hyphenate: The Hyphenated Enterprise, Autonomous Systems for Finance
+
+- **What.** A System of Work on top of the Systems of Record: Summo does the revenue close across the ledger, the phone and the people. Self-learning on onboarding (a convention seeded from six past closes), self-improving from corrections (a confirmed answer becomes a convention when the controller approves), accountable (every action, decision and refusal is a row with an actor and a time). Agents propose, humans approve.
+- **Where.** `apps/agent/src/agents/`, `packages/engine`, `spacetimedb/src/index.ts`.
+- **See it.** Judge's note, phone rings, numbers move, controller approves. Month 3 runs with no call and cites the convention. Return a proposal with a reason: Summo acknowledges it on the record and the next revision opens with what it answers.
+- **Proof.** `docs/proof.md` (16 planted errors with the answer key), engine and ledger tests, the nine-beat demo script asserting every figure against production.
+- **Limits.** One controller plays reviewer and approver in the demo; the ledger has roles for two people.
+
+### Spacetime: Best Use of Spacetime
+
+- **What.** The ledger is the product: 15 tables, 17 reducers. Role, revision, staleness, period, balance, posting-ref uniqueness and refusal logging are enforced in the module, not in clients. Agent, workbench and phone subscribe live to the same Maincloud database.
+- **Where.** `spacetimedb/src/{schema,index,guards}.ts`.
+- **See it.** Workbench "Break it": approve as accountant, decide on a stale proposal, post twice. Each is refused with the reducer's message and lands as a `rejected` history row.
+- **Proof.** `packages/ledger-client/test/ledger.e2e.test.ts` (11 controls against a running ledger).
+- **Limits.** All tables are `public: true`; identities are four demo tokens.
+
+### Convex: Best use of Convex
+
+- **What.** The voice clarification call: `clarifications` and `transcriptSegments` tables with indexes, mutations that move a call through ringing, answering and confirmed, the Cartesia actions run through the `@convex-dev/action-retrier` component, file storage for both audio clips, HTTP routes and Convex Auth (anonymous) so each phone's answer is bound to a session, live subscriptions on the landing, workbench and phone pages. Convex never touches money.
+- **Where.** `convex/{clarifications,voice,transcript,managers,auth,http}.ts`, `convex/convex.config.ts`, `hackathon.md`.
+- **See it.** The phone rings and the transcript lands without a refresh; the footer shows `session: secure <id>`.
+- **Proof.** `convex/test/channel.e2e.test.ts` (5, run against production).
+- **Limits.** The UI is hosted on Azure, not Convex. Presence is a hand-written `managers` table.
+
+### Cartesia: Best Use of Cartesia
+
+- **What.** Voice is the channel. Sonic 3.6 speaks the question; Ink transcribes the answer over WebSocket; both run inside Convex actions so the key never reaches the browser, with retries. The manager's recording is the evidence behind the posted number.
+- **Where.** `convex/voice.ts`.
+- **See it.** The phone plays the question, the judge's answer is transcribed, and on Evidence the judge's own voice plays back. The ask screen says the answer is recorded and kept as evidence.
+- **Proof.** `apps/landing/tests/phone.e2e.mjs` (7 scenarios with real Cartesia: reload, dropped connection, double taps, failed upload, stale question, mic denied, reduced motion).
+- **Limits.** One short recorded answer per question, not a conversation; no Managed Agents.
+
+### Microsoft: Built for the Real World
+
+- **Customer understanding.** Two named seats and public evidence that the control problem exists (Symbotic's disclosed material weakness over cost-of-revenue timing). One filing, no customer interview.
+- **Measurable usefulness.** One ambiguous word moves revenue by $266,667. A learned convention removes one phone call per month on the same project; a note becomes a proposed entry in under ten seconds with every figure traceable.
+- **Prototype to production.** Summo on Azure Container Apps from a CI-built image, the web app on Azure Static Web Apps behind a custom domain, OCR on Azure AI Document Intelligence (`apps/agent/src/azure-di.ts`). Runbook in `infra/azure/containerapp.md`; restart-safe recovery; two known crash windows documented.
+- **Responsible design.** Transparency (source spans on every fact, an explanation on every proposal), accountability (controller gate, roles in the ledger, refusals logged), reliability (deterministic engine, second reader, answer-key tests), privacy (the phone says the answer is recorded).
+- **End to end.** Note or photo in, call, recompute, proposal, approval, post, Jira mirror, month 3 with no call. `pnpm demo --remote` runs it against the Azure agent. Claude is called directly, not through Azure AI Foundry.
+
+### Atlassian: Agentic Workforce Challenge, Track 2
+
+- **What.** An audit mirror for an agent that acts. A Forge app with one web trigger, fed by a bridge that subscribes to the ledger. Each Summo work item becomes a Jira issue in `SUMMO` when Summo asks a question; each proposal, approval, return, hold and posting becomes a comment and a column move, with labels for loss warnings and rework. Jira never writes to the ledger.
+- **Where.** `apps/jira-forge/src/index.js`, `apps/jira-bridge/src/{main,event}.ts`.
+- **See it.** Jira chips on Inbox rows, a Jira tab per project, the Connections and Agents pages, and the SUMMO board moving as Summo works.
+- **Proof.** `apps/jira-bridge/test/event.test.ts`; the Forge app smoke-tested end to end on the demo site.
+- **Limits.** No replay on bridge restart; agent events and refused attempts are not mirrored.
+
+### MLH: Best Use of Gemini API
+
+- **What.** Gemini 3.5 Flash Lite is an independent second reader on every source and a reviewer on every proposal (figures against the calculation, entry balanced, convention cited). When the readers disagree on the amount, Summo asks instead of guessing.
+- **Where.** `apps/agent/src/gemini.ts`, `agents/reader-gemini.ts`, `agents/reviewer.ts`.
+- **See it.** The `gemini` extraction row beside `claude`; "Reviewed by Gemini" on the proposal.
+- **Proof.** `docs/eval-promptfoo.md` (Gemini 36/36); `apps/agent/test/gemini.test.ts`.
+- **Limits.** Text only; on a timeout or 429 Summo continues on Claude alone by design.
+
+### MLH: Best Domain from GoDaddy Registry
+
+`robaudit.us`, a GoDaddy Registry TLD. The judge's phone lands on `www.robaudit.us/phone` from the QR code on the landing page.
+
+### MLH: Commit Fellowship
+
+A working prototype on a real accounting problem, with the proof in `docs/proof.md`. Requires opting in on Devpost and the supplemental form.
 
 ## How we use Convex
 
@@ -59,20 +153,6 @@ Every agent step is written to the `agent_event` table and shown on `/workbench/
 
   every agent step ──▶ agent_event        every reducer call ──▶ history_event
 ```
-
-## Sponsors and tracks
-
-| Track | What we use it for | Where in the code | How to see it in the demo | Proof | Honest notes |
-|---|---|---|---|---|---|
-| Hyphenate: The Hyphenated Enterprise: Autonomous Systems for Finance | Summo fills the project accountant's revenue-close seat; controller keeps sign-off | `apps/agent/src/agents/`, `packages/engine`, `spacetimedb/src/index.ts` | Judge's note → phone rings → numbers move → controller approves; month 3 runs with no call and cites the convention | `docs/proof.md` §2 (16 planted errors) | One controller plays reviewer and approver in the demo; the ledger has the roles for two people. A controller Return/Hold is recorded, but Summo does not act on it yet. |
-| Spacetime: Best Use of Spacetime | The ledger: 15 tables, 16 reducers; controls are reducers | `spacetimedb/src/{schema,index,guards}.ts` | Workbench "Break it": approve as accountant, stale after new source, post twice; all refused with the reducer's message | `packages/ledger-client/test/ledger.e2e.test.ts` (11) | All tables are `public: true`; auth is four fixed demo tokens. Rejected calls roll back and leave no history row. |
-| Convex: Best use of Convex | The voice clarification call: live queries, mutations, actions, file storage, `action-retrier` component, Convex Auth (Anonymous) | `convex/{clarifications,voice,transcript,managers,auth}.ts`, `convex/convex.config.ts` | Phone rings and the transcript lands without refresh; "<Name> joined" on the laptop | `convex/test/channel.e2e.test.ts` (5) | Convex never touches money; the UI is hosted on Azure, not Convex. Presence is a hand-written `managers` table, not the presence component. |
-| Cartesia: Best Use of Cartesia | Speaks the question (Sonic `sonic-3.6`), transcribes the answer (Ink `ink-2`); the recording becomes evidence | `convex/voice.ts` | Phone plays the question; the judge's answer is transcribed; Evidence plays the judge's voice back | `apps/landing/tests/phone.e2e.mjs` (7 scenarios, real Cartesia) | STT is only exercised from the phone page. |
-| Microsoft: Built for the Real World | Summo runs on Azure Container Apps; web app on Azure Static Web Apps | `apps/agent/Dockerfile`, `infra/azure/containerapp.md`, `.github/workflows/{build-agent-image,deploy-web}.yml` | Live URL above; `pnpm demo --remote` against the Azure agent | `docs/proof.md` §4 (remote runs) | Customer understanding rests on one public SEC filing, no customer interview. |
-| Microsoft: Azure AI Document Intelligence | OCR of printed and photographed forecast sheets; reconciler records sheet vs cost-export disagreement | `apps/agent/src/azure-di.ts`, `agents/document-reader.ts`, `agents/reconciler.ts` | Phone "Photograph the forecast sheet"; the `azure-di` extraction row and disagreement line | `apps/agent/test/azure-di.test.ts`, `azure-di-photo.test.ts`; `docs/benchmark.md` §B | Claude is called directly, not through Azure AI Foundry. |
-| Atlassian: Best Agent (Track 2, audit mirror) | Every ask, proposal, approval, return and post lands in Jira `SUMMO` with its reasoning | `apps/jira-forge/src/index.js`, `apps/jira-bridge/src/{main,event}.ts` | Jira chips on Inbox rows, Jira tab per project, Connections and Agents pages; the SUMMO board | `apps/jira-bridge/test/event.test.ts` (3) | Jira never posts to the ledger. No replay on bridge restart; rejected attempts are not mirrored. |
-| MLH: Best Use of Gemini API | Independent second reader and proposal reviewer | `apps/agent/src/gemini.ts`, `agents/reader-gemini.ts`, `agents/reviewer.ts` | `gemini` extraction row beside `claude`; "Reviewed by Gemini" on the proposal; readers disagree → Summo asks | `docs/eval-promptfoo.md` (Gemini 36/36); `apps/agent/test/gemini.test.ts` | Free-tier key: timeouts and 429s happen; Summo continues on Claude alone by design. Text only, no multimodal call. |
-| MLH: Commit Fellowship Prize Category | Working prototype on a real accounting problem | whole repo | Live URL above | `docs/proof.md` | Requires opting in on Devpost and the supplemental form. |
 
 ## Proof it works
 
