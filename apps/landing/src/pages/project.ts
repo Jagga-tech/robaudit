@@ -43,7 +43,13 @@ const page: Page = {
       const x = m();
       if (!x) return;
       const pol = last(all(d.policy.iter()));
-      head({ title: x.proj.name, sub: `${customerOf(x.proj) ? customerOf(x.proj) + ' · ' : ''}contract ${usd(x.proj.contractValueCents)} · policy v${pol?.version ?? ''} · period ${x.proj.periodOpen ? 'open' : 'closed'}`, actions: x.main ? jiraChip(jiraFor(ctx.conn, x.main.id)) : '' });
+      head({ title: x.proj.name, sub: `${customerOf(x.proj) ? customerOf(x.proj) + ' · ' : ''}contract ${usd(x.proj.contractValueCents)} · policy v${pol?.version ?? ''} · period ${x.proj.periodOpen ? 'open' : 'closed'}`, actions: `${x.main ? jiraChip(jiraFor(ctx.conn, x.main.id)) : ''} <button class="pill quiet small-btn" id="delProj" type="button">Delete project</button>` });
+      document.getElementById('delProj')!.onclick = async () => {
+        if (!confirm(`Delete ${x.proj.name} and every record under it? This cannot be undone.`)) return;
+        const err = await call(ctx.conn.reducers.deleteProject({ projectId: x.proj.id }));
+        ctx.toast(err ? `Refused · ${err}` : `${x.proj.name} deleted`, err ? 'error' : 'ok');
+        if (!err) ctx.navigate('/workbench/projects');
+      };
     }
 
     // ---------- Overview ----------

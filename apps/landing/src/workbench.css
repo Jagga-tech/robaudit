@@ -221,3 +221,5 @@ form.why input{flex:1 1 180px;min-width:0;font:inherit;font-size:13px;padding:6p
 .chip.static{cursor:default;font:500 11.5px var(--mono);padding:3px 9px}
 .chip.static:hover{border-color:var(--line)}
 .chips.intake{margin:6px 0 4px;gap:6px}
+
+.small-btn{padding:4px 10px;font-size:12.5px}

@@ -291,3 +291,31 @@ export const recordIntake = spacetimedb.reducer(
     log(ctx, projectId, 'intake', s.id, `${field} ${cents} from ${speaker}`);
   }
 );
+
+/** Controller removes a project and everything hanging off it (demo housekeeping; a real ledger would archive, not delete). */
+export const deleteProject = spacetimedb.reducer(
+  { projectId: t.u64() },
+  (ctx, { projectId }) => {
+    requireRole(ctx, 'controller');
+    const proj = ctx.db.project.id.find(projectId) ?? fail('not_found', `project ${projectId}`);
+    const wis = [...ctx.db.workItem.iter()].filter((w) => w.projectId === projectId);
+    const wiIds = new Set(wis.map((w) => w.id));
+    const props = [...ctx.db.proposal.iter()].filter((x) => wiIds.has(x.workItemId));
+    const propIds = new Set(props.map((x) => x.id));
+    for (const r of [...ctx.db.posting.iter()].filter((x) => propIds.has(x.proposalId))) ctx.db.posting.id.delete(r.id);
+    for (const r of [...ctx.db.approval.iter()].filter((x) => propIds.has(x.proposalId))) ctx.db.approval.id.delete(r.id);
+    for (const r of props) ctx.db.proposal.id.delete(r.id);
+    for (const r of [...ctx.db.calculation.iter()].filter((x) => wiIds.has(x.workItemId))) ctx.db.calculation.id.delete(r.id);
+    for (const r of [...ctx.db.clarificationRef.iter()].filter((x) => wiIds.has(x.workItemId))) ctx.db.clarificationRef.id.delete(r.id);
+    const srcs = [...ctx.db.source.projectId.filter(projectId)];
+    const srcIds = new Set(srcs.map((x) => x.id));
+    for (const r of [...ctx.db.extraction.iter()].filter((x) => srcIds.has(x.sourceId))) ctx.db.extraction.id.delete(r.id);
+    for (const r of srcs) ctx.db.source.id.delete(r.id);
+    for (const r of wis) ctx.db.workItem.id.delete(r.id);
+    for (const r of [...ctx.db.contractMilestone.iter()].filter((x) => x.projectId === projectId)) ctx.db.contractMilestone.id.delete(r.id);
+    for (const r of [...ctx.db.agentEvent.projectId.filter(projectId)]) ctx.db.agentEvent.id.delete(r.id);
+    for (const r of [...ctx.db.historyEvent.iter()].filter((x) => x.projectId === projectId)) ctx.db.historyEvent.id.delete(r.id);
+    ctx.db.project.id.delete(projectId);
+    log(ctx, 0n, 'project_deleted', projectId, `${proj.name} deleted by controller`);
+  }
+);

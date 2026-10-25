@@ -38,6 +38,7 @@ import AddSourceReducer from "./add_source_reducer";
 import ClosePeriodReducer from "./close_period_reducer";
 import CreateProjectReducer from "./create_project_reducer";
 import DecideReducer from "./decide_reducer";
+import DeleteProjectReducer from "./delete_project_reducer";
 import LogAgentEventReducer from "./log_agent_event_reducer";
 import MarkMilestoneMetReducer from "./mark_milestone_met_reducer";
 import OpenClarificationReducer from "./open_clarification_reducer";
@@ -266,6 +267,7 @@ const reducersSchema = __reducers(
   __reducerSchema("close_period", ClosePeriodReducer),
   __reducerSchema("create_project", CreateProjectReducer),
   __reducerSchema("decide", DecideReducer),
+  __reducerSchema("delete_project", DeleteProjectReducer),
   __reducerSchema("log_agent_event", LogAgentEventReducer),
   __reducerSchema("mark_milestone_met", MarkMilestoneMetReducer),
   __reducerSchema("open_clarification", OpenClarificationReducer),
