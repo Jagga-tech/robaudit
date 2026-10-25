@@ -1,6 +1,11 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
-import { api } from "./_generated/api";
+import { ActionRetrier } from "@convex-dev/action-retrier";
+import { api, components } from "./_generated/api";
+import { requireUser } from "./auth";
+
+// ponytail: 3 tries, 1 s initial backoff; Cartesia calls are a few seconds each
+const retrier = new ActionRetrier(components.actionRetrier, { initialBackoffMs: 1000, base: 2, maxFailures: 3 });
 
 const id = v.id("clarifications");
 const OPEN = ["ringing", "answering", "fallback_text"];
@@ -9,7 +14,7 @@ export const ask = mutation({
   args: { workItemId: v.string(), question: v.string(), options: v.array(v.string()) },
   handler: async (ctx, args) => {
     const cid = await ctx.db.insert("clarifications", { ...args, status: "ringing" });
-    await ctx.scheduler.runAfter(0, api.voice.speakQuestion, { id: cid });
+    await retrier.run(ctx, api.voice.speakQuestion, { id: cid });
     return cid;
   },
 });
@@ -33,22 +38,24 @@ export const byWorkItem = query({
 
 export const startAnswer = mutation({
   args: { id },
-  handler: (ctx, a) => ctx.db.patch(a.id, { status: "answering" }),
+  handler: async (ctx, a) => { await requireUser(ctx); await ctx.db.patch(a.id, { status: "answering" }); },
 });
 
 export const confirm = mutation({
   args: { id, answer: v.string(), speaker: v.string() },
   handler: async (ctx, { id, answer, speaker }) => {
+    const speakerUserId = await requireUser(ctx);
     const c = await ctx.db.get(id);
     if (!c) throw new Error(`clarification ${id} not found`);
     if (c.status === "confirmed") return; // idempotent: first confirmation wins
-    await ctx.db.patch(id, { status: "confirmed", answer, speaker, confirmedAt: Date.now() });
+    await ctx.db.patch(id, { status: "confirmed", answer, speaker, speakerUserId, confirmedAt: Date.now() });
   },
 });
 
 export const decline = mutation({
   args: { id, reason: v.string() },
   handler: async (ctx, { id, reason }) => {
+    await requireUser(ctx);
     const c = await ctx.db.get(id);
     if (!c || c.status === "confirmed") return;
     await ctx.db.patch(id, { status: "unconfirmed", reason });
@@ -77,7 +84,8 @@ export const generateUploadUrl = mutation({
 export const submitAnswerAudio = mutation({
   args: { id, storageId: v.id("_storage") },
   handler: async (ctx, { id, storageId }) => {
-    await ctx.scheduler.runAfter(0, api.voice.transcribe, { id, storageId });
+    await requireUser(ctx);
+    await retrier.run(ctx, api.voice.transcribe, { id, storageId });
   },
 });
 

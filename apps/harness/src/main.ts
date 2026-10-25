@@ -17,6 +17,8 @@ let conn: DbConnection | undefined;
 let active: any = null;
 let transcript: any = null;
 const convex = new ConvexClient(import.meta.env.VITE_CONVEX_URL ?? import.meta.env.CONVEX_URL);
+let tok: string | undefined; // Convex Auth anonymous session; the call mutations require it
+convex.setAuth(async ({ forceRefreshToken }) => { if (!tok || forceRefreshToken) tok = ((await convex.action(api.auth.signIn, { provider: 'anonymous' })) as any).tokens.token; return tok!; });
 let unsubTranscript = () => {};
 convex.onUpdate(api.clarifications.active, {}, (c: any) => {
   active = c;

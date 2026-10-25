@@ -1,3 +1,4 @@
+import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
@@ -10,6 +11,7 @@ export const status = v.union(
 );
 
 export default defineSchema({
+  ...authTables,
   clarifications: defineTable({
     workItemId: v.string(),
     question: v.string(),
@@ -17,6 +19,7 @@ export default defineSchema({
     status,
     answer: v.optional(v.string()),
     speaker: v.optional(v.string()),
+    speakerUserId: v.optional(v.id("users")), // Convex Auth session that confirmed
     reason: v.optional(v.string()),
     questionAudioId: v.optional(v.id("_storage")),
     answerAudioId: v.optional(v.id("_storage")),

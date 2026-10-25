@@ -25,7 +25,11 @@
     "vitest": "^2.1.0"
   },
   "dependencies": {
+    "@auth/core": "0.37.0",
+    "@convex-dev/action-retrier": "^0.3.1",
+    "@convex-dev/auth": "^0.0.96",
     "convex": "^1.48.0",
+    "jose": "^6.2.13",
     "ws": "^8.22.0"
   }
 }

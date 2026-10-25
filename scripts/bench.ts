@@ -35,6 +35,9 @@ const secs = (t: any) => Number(t.__timestamp_micros_since_unix_epoch__) / 1e6;
 const usd = (c: bigint) => `${c < 0n ? '-' : ''}$${(c < 0n ? -c : c) / 100n}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 const cvx = new ConvexHttpClient(process.env.CONVEX_URL);
+/** Convex Auth: anonymous session so the call mutations (confirm/decline) accept us. */
+async function signInAnon(c: ConvexHttpClient) { const r: any = await c.action(anyApi.auth.signIn, { provider: 'anonymous' }); c.setAuth(r.tokens.token); }
+await signInAnon(cvx);
 await cvx.query(anyApi.clarifications.active, {}); // reachability check, same client the demo uses
 const o = { uri: URI, db: DB };
 const controller = await connectAs('controller', o), accountant = await connectAs('accountant', o), agent = await connectAs('agent', o);

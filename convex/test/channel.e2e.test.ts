@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { ConvexHttpClient } from "convex/browser";
+
+const signInAnon = async (c: ConvexHttpClient) => { const r: any = await c.action(api.auth.signIn, { provider: "anonymous" }); c.setAuth(r.tokens.token); };
 import { api } from "../_generated/api";
 
 function convexUrl() {
@@ -17,6 +19,7 @@ if (!url) console.warn("SKIP convex e2e: CONVEX_URL unset (run `npx convex dev -
 describe.skipIf(!url)("clarification channel e2e", () => {
   const c = url ? new ConvexHttpClient(url) : (null as never);
   const workItemId = `test-${Date.now()}`;
+  beforeAll(() => signInAnon(c));
 
   it("ask -> ring -> audio -> confirm (idempotent) -> fallback", async () => {
     const id = await c.mutation(api.clarifications.ask, {

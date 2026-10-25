@@ -44,6 +44,9 @@ const entry = (json: string) => (JSON.parse(json) as { account: string; debit: s
   .sort().reverse().join(' / '); // ponytail: "Dr" sorts after "Cr", reverse puts debits first
 
 const cvx = new ConvexHttpClient(process.env.CONVEX_URL);
+/** Convex Auth: anonymous session so the call mutations (confirm/decline) accept us. */
+async function signInAnon(c: ConvexHttpClient) { const r: any = await c.action(anyApi.auth.signIn, { provider: 'anonymous' }); c.setAuth(r.tokens.token); }
+await signInAnon(cvx);
 const controller = await connectAs('controller');
 const conns: DbConnection[] = [controller];
 let stop = () => {};

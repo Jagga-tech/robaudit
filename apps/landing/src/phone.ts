@@ -1,10 +1,8 @@
 // Judge's phone page: docs/frontend-guide.md §8 (screens, audio contract), docs/demo-flow.md steps 1, 2, 4, 6.
 import { DbConnection } from '@keel/bindings';
-import { ConvexClient } from 'convex/browser';
-import { api } from '../../../convex/_generated/api';
+import { api, convex, signInAnonymously } from './lib/convex';
 import type { Doc, Id } from '../../../convex/_generated/dataModel';
 
-const CONVEX_URL = import.meta.env.VITE_CONVEX_URL ?? 'https://hushed-shrimp-24.convex.cloud';
 const STDB_URI = import.meta.env.VITE_STDB_URI ?? 'wss://maincloud.spacetimedb.com';
 const STDB_DB = import.meta.env.VITE_STDB_DB ?? 'keel';
 const ROLE = 'deployment_manager';
@@ -114,8 +112,7 @@ function boot() {
   const summo = document.querySelector('.summo')!;
   const oops = document.getElementById('oops')!;
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches; // no animation classes at all
-  const convex = new ConvexClient(CONVEX_URL);
-  const load = <T>(k: string, d: T): T => { try { return JSON.parse(sessionStorage.getItem(k) ?? '') as T; } catch { return d; } };
+    const load = <T>(k: string, d: T): T => { try { return JSON.parse(sessionStorage.getItem(k) ?? '') as T; } catch { return d; } };
 
   let me = load<Me | null>('keel-manager', null);
   let sent = load<Sent[]>('keel-sent', []);
@@ -510,5 +507,6 @@ function boot() {
   });
 
   render();
+  signInAnonymously().catch((e) => console.warn('convex sign-in failed', e)); // call mutations need the session; queries work without it
   if (me) connectLedger(me.name).catch(() => retryLedger());
 }

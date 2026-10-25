@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
 import type * as clarifications from "../clarifications.js";
+import type * as http from "../http.js";
 import type * as managers from "../managers.js";
 import type * as transcript from "../transcript.js";
 import type * as voice from "../voice.js";
@@ -20,7 +22,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
   clarifications: typeof clarifications;
+  http: typeof http;
   managers: typeof managers;
   transcript: typeof transcript;
   voice: typeof voice;
@@ -52,4 +56,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  actionRetrier: import("@convex-dev/action-retrier/_generated/component.js").ComponentApi<"actionRetrier">;
+};
