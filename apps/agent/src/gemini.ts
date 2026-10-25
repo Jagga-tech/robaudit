@@ -15,7 +15,7 @@ export async function extractWithGemini(noteText: string): Promise<Extraction> {
   if (!hasGeminiKey) throw new Error("no GEMINI_API_KEY");
   ai ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const res = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite",
     contents: `<note>${noteText}</note>`,
     config: { responseMimeType: "application/json", responseJsonSchema: SCHEMA, systemInstruction: SYSTEM },
   });

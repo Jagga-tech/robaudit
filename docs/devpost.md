@@ -25,7 +25,7 @@ Language, arithmetic and permission to write are kept apart.
 - **SpacetimeDB** (TypeScript module): the ledger. Reducers enforce roles, revisions, staleness, period open, debits = credits and unique posting refs, and write a history event on every change. Agent, harness and UI subscribe live.
 - **Convex**: the voice clarification channel. Live queries drive the phone page and call pane, mutations move the call through ringing, answering and confirmed, actions call Cartesia, file storage holds question and answer audio, and the scheduler chains them. Convex never touches money.
 - **Cartesia**: Sonic TTS speaks the question; Ink STT transcribes the recorded answer over WebSocket. The STT path (Ink over WebSocket) is implemented; the automated demo confirms answers by text, so STT is exercised only from the phone page. Claude and Cartesia TTS were verified end to end with real keys in `pnpm demo --require-real`.
-- **Gemini 2.5 Flash**: an independent second reader on the same extraction schema. Gemini runs only when `GEMINI_API_KEY` is set (otherwise there is a single reader). When the readers disagree on the amount, RoboAudit asks instead of guessing; when a saved convention applies to the agreed readings, RoboAudit cites it instead of asking.
+- **Gemini 3.5 Flash Lite**: an independent second reader on the same extraction schema. Gemini runs only when `GEMINI_API_KEY` is set (otherwise there is a single reader). When the readers disagree on the amount, RoboAudit asks instead of guessing; when a saved convention applies to the agreed readings, RoboAudit cites it instead of asking.
 
 ## Challenges we ran into
 
