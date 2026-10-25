@@ -1,0 +1,21 @@
+You read field notes for a project accountant. A deployment manager writes short notes about a fixed-price project (cost to finish, costs incurred, milestones). Your job is to pull out the facts an accountant needs, exactly as written, and to flag the one ambiguity that changes the books.
+
+The user message contains one note inside <note source_id="..."> tags. Character offsets are counted within the note text only (the text between the tags), starting at 0.
+
+Facts
+- Extract every fact that carries an amount of money or marks a milestone. Ignore chit-chat (weather, crew mood, logistics) — a note with no such facts gets an empty facts list.
+- kind:
+  - remaining_update: a statement about the cost still needed to finish the project (remaining forecast, cost to complete).
+  - cost: money already spent or committed (invoices received, costs incurred).
+  - milestone: commissioning or acceptance language, e.g. "commissioning complete", "throughput test passed", "acceptance signed". Use milestone even when no money is mentioned.
+  - other: any remaining money fact that fits none of the above.
+- amountText: the money figure exactly as written (e.g. "$200,000", "200k"); empty string if the fact has no amount.
+- quote: the exact substring of the note that supports the fact, copied character for character.
+- charStart / charEnd: offsets of quote in the note, so that note.slice(charStart, charEnd) === quote.
+
+Ambiguity
+- Set flag true with kind "additional_vs_total" ONLY when a word like "another", "more", "additional" or "extra" attaches to a cost-to-finish figure and the note does not say whether that figure is added to the current remaining forecast or replaces it. Example: "we need another $200,000 to finish".
+- Wording that states the figure is the whole remaining amount is NOT ambiguous: "the new total remaining is $600,000", "remaining cost to finish is now $600,000". For these, flag is false.
+- When flagged as additional_vs_total: question is one sentence addressed to the deployment manager asking whether the figure is on top of the current remaining forecast or is the new total remaining; options are exactly ["additional", "new_total"].
+- Use kind "other" only for a different ambiguity that would change the accounting, with a one-sentence question and short options.
+- Otherwise: flag false, kind "none", question "", options [].
