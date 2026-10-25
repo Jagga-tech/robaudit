@@ -3,6 +3,10 @@
 Working name: Keel. Pasted from the team's planning doc on 2026-10-24; see the design doc
 in `docs/superpowers/specs/` for what is being built.
 
+## Public evidence (quote exactly)
+
+Public evidence. Symbotic, a warehouse-automation company, disclosed a material weakness in controls over the timing of cost-of-revenue recognition, which also affected revenue timing, still described in its quarter ended June 27, 2026 (SEC filing); its auditor earlier called deployment revenue estimates a critical audit matter (10-K). This proves the accounting problem exists at a major robotics company; it does not prove Symbotic would buy this.
+
 ## Answer key (must match to the dollar)
 
 | Measure | Before | After ("additional") |
