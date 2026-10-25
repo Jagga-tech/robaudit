@@ -14,10 +14,10 @@ Submission asks: video opens with the moment; live demo, judges may try their ow
 - [ ] Video opens with the moment (phone rings on the ambiguous note, or month 3 posts silently citing March). Not the architecture.
 - [x] Devpost: one line on seats. Draft: "Fills the project accountant seat for revenue recognition on fixed-price installs and the deployment manager's clarification loop; the controller keeps the sign-off seat."
 - [x] Devpost: one block "What's real / what's simulated / how we know". Real: Claude, Gemini, Cartesia, Azure DI, SpacetimeDB Maincloud, Convex prod. Simulated: company, project, six past closes behind the seeded convention, controller identity. How we know: engine answer key, 7 controls as tests, demo script asserts to the dollar, 20-phrase real-API wording set.
-- [ ] Controller says "no": `decide(return)` works in the reducer but the agent loop does nothing after. Add: on returned proposal, agent logs the reason and reopens the work item so the next source yields the next rev (~30 lines in `apps/agent/src/loop.ts` + 1 test). Judges may try this live.
+- [ ] STILL OPEN 05:05 (checked code, not done by the other agent): Controller says "no": `decide(return)` works in the reducer but the agent loop does nothing after. Add: on returned proposal, agent logs the reason and reopens the work item so the next source yields the next rev (~30 lines in `apps/agent/src/loop.ts` + 1 test). Judges may try this live.
 - [x] Sources that disagree (their example: bank vs ledger vs contract). Ours is reader vs reader on one note. Optional: plant a mismatch between the forecast sheet and the field note so Summo says which it trusted and why. Only after the return path.
 
-- [ ] Log failed attempts. Rejected reducers roll back, so duplicate post, wrong role and stale decide leave no `history_event` row. Add reducer `record_rejection` in `spacetimedb/src/index.ts` and call it from the ledger client catch. Shows "post rejected: duplicate_posting" in the history pane.
+- [ ] STILL OPEN 05:05 (checked code, not done): Log failed attempts. Rejected reducers roll back, so duplicate post, wrong role and stale decide leave no `history_event` row. Add reducer `record_rejection` in `spacetimedb/src/index.ts` and call it from the ledger client catch. Shows "post rejected: duplicate_posting" in the history pane.
 - [ ] Devpost: use the phrase "System of Work" (their term). Say agents propose, humans approve, every action logged including rejections.
 - [x] Mention self-learning on onboarding (S0 convention seeded from six past closes) and self-improving (convention saved on controller approval).
 
@@ -59,6 +59,13 @@ Built: `@convex-dev/action-retrier` wraps both Cartesia actions (`convex/convex.
 - [ ] Video must show the phone ringing and the transcript streaming.
 - [x] Presence component skipped in favour of action-retrier (server-only, no UI collision).
 
-## Cartesia — criteria not checked yet
+## Cartesia — Best Use of Cartesia (starter pack checked 2026-10-25 05:05 PDT; prize: Meta glasses)
 
-- [ ] Get the flyer. STT is only exercised from the phone page, so show it in the video.
+Judged 25% each: problem/originality, use of Cartesia (core + natural voice), execution (edge cases), impact/responsibility (accessibility, privacy, responsible use). Submit: working demo, 2-minute demo-first video (one full flow, then problem and build), README with setup + Cartesia features + known limitations, no keys committed.
+
+- [x] Voice is core: Sonic `sonic-3.6` speaks the question, Ink `ink-2` transcribes the answer, both inside Convex actions (key never in the browser, as their guide asks). Retries via action-retrier. README row lists features and the known limitation (STT only from the phone page).
+- [x] Edge cases: mic failure -> tap-to-answer; upload failure message; declined call; fallback text.
+- [x] Privacy line added on the phone ask screen: answer is recorded, transcribed by Cartesia, kept as evidence with the manager's name.
+- [ ] Video: one complete voice flow first (question spoken, answer recorded, transcript shown, evidence playback), then the problem. Keep their 2-minute shape in mind; the Hyphenate cut opens with the moment, which is the same scene.
+- [ ] Devpost Cartesia paragraph: name Sonic 3.6 and Ink, say the recording is evidence, mention mock/fallback behaviour honestly.
+- Weak spot: one short recorded answer, not a conversation; no Managed Agents. Say so rather than overclaim.

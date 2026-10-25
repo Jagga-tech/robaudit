@@ -1,6 +1,6 @@
 // Judge's phone page: docs/frontend-guide.md §8 (screens, audio contract), docs/demo-flow.md steps 1, 2, 4, 6.
 import { DbConnection } from '@keel/bindings';
-import { api, convex, sessionId, signInAnonymously } from './lib/convex';
+import { api, convex, getAuthState, sessionId, signInAnonymously } from './lib/convex';
 import type { Doc, Id } from '../../../convex/_generated/dataModel';
 
 const STDB_URI = import.meta.env.VITE_STDB_URI ?? 'wss://maincloud.spacetimedb.com';
@@ -142,9 +142,19 @@ function boot() {
     const down = convexErr || ledgerState === 'reconnecting' || (c.hasEverConnected && !c.isWebSocketConnected);
     connLine.classList.toggle('warn', down);
     const sid = sessionId(); // Convex Auth anonymous session; display only, the call flow does not wait on it
-    connLine.textContent = down ? 'Reconnecting…' : `ledger: ${ledgerState} · convex: ${c.isWebSocketConnected ? 'online' : 'connecting'} · session: ${sid ? 'secure ' + sid : 'signing in'}`;
+    connLine.textContent = down ? 'Reconnecting…' : `ledger: ${ledgerState} · convex: ${c.isWebSocketConnected ? 'online' : 'connecting'} · session: ${getAuthState() === 'ok' ? (sid ? 'ok ' + sid : 'ok') : getAuthState() === 'failed' ? 'none (confirm may be refused)' : 'signing in…'}`;
   }
   convex.subscribeToConnectionState(paintConn); // ConvexClient reconnects its own socket and replays subscriptions
+
+  const unauth = (e: unknown) => /unauthenticated|not signed in|sign.?in/i.test(plain(e));
+  /** Run a mutation; if refused as unauthenticated, re-sign-in once (4 s) and retry once. */
+  async function authed<T>(run: () => Promise<T>): Promise<T> {
+    try { return await run(); } catch (e) {
+      if (!unauth(e)) throw e;
+      await signInAnonymously(); paintConn();
+      try { return await run(); } catch (e2) { if (unauth(e2)) throw new Error('Could not confirm from this phone. Tap the option on the laptop.'); throw e2; }
+    }
+  }
 
   /** onUpdate that survives query errors: show Reconnecting…, resubscribe with backoff. */
   function watch<T>(sub: (cb: (v: T) => void, onErr: (e: Error) => void) => () => void, cb: (v: T) => void): () => void {
@@ -373,7 +383,8 @@ function boot() {
         <p class="note">${esc(c.note)}</p>
         <button class="pill willow" id="play" type="button" hidden>Play question</button>
         <button class="talk${calm ? '' : ' asking'}" id="talk" type="button">${MIC_SVG}<span>Hold to answer</span></button>
-        <button class="pill quiet" id="tap" type="button">Tap an answer instead</button>`;
+        <button class="pill quiet" id="tap" type="button">Tap an answer instead</button>
+        <p class="note small">Your spoken answer is recorded, transcribed by Cartesia and kept as evidence on the ledger with your name.</p>`;
     }
     app.innerHTML = `
       <p class="eyebrow">Summo has a question</p>
@@ -388,17 +399,17 @@ function boot() {
       if (c.busy) return; // double tap
       c.busy = true; lock(true);
       try {
-        await convex.mutation(api.clarifications.confirm, { id: row._id, answer, speaker: me!.name }); // no-op if already confirmed
+        await authed(() => convex.mutation(api.clarifications.confirm, { id: row._id, answer, speaker: me!.name })); // no-op if already confirmed
         if (call === c) endCall();
         doneUntil = Date.now() + CELEBRATE; setTimeout(render, CELEBRATE + 50); render();
-      } catch (e) { c.busy = false; lock(false); showErr(`Not saved: ${plain(e)}`); }
+      } catch (e) { c.busy = false; lock(false); showErr(/^Could not confirm/.test(plain(e)) ? plain(e) : `Not saved: ${plain(e)}`); }
     };
     app.querySelectorAll<HTMLButtonElement>('[data-opt]').forEach((b) => (b.onclick = () => confirm(normalize(b.dataset.opt!) ?? b.dataset.opt!)));
     $<HTMLButtonElement>('#decline').onclick = async () => {
       if (c.busy) return;
       c.busy = true; lock(true);
-      try { await convex.mutation(api.clarifications.decline, { id: row._id, reason: 'declined on phone' }); if (call === c) endCall(); render(); }
-      catch (e) { c.busy = false; lock(false); showErr(`Couldn't decline: ${plain(e)}`); }
+      try { await authed(() => convex.mutation(api.clarifications.decline, { id: row._id, reason: 'declined on phone' })); if (call === c) endCall(); render(); }
+      catch (e) { c.busy = false; lock(false); showErr(/^Could not confirm/.test(plain(e)) ? plain(e) : `Couldn't decline: ${plain(e)}`); }
     };
     const yes = $<HTMLButtonElement>('#yes');
     if (yes) yes.onclick = () => {
@@ -508,7 +519,7 @@ function boot() {
   });
 
   render();
-  signInAnonymously().then(paintConn).catch((e) => console.warn('convex sign-in failed', e)); // call mutations need the session; queries work without it
+  signInAnonymously().then(paintConn); // never rejects, never blocks Join/Send; call mutations need the session; queries work without it
   connLine.onclick = () => { const sid = sessionId(); if (sid) alert(`Convex Auth session ${sid}: your answers are recorded against this session, not just your name.`); };
   if (me) connectLedger(me.name).catch(() => retryLedger());
 }

@@ -43,6 +43,7 @@ input[type=text]:focus,textarea:focus{outline:none;border-color:var(--rust)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
 .transcript{font-size:21px;line-height:1.35}
 .note{font-size:17px;color:var(--rust)}
+.note.small{font-size:13px;color:var(--muted,#6b7280);margin-top:12px}
 .err{font-size:17px;color:#8A3B2E;background:#F6E7E2;border-radius:12px;padding:10px 14px}
 .err:empty,.note:empty{display:none}
 .log{list-style:none;margin:0;padding:0;display:grid;gap:8px}
