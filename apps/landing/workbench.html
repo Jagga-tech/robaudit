@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RoboAudit workbench</title>
+<meta name="description" content="The live RoboAudit workbench: Summo proposes, the controller posts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Hanken+Grotesk:wght@400;500;600&family=Geist+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/src/base.css">
+<link rel="stylesheet" href="/src/workbench.css">
+</head>
+<body>
+<!-- Figma "07 — Landing Page": 04 App / First screen (live) 1440, node 67:120; 04b After the answer, node 78:291 -->
+<header class="bar">
+  <div class="brand">
+    <a class="wordmark" href="/">RoboAudit</a>
+    <span class="badge" id="badge"><i class="avatar" id="avatar" aria-hidden="true"></i><span id="badgeText">Summo · watching</span></span>
+  </div>
+  <div class="who">
+    <span class="presence" id="presence" hidden></span>
+    <span class="me">Dana · Controller</span>
+    <button class="pill outline sm" id="resetBtn" type="button">Reset demo</button>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="main">
+    <div class="title"><h1>Oakland deployment</h1><span id="projMeta"></span></div>
+    <div class="figs" id="figs">
+      <div class="fig"><div class="big" id="figPct">…</div><div class="was" id="wasPct"></div><div class="lbl">complete</div><small id="subPct"></small></div>
+      <div class="fig"><div class="big" id="figRev">…</div><div class="was" id="wasRev"></div><div class="lbl">revenue recognized</div><small id="subRev"></small></div>
+    </div>
+    <div class="margin">
+      <div class="mline">Expected margin <b id="marginVal"></b><span class="warn" id="lossTag" hidden>loss warning · escalated to Dana</span></div>
+      <div class="track"><i id="marginBar"></i></div>
+    </div>
+    <h2>Activity</h2><ul class="list" id="activity"></ul>
+    <h2>Queue</h2><ul class="list" id="queue"></ul>
+    <h2>Sources on file</h2><div class="chips" id="sources"></div>
+  </section>
+
+  <aside class="side">
+    <div class="joincard" id="joinCard">
+      <h3>Scan to be the deployment manager</h3>
+      <p>Summo will read your update, call your phone with one question, and book the result with your name on it.</p>
+      <div class="qr" id="qr"></div>
+      <code id="qrUrl"></code>
+      <span class="joined" id="joined" hidden></span>
+    </div>
+    <div class="proposal" id="proposal" hidden></div>
+  </aside>
+</main>
+
+<div class="sheet" id="sheet" role="dialog" aria-labelledby="sheetTitle" hidden>
+  <button class="close" id="sheetClose" type="button" aria-label="Close">×</button>
+  <h3 id="sheetTitle"></h3>
+  <div id="sheetBody"></div>
+</div>
+
+<footer class="breakit">
+  <span>Try to break it:</span>
+  <button class="pill danger sm" type="button" data-break="again">Post it again</button>
+  <button class="pill danger sm" type="button" data-break="accountant">Approve as the accountant</button>
+  <button class="pill danger sm" type="button" data-break="forecast">Change the forecast after approval</button>
+  <p class="refusal" id="refusal" role="status" aria-live="polite"></p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script type="module" src="/src/workbench.ts"></script>
+</body>
+</html>

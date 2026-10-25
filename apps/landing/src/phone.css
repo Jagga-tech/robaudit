@@ -1,0 +1,57 @@
+/* Phone page. Tokens copied from index.html (Figma 8gPKZCS1U6j1LiL5fiGmTX); one action per screen, docs/frontend-guide.md §6. */
+:root{
+  --paper:#F4F5F3; --willow:#C8D5BB; --willow-soft:#E9EFE2; --rust:#47585C; --ink:#263336; --muted:#6F7D80; --card:#FFFFFF; --line:#DCE2DA;
+  --display:"Bricolage Grotesque",system-ui,sans-serif; --body:"Hanken Grotesk",system-ui,sans-serif; --mono:"Geist Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:400 18px/1.45 var(--body);min-height:100dvh;display:flex;flex-direction:column;
+  padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+header{display:flex;justify-content:center;padding-top:4px}
+.summo{width:96px;height:auto;display:block;filter:drop-shadow(0 8px 12px rgba(38,51,54,.18))}
+main{flex:1;width:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:16px;padding:12px 0 20px}
+h1{font-family:var(--display);font-weight:800;font-size:32px;line-height:1.02;letter-spacing:-.03em;margin:0;text-wrap:balance}
+h1.q{font-size:28px;line-height:1.12}
+p{margin:0}
+.lede{color:var(--rust);font-size:18px}
+.eyebrow{font:500 13px var(--mono);letter-spacing:.04em;color:var(--rust);text-transform:uppercase}
+label{font-weight:600;font-size:17px}
+input[type=text],textarea{width:100%;font:400 19px/1.4 var(--body);color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:14px 16px}
+textarea{min-height:120px;resize:vertical}
+input[type=text]:focus,textarea:focus{outline:none;border-color:var(--rust)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:12px}
+.row>*{flex:1}
+/* .pill from index.html, sized up for thumbs (≥ 56 px) */
+.pill{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:56px;padding:14px 26px;border-radius:999px;font:600 18px var(--body);text-decoration:none;cursor:pointer;border:1px solid transparent;color:var(--ink);background:transparent;width:100%;-webkit-tap-highlight-color:transparent}
+.pill.dark{background:var(--rust);color:var(--paper)}
+.pill.outline{border-color:var(--rust)}
+.pill.willow{background:var(--willow)}
+.pill:focus-visible{outline:3px solid var(--rust);outline-offset:3px}
+.pill:disabled{opacity:.5;cursor:default}
+.pill.quiet{min-height:48px;font-size:16px;color:var(--rust)}
+.pill input{display:none}
+.field{position:relative}
+.mic{position:absolute;right:10px;bottom:10px;width:48px;height:48px;border-radius:50%;border:0;background:var(--willow-soft);display:grid;place-items:center;cursor:pointer}
+.mic svg,.talk svg{width:22px;height:22px;stroke:var(--rust);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mic.on{background:var(--rust)}
+.mic.on svg{stroke:var(--paper)}
+.talk{width:100%;min-height:96px;border-radius:28px;border:0;background:var(--rust);color:var(--paper);font:600 20px var(--body);display:flex;gap:12px;align-items:center;justify-content:center;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;cursor:pointer}
+.talk svg{stroke:var(--paper)}
+.talk.on{background:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
+.transcript{font-size:21px;line-height:1.35}
+.note{font-size:17px;color:var(--rust)}
+.err{font-size:17px;color:#8A3B2E;background:#F6E7E2;border-radius:12px;padding:10px 14px}
+.err:empty,.note:empty{display:none}
+.log{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.log li{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;font-size:17px;display:flex;justify-content:space-between;gap:12px}
+.log time{font:500 13px var(--mono);color:var(--muted);white-space:nowrap;padding-top:3px}
+h2{font:600 15px var(--body);color:var(--muted);margin:8px 0 0}
+footer{font:500 12px var(--mono);color:var(--muted);text-align:center;letter-spacing:.02em}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:no-preference){
+  .ring .summo,.talk.on{animation:pulse 1.2s ease-in-out infinite}
+}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}

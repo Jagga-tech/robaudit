@@ -1,0 +1,121 @@
+/* Static design: Figma file 8gPKZCS1U6j1LiL5fiGmTX, page "07 — Landing Page", frame "Landing / Hero 1440 — v2 suit". */
+body{background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.45;padding:0 max(16px,env(safe-area-inset-left,0px)) 64px max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1312px;margin:0 auto}
+
+nav{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:26px 0;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:44px;flex-wrap:wrap}
+.links{display:flex;gap:32px;font-weight:500;font-size:16px}
+.links a{text-decoration:none}
+.actions{display:flex;gap:12px}
+
+.hero{display:grid;grid-template-columns:minmax(0,596px) minmax(0,1fr);gap:56px;align-items:center;padding:56px 0 40px}
+.copy{display:grid;gap:36px;min-width:0}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(44px,6vw,84px);line-height:.94;letter-spacing:-.035em;margin:0;text-wrap:balance}
+.sub{font-size:19px;line-height:1.5;color:var(--rust);margin:0;max-width:540px}
+.ctas{display:flex;gap:32px;align-items:center;flex-wrap:wrap}
+.join{display:grid;gap:3px}
+.join small{font-size:13px;color:var(--rust);font-weight:500}
+.join strong{font-size:20px;letter-spacing:-.01em;font-weight:600}
+.join span{font-size:13px;color:var(--muted)}
+.proof{font-size:15px;color:var(--muted);margin:0;max-width:560px}
+
+/* ---- workflow panel ---- */
+.panel{position:relative;background:var(--willow);border-radius:24px;height:600px;padding:24px;display:grid;
+  grid-template-columns:120px 40px 150px 32px minmax(0,1fr);align-items:center;overflow:hidden;min-width:0}
+.sources{display:grid;grid-template-columns:56px 56px;gap:8px}
+.tile{width:56px;height:56px;border-radius:14px;background:var(--card);display:grid;place-items:center;box-shadow:0 2px 6px rgba(38,51,54,.10)}
+.tile svg{width:26px;height:26px} /* real brand marks, filled; sized by the tile */
+.lines{width:100%;height:100%;display:block}
+.lines path{stroke:var(--rust);stroke-opacity:.45;stroke-width:1.5;fill:none}
+.agent{display:grid;justify-items:center;gap:8px;position:relative;z-index:3}
+.summo{width:150px;height:auto;display:block;cursor:pointer;transform-origin:50% 100%;filter:drop-shadow(0 14px 18px rgba(38,51,54,.22))}
+.agent small{font:500 11px var(--mono);letter-spacing:.04em;color:var(--rust)}
+@media (prefers-reduced-motion:no-preference){
+  .summo{animation:bob 3.2s ease-in-out infinite}
+}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
+/* feed */
+.feed{height:calc(5*var(--card-h) + 4*var(--gap));overflow:hidden;position:relative;min-width:0;
+  -webkit-mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent)}
+.feed ul{list-style:none;margin:0;padding:0;display:grid;gap:var(--gap);transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+.feed ul.snap{transition:none}
+
+/* centre stage: Summo flies to the middle, hops up behind the banner, the banner unfolds in front, the page blurs */
+.page{position:sticky;top:0;transition:filter .5s ease,transform .5s ease}
+.scene-space{height:70vh} /* scroll room: scrolling into it opens the banner, scrolling back closes it */
+.page.blur{filter:blur(10px) saturate(.9);transform:scale(.985)}
+.stage{position:fixed;inset:0;z-index:20;display:grid;place-items:center;pointer-events:none}
+.stage[hidden]{display:none}
+.stage.on{pointer-events:auto}
+.scrim{position:absolute;inset:0;background:rgba(244,245,243,0);transition:background .5s ease}
+.stage.on .scrim{background:rgba(244,245,243,.45)}
+.summo-stage{position:absolute;left:50%;top:50%;width:220px;height:257px;z-index:1;cursor:pointer;
+  transform:translate(calc(-50% + var(--dx,0px)),calc(-50% + var(--dy,0px))) scale(var(--s,1))}
+.summo-stage i{position:absolute;inset:0;display:block;background:url("/summo-suit.png") center/contain no-repeat;transform-origin:50% 100%}
+/* sneak-peek loop once he is up behind the banner: duck, slide along the top edge, pop up left, then right, then back to the middle */
+@media (prefers-reduced-motion:no-preference){ .stage.open .summo-stage i{animation:sneak 9s ease-in-out .6s infinite} }
+@keyframes sneak{
+  0%  {transform:translate(0,0) rotate(0)}
+  8%  {transform:translate(0,170px) rotate(0)}
+  18% {transform:translate(calc(-1*var(--travel,300px)),170px) rotate(0)}
+  26% {transform:translate(calc(-1*var(--travel,300px)),0) rotate(-5deg)}
+  40% {transform:translate(calc(-1*var(--travel,300px)),0) rotate(-5deg)}
+  48% {transform:translate(calc(-1*var(--travel,300px)),170px) rotate(0)}
+  62% {transform:translate(var(--travel,300px),170px) rotate(0)}
+  70% {transform:translate(var(--travel,300px),0) rotate(5deg)}
+  84% {transform:translate(var(--travel,300px),0) rotate(5deg)}
+  90% {transform:translate(var(--travel,300px),170px) rotate(0)}
+  96% {transform:translate(0,170px) rotate(0)}
+  100%{transform:translate(0,0) rotate(0)}
+}
+.poster{position:absolute;left:50%;top:50%;z-index:2;width:min(1080px,calc(100% - 32px));transform:translate(-50%,-50%) scaleX(0);transform-origin:50% 50%;
+  background:var(--paper);border-radius:30px;box-shadow:0 34px 90px rgba(38,51,54,.32);padding:52px;
+  display:grid;grid-template-columns:300px minmax(0,1fr);gap:52px;align-items:center;
+  transition:transform .6s cubic-bezier(.2,.9,.25,1.05)}
+.stage.open .poster{transform:translate(-50%,-50%) scaleX(1)}
+.poster>*{opacity:0;transition:opacity .3s ease .35s}
+.stage.open .poster>*{opacity:1}
+.qr{width:300px;height:300px;background:#fff;border-radius:18px;padding:16px;display:grid;place-items:center;border:1px solid var(--line)}
+.qr svg{width:100%;height:100%;display:block}
+.info{min-width:0}
+.poster h2{font-family:var(--display);font-weight:800;font-size:46px;letter-spacing:-.03em;line-height:1.02;margin:0 0 14px;text-wrap:balance}
+.poster p{margin:0 0 18px;font-size:21px;color:var(--rust);line-height:1.45}
+.poster ol{margin:0 0 20px;padding-left:26px;font-size:19px;line-height:1.5;color:var(--ink);display:grid;gap:8px}
+.poster ol li::marker{font-weight:600;color:var(--rust)}
+.poster code{font:500 14.5px var(--mono);color:var(--muted);word-break:break-all}
+.poster .close{position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:0;background:var(--willow-soft);color:var(--ink);cursor:pointer;font-size:19px;line-height:1}
+.poster .close:focus-visible{outline:3px solid var(--rust)}
+@media (prefers-reduced-motion:reduce){ .page,.scrim,.poster,.poster>*,.summo-stage.fly,.summo-stage.hop,.feed ul{transition:none} }
+
+/* responsive */
+@media (max-width:1100px){
+  .hero{grid-template-columns:1fr}
+  .panel{height:auto;grid-template-columns:1fr;gap:20px;justify-items:center}
+  .lines{display:none}
+  .sources{grid-template-columns:repeat(6,56px)}
+  .feed{width:100%;max-width:420px}
+}
+@media (max-width:560px){
+  .sources{grid-template-columns:repeat(3,56px)}
+  .poster{grid-template-columns:1fr;justify-items:center;text-align:left;gap:20px;padding:24px 24px 28px;top:auto;bottom:16px;transform:translate(-50%,0) scaleX(0)}
+  .stage.open .poster{transform:translate(-50%,0) scaleX(1)}
+  .poster h2{font-size:30px;text-align:center}
+  .poster p{font-size:17px}
+  .poster ol{font-size:16px}
+  .poster code{font-size:12.5px}
+  .poster p{text-align:center}
+  .qr{width:220px;height:220px}
+  .summo-stage{width:150px;height:175px;top:20%}
+  .stage.open .summo-stage i{animation:none}
+  .links{display:none}
+}
+
+/* 03 Handoff — Alex joined, Summo dances (Figma 78:266; motion spec 78:437): banner folds, three 0.4 s bounces at centre, the judge's name under him */
+.summo-stage.handoff{transition:transform .4s ease}
+.joined{position:absolute;left:50%;top:calc(50% + 150px);transform:translateX(-50%);z-index:3;margin:0;font:600 22px var(--body);color:var(--ink);white-space:nowrap;opacity:0;transition:opacity .3s ease}
+.stage.handing .joined{opacity:1}
+@media (prefers-reduced-motion:no-preference){ .stage.handing .summo-stage i{animation:dance .4s ease-in-out 3} }
+@keyframes dance{50%{transform:translateY(-24px) scale(1.08)}}
+@media (prefers-reduced-motion:reduce){ .summo-stage.handoff,.joined{transition:none} }
+@media (max-width:560px){ .joined{top:calc(20% + 110px);font-size:18px} }

@@ -76,6 +76,25 @@ importers:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@20.19.43)
 
+  apps/landing:
+    dependencies:
+      '@keel/bindings':
+        specifier: workspace:*
+        version: link:../../packages/bindings
+      convex:
+        specifier: ^1.48.0
+        version: 1.48.0
+      spacetimedb:
+        specifier: 2.13.*
+        version: 2.13.0
+    devDependencies:
+      typescript:
+        specifier: ~5.6.2
+        version: 5.6.3
+      vite:
+        specifier: ^5.4.0
+        version: 5.4.21(@types/node@20.19.43)
+
   packages/bindings:
     dependencies:
       spacetimedb:

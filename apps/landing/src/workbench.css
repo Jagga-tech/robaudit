@@ -1,0 +1,104 @@
+/* Page 2, the live workbench: Figma "07 — Landing Page", 04 App / First screen (live) 67:120 and 04b After the answer 78:291.
+   Status colours from docs/frontend-guide.md §6: teal approved/posted, amber loss + open question, danger refusals. */
+:root{ --teal:#0F6B63; --amber:#C77A00; --amber-soft:#F7E9D0; --danger:#9B3B2E; }
+body{background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.45;padding-bottom:84px;font-variant-numeric:tabular-nums}
+button{font:inherit}
+[hidden]{display:none!important}
+.pill.sm{padding:10px 18px;font-size:14px}
+.pill.danger{border-color:var(--danger);color:var(--danger);background:var(--card)}
+.pill:disabled{opacity:.45;cursor:not-allowed}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px max(16px,calc((100vw - 1312px)/2));background:var(--card);border-bottom:1px solid var(--line)}
+.brand,.who{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.who{font-size:14px;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:8px;background:var(--willow);border-radius:999px;padding:4px 14px 4px 4px;font-size:13px;font-weight:500}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--willow-soft) url("/summo-suit.png") 50% 30%/150% no-repeat;display:block}
+.presence{display:inline-flex;align-items:center;gap:8px;color:var(--ink)}
+.presence::before,.joined::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--teal)}
+@media (prefers-reduced-motion:no-preference){
+  .avatar.spin{animation:spin .7s ease-in-out}
+  .avatar.wiggle{animation:wiggle .5s ease-in-out}
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes wiggle{25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+
+.grid{max-width:1312px;margin:0 auto;padding:40px 16px;display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:48px;align-items:start}
+.title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:30px;letter-spacing:-.02em;margin:0}
+.title span{font-size:14px;color:var(--muted)}
+h2{font-size:17px;font-weight:600;margin:40px 0 12px}
+
+/* the figure pair: the one orchestrated motion (motion spec 78:437) */
+.figs{display:flex;gap:48px;margin:18px 0 26px}
+.big{font-family:var(--display);font-weight:800;font-size:clamp(48px,6.2vw,100px);white-space:nowrap;line-height:.95;letter-spacing:-.045em}
+.was{font:500 14px var(--mono);color:var(--muted);margin-top:6px}
+.was:empty{display:none}
+.lbl{font-size:15px;margin-top:4px}
+.fig small{font-size:13px;color:var(--muted)}
+.mline{font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mline b{font:500 14px var(--mono)}
+.warn{font:500 11px var(--mono);background:var(--amber-soft);color:var(--amber);border-radius:999px;padding:3px 10px}
+.track{height:8px;border-radius:999px;background:var(--line);margin-top:10px;max-width:640px;overflow:hidden}
+.track i{display:block;height:100%;min-width:6px;border-radius:999px;background:var(--teal)}
+.track i.loss{background:var(--amber)}
+.moving .track i{transition:width .9s ease-in-out,background-color .9s ease-in-out}
+@media (prefers-reduced-motion:no-preference){ .moving .was{animation:fadein .9s ease-in-out} }
+@keyframes fadein{from{opacity:0}}
+
+/* Activity + Queue reuse the landing feed's .card markup */
+.list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+#activity{max-height:420px;overflow:auto}
+.list .card{opacity:1;height:auto;min-height:58px;transition:none}
+.list .err{color:var(--danger);font-size:14px}
+.tag.ok{background:var(--willow-soft);color:var(--teal)}
+.tag.amber{background:var(--amber-soft);color:var(--amber)}
+.tag.bad{background:var(--danger)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer;color:var(--ink);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip:focus-visible{outline:3px solid var(--rust);outline-offset:2px}
+
+/* right column: QR card (no proposal yet) or the proposal panel */
+.joincard{background:var(--willow);border-radius:24px;padding:28px;display:grid;gap:14px;justify-items:start}
+.joincard h3{font-size:20px;margin:0;line-height:1.25}
+.joincard p{margin:0;font-size:14px;color:var(--rust)}
+.qr{width:150px;height:150px;background:#fff;border-radius:14px;padding:10px}
+.qr svg{width:100%;height:100%;display:block}
+.joincard code{font:500 12.5px var(--mono);color:var(--rust);word-break:break-all}
+.joined{display:inline-flex;align-items:center;gap:8px;background:var(--card);border-radius:999px;padding:9px 16px;font-size:14px;font-weight:500}
+
+.proposal{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:24px;display:grid;gap:16px}
+@media (prefers-reduced-motion:no-preference){ .proposal{animation:slidein .6s cubic-bezier(.2,.9,.25,1.05)} }
+@keyframes slidein{from{transform:translateX(56px);opacity:0}}
+.proposal h3{margin:0;font-size:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.entry{background:var(--willow-soft);border-radius:12px;padding:6px 12px;display:grid}
+.entry div{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;padding:6px 0;font-size:14px;border-bottom:1px solid var(--line)}
+.entry div:last-child{border-bottom:0}
+.entry span:last-child{font:500 13px var(--mono)}
+.entry .cr span:nth-child(2){padding-left:18px}
+.expl{margin:0;font-size:14px;display:grid;gap:6px;max-height:240px;overflow:auto}
+.expl p{margin:0}
+.expl .esc{color:var(--amber);font-weight:600}
+.small{font-size:12.5px;color:var(--muted);margin:0}
+.evid{display:flex;flex-wrap:wrap;gap:6px}
+.evid .chip{font-size:12px;padding:6px 12px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.posted{margin:0;font-weight:600;color:var(--teal)}
+.saved{margin:0;font-size:13px;color:var(--teal);font-weight:500}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:4px;font:500 12px var(--mono);color:var(--muted)}
+.checks li::before{content:"○";display:inline-block;width:18px}
+.checks li.ok{color:var(--teal)} .checks li.ok::before{content:"✓"}
+.checks li.bad{color:var(--danger)} .checks li.bad::before{content:"✕"}
+
+.sheet{position:fixed;top:0;right:0;bottom:0;z-index:30;width:min(480px,100%);background:var(--card);box-shadow:-20px 0 60px rgba(38,51,54,.18);padding:28px;overflow:auto}
+.sheet h3{margin:0 40px 14px 0;font-size:18px}
+.sheet .close{position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:50%;border:0;background:var(--willow-soft);cursor:pointer;font-size:18px}
+.sheet article{border-top:1px solid var(--line);padding:12px 0;font-size:14px;white-space:pre-wrap}
+.sheet article b{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-bottom:4px}
+.sheet img{max-width:100%;border-radius:10px;border:1px solid var(--line);margin-top:8px}
+
+.breakit{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--card);border-top:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.refusal{margin:0;font:500 13px var(--mono);color:var(--danger)}
+.refusal.info{color:var(--muted)}
+.refusal b{font-weight:500;margin-right:6px}
+
+@media (max-width:1000px){ .grid{grid-template-columns:1fr} .figs{gap:32px;flex-wrap:wrap} }

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RoboAudit</title>
+<meta name="description" content="RoboAudit keeps robotics project revenue current. Summo reads the note, asks one question by phone, and the controller posts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Hanken+Grotesk:wght@400;500;600&family=Geist+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/src/base.css">
+<link rel="stylesheet" href="/src/landing.css">
+</head>
+<body>
+<div class="wrap page" id="page">
+  <nav>
+    <div class="brand">
+      <a class="wordmark" href="/">RoboAudit</a>
+      <div class="links"><a href="#how">How it works</a><a href="#controls">Controls</a><a href="#team">Team</a></div>
+    </div>
+    <div class="actions">
+      <a class="pill dark" href="#demo">Watch the demo</a>
+      <a class="pill outline" href="/workbench">Open the workbench</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="copy">
+      <h1>Reads the note. Asks once. Never posts.</h1>
+      <p class="sub">Summo reads site notes and forecast sheets, asks the deployment manager one question by phone when a word is ambiguous, and proposes the entry with its evidence. Your controller posts.</p>
+      <div class="ctas">
+        <button class="pill willow" id="joinBtn" type="button">Join as deployment manager</button>
+        <div class="join">
+          <small>Or scan the QR on the workbench</small>
+          <strong>Summo will call your phone</strong>
+          <span>One question. About 90 seconds.</span>
+        </div>
+      </div>
+      <p class="proof">Cost-to-cost revenue under ASC 606. Integer-cent arithmetic. Nothing posts without the controller.</p>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="sources dim" aria-label="What Summo is built on">
+        <div class="tile" title="Claude reads the note"><svg class="logo" aria-label="Claude" role="img" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Claude</title><path fill="#D97757" d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg></div>
+        <div class="tile" title="Gemini, second reader"><svg class="logo" aria-label="Gemini" role="img" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Google Gemini</title><path fill="#4285F4" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg></div>
+        <div class="tile" title="Azure Document Intelligence reads scanned sheets"><svg class="logo" aria-label="Azure Document Intelligence" role="img" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Microsoft Azure</title><path fill="#0078D4" d="M22.379 23.343a1.62 1.62 0 0 0 1.536-2.14v.002L17.35 1.76A1.62 1.62 0 0 0 15.816.657H8.184A1.62 1.62 0 0 0 6.65 1.76L.086 21.204a1.62 1.62 0 0 0 1.536 2.139h4.741a1.62 1.62 0 0 0 1.535-1.103l.977-2.892 4.947 3.675c.28.208.618.32.966.32m-3.084-12.531 3.624 10.739a.54.54 0 0 1-.51.713v-.001h-.03a.54.54 0 0 1-.322-.106l-9.287-6.9h4.853m6.313 7.006c.116-.326.13-.694.007-1.058L9.79 1.76a1.722 1.722 0 0 0-.007-.02h6.034a.54.54 0 0 1 .512.366l6.562 19.445a.54.54 0 0 1-.338.684"/></svg></div>
+        <div class="tile" title="Cartesia speaks and transcribes the call"><svg class="logo" aria-label="Cartesia" role="img" viewBox="89.6 94.3 236.5 236.5" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+<path fill="#309D4B" d="M317.301 182.114V237.681H289.766L286.153 232.679L277.49 220.689L271.591 212.526L261.508 198.571L264.557 212.526L268.964 232.679L270.056 237.681L273.37 252.833L277.49 271.685L277.774 272.987L282.178 293.138L286.585 313.292H224.406L219.999 293.138L217.769 282.929L215.595 272.987L211.189 252.833L207.877 237.681L204.565 252.833L200.158 272.987L197.864 283.481L195.754 293.138L191.347 313.292H129.048L133.455 293.138L137.738 273.533V273.53L138.143 273.231L138.475 272.987L158.05 258.489L165.69 252.833L177.957 243.747L186.149 237.681H98.332V182.114H157.722L158.05 180.617L159.887 172.221L164.291 152.067L168.698 131.914L173.102 111.763H242.531L246.935 131.914L247.858 136.131L237.676 143.671L226.336 152.067L217.769 158.413L199.123 172.221L197.864 173.152L185.764 182.114H317.301Z" fill="#F9F9F8"/>
+</svg>
+</div>
+        <div class="tile" title="Convex runs the phone page"><svg class="logo" aria-label="Convex" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="50.55 47.93 50.40 50.40"><path d="M82.2808 87.6516C89.652 86.8381 96.6012 82.9352 100.427 76.421C98.6156 92.533 80.8853 102.717 66.413 96.4643C65.0795 95.8897 63.9316 94.9339 63.1438 93.705C59.8915 88.6302 58.8224 82.1729 60.3585 76.3129C64.7475 83.8398 73.6717 88.4538 82.2808 87.6516Z" fill="#F3B01C"/><path d="M60.0895 71.5852C57.1016 78.4465 56.9722 86.4797 60.6353 93.0906C47.7442 83.453 47.8848 62.8294 60.4778 53.2885C61.6425 52.4067 63.0267 51.8833 64.4785 51.8036C70.4486 51.4907 76.5144 53.7835 80.7683 58.0561C72.1254 58.1415 63.7076 63.643 60.0895 71.5852Z" fill="#8D2676"/><path d="M84.9366 60.1673C80.5757 54.1253 73.7503 50.0119 66.2722 49.8868C80.7277 43.3669 98.5086 53.9375 100.444 69.5659C100.624 71.0167 100.388 72.4959 99.7409 73.8044C97.04 79.2547 92.032 83.4819 86.1801 85.0464C90.4678 77.144 89.9388 67.4893 84.9366 60.1673Z" fill="#EE342F"/></svg></div>
+        <div class="tile" title="SpacetimeDB holds the ledger"><svg class="logo" aria-label="SpacetimeDB" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0.00 -1.63 35.25 35.25"><path d="M29.0084 15.317C28.7599 9.53226 29.8442 6.19046 35.253 0L24.4403 10.9106C27.0282 14.2552 26.7974 19.0995 23.7479 22.1767C20.6983 25.2538 15.8975 25.4867 12.5828 22.8754L10.5801 24.8962L10.5876 24.9024L7.406 28.1361C9.80824 26.7321 13.5178 27.1349 15.7556 27.3779C16.3754 27.4452 16.8823 27.5003 17.2172 27.5013C20.2827 27.6534 23.398 26.5483 25.7392 24.186C28.1485 21.7549 29.2382 18.4965 29.0084 15.317Z" fill="#263336"/><path d="M18.0358 4.49871C18.3707 4.49971 18.8776 4.55476 19.4974 4.62207C21.7352 4.86508 25.4448 5.26792 27.847 3.86395L24.6654 7.0976L24.6729 7.10383L22.6702 9.12462C19.3556 6.51328 14.5547 6.74618 11.5051 9.82332C8.45559 12.9005 8.22477 17.7448 10.8127 21.0894L0 32C5.40878 25.8095 6.49311 22.4677 6.24461 16.683C6.0148 13.5035 7.10454 10.2451 9.51385 7.81402C11.855 5.45167 14.9703 4.34657 18.0358 4.49871Z" fill="#263336"/><path fill-rule="evenodd" clip-rule="evenodd" d="M24.9275 16C24.9275 20.0687 21.6587 23.367 17.6265 23.367C13.5943 23.367 10.3255 20.0687 10.3255 16C10.3255 11.9313 13.5943 8.63292 17.6265 8.63292C21.6587 8.63292 24.9275 11.9313 24.9275 16ZM17.6265 21.6C20.724 21.6 23.2349 19.0928 23.2349 16C23.2349 12.9072 20.724 10.4 17.6265 10.4C14.5291 10.4 12.0181 12.9072 12.0181 16C12.0181 19.0928 14.5291 21.6 17.6265 21.6Z" fill="#263336"/></svg></div>
+      </div>
+      <svg class="lines dim" viewBox="0 0 40 184" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 28 C20 28,20 92,40 92"/><path d="M0 92 L40 92"/><path d="M0 156 C20 156,20 92,40 92"/>
+      </svg>
+      <div class="agent">
+        <img class="summo" id="summo" src="/summo-suit.png" alt="Summo, the RoboAudit agent, a fuzzy green character in a charcoal suit" width="150" height="175">
+        <small class="dim">Summo</small>
+      </div>
+      <svg class="lines dim" viewBox="0 0 32 420" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 210 C16 210,16 38,32 38"/><path d="M0 210 C16 210,16 124,32 124"/><path d="M0 210 L32 210"/><path d="M0 210 C16 210,16 296,32 296"/><path d="M0 210 C16 210,16 382,32 382"/>
+      </svg>
+      <div class="feed dim" id="feed" aria-label="What Summo is doing"><ul id="feedList"></ul></div>
+    </div>
+  </section>
+</div>
+<div class="scene-space" aria-hidden="true"></div>
+
+<!-- Centre stage: Summo jumps here, the banner unfolds behind him, the page behind blurs -->
+<div class="stage" id="stage" hidden>
+  <div class="scrim" id="scrim"></div>
+  <!-- a div with a background image, not an <img>: Chromium paints a box behind a transforming <img> with alpha -->
+  <div class="summo-stage" id="summoStage" role="img" aria-label="Summo"><i></i></div>
+  <p class="joined" id="joined" aria-live="polite"></p>
+  <div class="poster" id="poster" role="dialog" aria-labelledby="posterTitle" aria-hidden="true">
+    <div class="qr" id="qr"></div>
+    <div class="info">
+      <h2 id="posterTitle">Join as deployment manager</h2>
+      <p>You play the person on site. Summo does the accounting.</p>
+      <ol>
+        <li>Scan the code and type your first name.</li>
+        <li>Send a site update in your own words.</li>
+        <li>If a word is ambiguous, Summo calls you with one question.</li>
+      </ol>
+      <code id="qrUrl"></code>
+    </div>
+    <button class="close" id="closeBtn" type="button" aria-label="Close">×</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script type="module" src="/src/landing.ts"></script>
+</body>
+</html>

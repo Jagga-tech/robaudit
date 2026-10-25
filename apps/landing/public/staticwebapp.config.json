@@ -1,0 +1,7 @@
+{
+  "routes": [
+    { "route": "/phone", "rewrite": "/phone.html" },
+    { "route": "/workbench", "rewrite": "/workbench.html" }
+  ],
+  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/assets/*", "/*.png", "/*.json"] }
+}

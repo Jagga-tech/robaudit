@@ -1,0 +1,26 @@
+/* Shared tokens and components: Figma file 8gPKZCS1U6j1LiL5fiGmTX, page "07 — Landing Page". Used by index.html and workbench.html. */
+:root{
+  --paper:#F4F5F3; --willow:#C8D5BB; --willow-soft:#E9EFE2; --rust:#47585C; --ink:#263336; --muted:#6F7D80; --card:#FFFFFF; --line:#DCE2DA;
+  --display:"Bricolage Grotesque",system-ui,sans-serif; --body:"Hanken Grotesk",system-ui,sans-serif; --mono:"Geist Mono",ui-monospace,monospace;
+  --card-h:76px; --gap:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+a{color:inherit}
+.wordmark{font-family:var(--display);font-weight:800;font-size:24px;letter-spacing:-.02em;text-decoration:none}
+.pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 26px;border-radius:999px;font:600 16px var(--body);text-decoration:none;cursor:pointer;border:1px solid transparent;color:var(--ink);background:transparent}
+.pill.dark{background:var(--rust);color:var(--paper)}
+.pill.outline{border-color:var(--rust)}
+.pill.willow{background:var(--willow)}
+.pill:focus-visible{outline:3px solid var(--rust);outline-offset:3px}
+.card{height:var(--card-h);display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border-radius:14px;
+  background:var(--card);border:1px solid var(--line);opacity:.45;transition:opacity .5s,background .5s,border-color .5s,box-shadow .5s}
+.card.near{opacity:.75}
+.card.active{opacity:1;background:var(--willow-soft);border:1.5px solid var(--rust);box-shadow:0 8px 20px rgba(38,51,54,.18)}
+.ibox{width:36px;height:36px;border-radius:10px;background:var(--paper);display:grid;place-items:center}
+.ibox svg{width:20px;height:20px;stroke:var(--rust);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.card b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13.5px;font-weight:600;line-height:1.25}
+.card i{display:flex;gap:5px;align-items:center;font-style:normal;font-size:11.5px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card i svg{width:12px;height:12px;fill:var(--rust);flex:none}
+.tag{font:500 10.5px var(--mono);background:var(--rust);color:var(--paper);border-radius:999px;padding:4px 9px;white-space:nowrap}
+.tag:empty{display:none}
