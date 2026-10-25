@@ -29,14 +29,16 @@ Submission asks: video opens with the moment; live demo, judges may try their ow
 - [ ] Redeem promo code `CALHACKS13` on https://spacetimedb.com/keel so the Maincloud db stays live after demo day.
 - [ ] Devpost: name two or three reducers (decide, post, add_source) so judges see it is not "just chat".
 
-## Atlassian — NOT eligible yet (deferred)
+## Atlassian — Forge app built 2026-10-25 03:10 PDT, not yet deployed (Track 2: audit mirror)
 
-Needs a Forge app on a Jira/Confluence demo site. We have none. Node 22 required (we run 20).
+Code: `apps/jira-forge` (web trigger, one Jira issue per Summo work item; comments + column moves per status; secret header) and `apps/jira-bridge` (read-only ledger subscriber that POSTs changes; tested, typechecks). Setup in `apps/jira-forge/README.md`.
 
-- [ ] Decide: drop the track from Devpost, or build the minimal layer below (2-3 h).
-- [ ] If building (Track 2, "Audit and Reversion"): `nvm install 22`, `npm i -g @forge/cli`, `forge login`, `forge site provision`, `forge register`.
-- [ ] One web trigger: agent POSTs escalations (ambiguous note, loss warning, stale proposal) → Jira issue with evidence, facts, proposed entry, explanation. Loop reads approve/reject back from the issue.
-- [ ] Starter: https://github.com/atlassian-labs/forge-inspired
+- [ ] User: `forge login` (API token with Forge scopes), `forge site provision`, create Kanban project "Summo" key `SUMMO` on the demo site.
+- [ ] Then: `forge register`, `forge variables set --encrypt SUMMO_WEBHOOK_SECRET`, `forge deploy`, `forge install --demo-site --product jira`, `forge webtrigger -f main` -> `.env` `JIRA_WEBTRIGGER_URL` + `SUMMO_WEBHOOK_SECRET`.
+- [ ] Run `pnpm --filter @keel/jira-bridge start` next to the agent during the demo; run one beat and confirm the SUMMO issue appears, then the rev 2 comment.
+- [ ] Video: 3 min max, show the Jira issue updating as Summo works (Atlassian requires the video).
+- [ ] Devpost: say Track 2, "audit mirror: every Summo decision, return and post lands in Jira with its reasoning; Jira never posts to the ledger".
+- Ceiling: no replay on bridge restart; agent_event rows and rejected attempts not mirrored yet (would need work-item ids on them).
 
 ## Microsoft Built for the Real World — eligible, 4 of 5 capabilities strong
 
@@ -63,7 +65,7 @@ Their hackathon.md template scores: components, features, Convex hosting, auth, 
 
 - [x] Flash model: `gemini-3.5-flash-lite` as second reader (`apps/agent/src/gemini.ts`).
 - [ ] Set `GEMINI_API_KEY` before recording the video, or the Gemini extraction row never shows.
-- [ ] Optional: multimodality. Let Gemini read the scanned forecast photo directly (image input in `gemini.ts`) instead of the Azure DI text, so the two readers see different evidence. Contained in the optional path.
+- [ ] Gemini roles (owned by the Hyphenate agent refactor): reader-gemini plus a Gemini reviewer that checks each proposal (numbers vs calculation, entry balanced, convention cited) and shows "Reviewed by Gemini" on the proposal. Multimodal photo read deferred.
 
 ## MLH Commit Fellowship
 

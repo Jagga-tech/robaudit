@@ -2,3 +2,4 @@ packages:
   - packages/*
   - apps/*
   - spacetimedb
+  - '!apps/jira-forge'

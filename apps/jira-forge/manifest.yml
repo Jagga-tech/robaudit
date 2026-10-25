@@ -1,0 +1,17 @@
+# Summo -> Jira mirror. One web trigger; the bridge (apps/jira-bridge) POSTs ledger changes here.
+modules:
+  webtrigger:
+    - key: summo-event
+      function: main
+  function:
+    - key: main
+      handler: index.handler
+app:
+  runtime:
+    name: nodejs22.x
+  id: REPLACED_BY_FORGE_REGISTER
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - storage:app

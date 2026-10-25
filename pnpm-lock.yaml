@@ -76,6 +76,25 @@ importers:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@20.19.43)
 
+  apps/jira-bridge:
+    dependencies:
+      '@keel/bindings':
+        specifier: workspace:*
+        version: link:../../packages/bindings
+      '@keel/ledger-client':
+        specifier: workspace:*
+        version: link:../../packages/ledger-client
+      spacetimedb:
+        specifier: 2.13.*
+        version: 2.13.0
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.15
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
+
   apps/landing:
     dependencies:
       '@keel/bindings':
