@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { connectAs, waitFor, STDB_URI, type DbConnection } from '../src/index';
 
-const up = await fetch(new URL('/v1/ping', STDB_URI.replace(/^ws(s?):/, 'http:'))).then((r) => r.ok, () => false);
+const up = await fetch(new URL('/v1/ping', STDB_URI.replace(/^ws(s?):/, 'http$1:'))).then((r) => r.ok, () => false);
 if (!up) console.warn(`[ledger e2e] SKIPPED: SpacetimeDB not reachable at ${STDB_URI}. Run \`spacetime start\` and \`pnpm stdb:publish\`.`);
 
 const ENTRY = JSON.stringify([
