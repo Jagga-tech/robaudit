@@ -1,6 +1,6 @@
 // Judge's phone page: docs/frontend-guide.md §8 (screens, audio contract), docs/demo-flow.md steps 1, 2, 4, 6.
 import { DbConnection } from '@keel/bindings';
-import { api, convex, signInAnonymously } from './lib/convex';
+import { api, convex, sessionId, signInAnonymously } from './lib/convex';
 import type { Doc, Id } from '../../../convex/_generated/dataModel';
 
 const STDB_URI = import.meta.env.VITE_STDB_URI ?? 'wss://maincloud.spacetimedb.com';
@@ -141,7 +141,8 @@ function boot() {
     const c = convex.connectionState();
     const down = convexErr || ledgerState === 'reconnecting' || (c.hasEverConnected && !c.isWebSocketConnected);
     connLine.classList.toggle('warn', down);
-    connLine.textContent = down ? 'Reconnecting…' : `ledger: ${ledgerState} · convex: ${c.isWebSocketConnected ? 'online' : 'connecting'}`;
+    const sid = sessionId(); // Convex Auth anonymous session; display only, the call flow does not wait on it
+    connLine.textContent = down ? 'Reconnecting…' : `ledger: ${ledgerState} · convex: ${c.isWebSocketConnected ? 'online' : 'connecting'} · session: ${sid ? 'secure ' + sid : 'signing in'}`;
   }
   convex.subscribeToConnectionState(paintConn); // ConvexClient reconnects its own socket and replays subscriptions
 
@@ -507,6 +508,7 @@ function boot() {
   });
 
   render();
-  signInAnonymously().catch((e) => console.warn('convex sign-in failed', e)); // call mutations need the session; queries work without it
+  signInAnonymously().then(paintConn).catch((e) => console.warn('convex sign-in failed', e)); // call mutations need the session; queries work without it
+  connLine.onclick = () => { const sid = sessionId(); if (sid) alert(`Convex Auth session ${sid}: your answers are recorded against this session, not just your name.`); };
   if (me) connectLedger(me.name).catch(() => retryLedger());
 }

@@ -16,6 +16,10 @@ async function freshToken(): Promise<string> {
   session = r.tokens; try { sessionStorage.setItem('keel-session', JSON.stringify(session)); } catch {}
   return session.token;
 }
+/** Short id of the current auth session (JWT `sub` = userId|sessionId), for display only. */
+export function sessionId(): string | null {
+  try { return session ? (JSON.parse(atob(session.token.split('.')[1])).sub as string).split('|')[1]?.slice(-6) ?? null : null; } catch { return null; }
+}
 /** Resolves once the client carries a session. Safe to call more than once. */
 export function signInAnonymously(): Promise<void> {
   return new Promise((resolve) => {
