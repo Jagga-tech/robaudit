@@ -53,3 +53,14 @@ describe('parseSpokenTotal (rates)', () => {
     ['10k a week', 'That sounds like a weekly figure. What is the total?'],
   ])('rate without duration re-asks: %s', (text, note) => expect(parseSpokenTotal(text)).toEqual({ cents: null, note }));
 });
+
+import { normalizeAnswer } from '../src/agents/field-liaison.js';
+describe('normalizeAnswer with mixed words', () => {
+  it.each([
+    ["it's extra", 'additional'], ['the new total is 600', 'new_total'], ['yes', null], ['sure', null],
+    ['extra on top of the total', null], // both kinds, no explicit phrase: ask
+    ['not additional, it is the new total', 'new_total'],
+    ['additional, not a new total', 'additional'],
+    ['extra, so the new total is 600', 'new_total'],
+  ])('%s', (a, want) => expect(normalizeAnswer(a)).toBe(want));
+});

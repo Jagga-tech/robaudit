@@ -103,6 +103,7 @@ const usdWhole = (c: bigint) => '$' + (c / 100n).toLocaleString('en-US');
 const TOTAL = /new[\s_-]*total|\btotal\b/i, ADD = /addition|on top|\bmore\b|\bextra\b/i;
 const normalize = (a: string): Answer | null => {
   const total = TOTAL.test(a), add = ADD.test(a);
+  if (total && add) return /\bnot\b[^.]{0,20}new[\s_-]*total/i.test(a) ? 'additional' : /new[\s_-]*total/i.test(a) ? 'new_total' : null;
   return total === add ? null : total ? 'new_total' : 'additional';
 };
 /** The judge's words -> the option they meant, or null. Only options the question offered count. */

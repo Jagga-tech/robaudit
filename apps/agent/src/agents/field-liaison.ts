@@ -12,6 +12,7 @@ const projectOf = (deps: Deps, workItemId: bigint) => deps.ledger.state().workIt
 /** Both or neither pattern ("additional, not a new total") = unclear -> null, the caller re-asks as text. */
 export function normalizeAnswer(a: string): Convention | null {
   const total = /new[\s_-]*total|\btotal\b/i.test(a), add = /addition|on top|\bmore\b|\bextra\b/i.test(a);
+  if (total && add) return /\bnot\b[^.]{0,20}new[\s_-]*total/i.test(a) ? 'additional' : /new[\s_-]*total/i.test(a) ? 'new_total' : null; // "extra on top of the total" still asks; an explicit "new total" decides
   return total === add ? null : total ? 'new_total' : 'additional';
 }
 
