@@ -58,6 +58,21 @@ function handled(s: LedgerState, src: SourceRow): boolean {
   return src.kind === 'commissioning_log' && s.milestones.some((m) => m.projectId === src.projectId && m.name === 'acceptance' && m.status === 'met');
 }
 
+/** A source with no figures still stales the open proposal (ledger rule: any new evidence). Put the same position back as a new
+ *  revision so Dana still has something to approve; the ledger permits re-proposing a stale calculation. Returns undefined if nothing was staled. */
+function reproposeIfStaled(src: SourceRow, deps: Deps): Promise<void> | undefined {
+  const st = deps.ledger.state();
+  const wiIds = new Set(st.workItems.filter((w) => w.projectId === src.projectId).map((w) => w.id));
+  const latest = [...st.proposals].filter((p) => p.workItemId != null && wiIds.has(p.workItemId) && p.calculationId !== 0n).sort((a, b) => (b.revision ?? 0) - (a.revision ?? 0))[0];
+  if (!latest || latest.status !== 'stale' || !latest.entryJson || latest.entryJson === '[]') return undefined;
+  const ledger = ledgerOf(deps);
+  return (async () => {
+    const note = `Source ${src.id} ("${src.text.slice(0, 80)}") carries no figures, so the position is unchanged; re-proposed as a new revision after it staled rev ${latest.revision}.`;
+    await ledger.propose({ workItemId: latest.workItemId!, calculationId: latest.calculationId, entryJson: latest.entryJson!, explanation: [note, latest.explanation ?? ''].filter(Boolean).join('\n'), evidenceSourceIdsCsv: [latest.evidenceSourceIds ?? '', String(src.id)].filter(Boolean).join(','), pendingConventionJson: latest.pendingConventionJson ?? '' });
+    await say(ledger, NAME, src.projectId, 'propose', `position unchanged; re-proposed after source ${src.id} (no figures) staled rev ${latest.revision}`, 'source', src.id);
+    log(`source ${src.id}: no figures; re-proposed stale rev ${latest.revision} unchanged`);
+  })();
+}
 const skip = (deps: Deps, src: SourceRow, why: string) => say(deps.ledger, NAME, src.projectId, 'skip', why, 'source', src.id).then(() => log(`source ${src.id}: ${why}`));
 
 export async function handleNewSource(src: SourceRow, deps: Deps): Promise<void> {
@@ -109,7 +124,7 @@ async function route(src: SourceRow, deps: Deps): Promise<void> {
   log(`extraction recorded: ${x.facts.length} fact(s), ambiguous=${ambiguous}${g ? `, second reader ${both.agreed ? 'agrees' : 'disagrees'}` : ''}`);
 
   if (src.kind === 'commissioning_log') return milestoneInvoice(src, x, deps);
-  if (amount == null && !ambiguous) return skip(deps, src, 'no remaining_update amount, nothing to propose');
+  if (amount == null && !ambiguous) return reproposeIfStaled(src, deps) ?? skip(deps, src, 'no remaining_update amount, nothing to propose');
   if (amount != null && remainingEstimate) return proposeForecast(src, amount, 'new_total', [`Convention v${reConv!.policyVersion}: remaining_estimate_means = ${reConv!.value} (a Remaining Estimate is the new total remaining)`], '', deps, undefined, disagreement);
   if (amount != null && !ambiguous) return proposeForecast(src, signed(amount, red ?? 'new_total', red), red ?? 'new_total', [], '', deps, undefined, disagreement);
   const conv = ledger.state().conventions.find((c) => c.template === 'forecast' && c.key === 'another_means');

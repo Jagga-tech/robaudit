@@ -160,7 +160,7 @@ export const propose = spacetimedb.reducer(
     requireRole(ctx, 'agent');
     if (calculationId !== 0n && ctx.db.calculation.id.find(calculationId)?.workItemId !== workItemId) fail('not_found', 'calculation');
     const existing = [...ctx.db.proposal.by_work_item.filter(workItemId)];
-    if (existing.some((p) => p.calculationId === calculationId)) return; // idempotent retry
+    if (existing.some((p) => p.calculationId === calculationId && p.status !== 'stale')) return; // idempotent retry; a stale one may be re-proposed unchanged
     const fsrc = calculationId !== 0n ? ctx.db.calculation.id.find(calculationId)?.forecastSourceId ?? 0n : 0n;
     if (fsrc !== 0n && existing.some((p) => p.status !== 'stale' && p.calculationId !== 0n && ctx.db.calculation.id.find(p.calculationId)?.forecastSourceId === fsrc)) return; // same source already proposed
     for (const p of existing) if (p.status === 'open') ctx.db.proposal.id.update({ ...p, status: 'stale' });
