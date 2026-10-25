@@ -6,20 +6,20 @@ import './pages.css';
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const when = (d: Date) => d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' });
 
-type Row = { time: Date; actor: string; agent: boolean; kind: string; summary: string; ref: string; detail: string };
+type Row = { time: Date; actor: string; agent: boolean; kind: string; summary: string; ref: string; detail: string; chain?: boolean };
 
 const page: Page = {
   route: /^\/workbench\/audit$/,
   title: 'Audit trail',
   render(root, ctx) {
-    let actor = '', kind = '';
+    let actor = '', kind = '', withAgents = false;
     let visible: Row[] = [];
 
     function rows(): Row[] {
       const d = ctx.conn.db;
       const agents = new Set([...d.user.iter()].filter((u) => u.role === 'agent').map((u) => u.name));
       const approvals = [...d.approval.iter()];
-      return [...d.historyEvent.iter()].sort((a, b) => (a.id < b.id ? 1 : -1)).map((e) => {
+      const hist = [...d.historyEvent.iter()].sort((a, b) => (a.id < b.id ? 1 : -1)).map((e): Row => {
         const agent = e.actor === 'Keel Agent' || agents.has(e.actor);
         let detail = '';
         if (e.kind.startsWith('decision_')) {
@@ -37,6 +37,11 @@ const page: Page = {
         }
         return { time: e.at.toDate(), actor: agent ? 'Summo' : e.actor, agent, kind: e.kind, summary: e.summary, ref: e.refId ? `#${e.refId}` : '', detail };
       });
+      if (!withAgents) return hist;
+      // the agent chain beside the human record (agent_event; empty when this ledger lacks the table)
+      const chain = [...d.agentEvent.iter()].map((e): Row => ({ time: e.at.toDate(), actor: e.agent, agent: true, kind: e.kind, summary: e.summary,
+        ref: e.refId ? `${e.refTable} #${e.refId}` : '', detail: '', chain: true }));
+      return [...hist, ...chain].sort((a, b) => b.time.getTime() - a.time.getTime());
     }
 
     function draw() {
@@ -57,14 +62,15 @@ const page: Page = {
         <div class="toolbar">
           <select data-f="actor" aria-label="Actor">${opts(all.map((r) => r.actor), actor, 'All actors')}</select>
           <select data-f="kind" aria-label="Kind">${opts(all.map((r) => r.kind), kind, 'All kinds')}</select>
+          <button class="chip" data-agents aria-pressed="${withAgents}">Agents<b>${[...d.agentEvent.iter()].length}</b></button>
           <span class="grow"></span><span class="muted">${visible.length} rows</span>
           <button class="btn" data-csv>Export CSV</button>
         </div>
         ${visible.length ? `<div class="tbl-wrap"><table>
           <thead><tr><th>Time</th><th>Actor</th><th>Kind</th><th>Summary</th><th class="num">Ref</th></tr></thead>
-          <tbody>${visible.map((r) => `<tr>
+          <tbody>${visible.map((r) => `<tr${r.chain ? ' class="agentrow"' : ''}>
             <td class="mono muted">${when(r.time)}</td>
-            <td class="${r.agent ? 'summo' : ''}">${esc(r.actor)}</td>
+            <td class="${r.agent && !r.chain ? 'summo' : ''}">${esc(r.actor)}</td>
             <td class="mono">${esc(r.kind)}</td>
             <td>${esc(r.summary)}${r.detail ? `<div class="mono muted">${esc(r.detail)}</div>` : ''}</td>
             <td class="num">${r.ref}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No events match.</p>'}
@@ -88,7 +94,11 @@ const page: Page = {
       if (s.dataset.f === 'actor') actor = s.value; else if (s.dataset.f === 'kind') kind = s.value;
       draw();
     };
-    root.onclick = (e) => { if ((e.target as HTMLElement).closest('[data-csv]')) csv(); };
+    root.onclick = (e) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('[data-csv]')) csv();
+      else if (t.closest('[data-agents]')) { withAgents = !withAgents; draw(); }
+    };
     draw();
     let raf = 0;
     const off = ctx.onChange(() => { raf ||= requestAnimationFrame(() => { raf = 0; draw(); }); });

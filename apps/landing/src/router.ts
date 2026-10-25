@@ -9,6 +9,7 @@ export const pages: Page[] = [...new Set(Object.values(mods).flatMap((m) => Obje
 
 export const NAV = [
   { key: 'inbox', label: 'Inbox', path: '/workbench' },
+  { key: 'agents', label: 'Agents', path: '/workbench/agents' },
   { key: 'projects', label: 'Projects', path: '/workbench/projects' },
   { key: 'close', label: 'Close', path: '/workbench/close' },
   { key: 'evidence', label: 'Evidence', path: '/workbench/evidence' },

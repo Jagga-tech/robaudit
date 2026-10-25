@@ -1,6 +1,6 @@
 // The workbench shell: sidebar, page title row, toasts, Summo's badge, routing under /workbench (history API).
 // One user: Dana, controller. Pages read the SpacetimeDB client cache on each render (docs/frontend-guide.md §7, §10).
-import { connect, onChange, call, STDB_URI, type DbConnection } from './lib/ledger';
+import { connect, onChange, call, subscribeExtra, STDB_URI, type DbConnection } from './lib/ledger';
 import { convex, api } from './lib/convex';
 import type { Ctx } from './lib/app';
 import { NAV, resolve, navKey } from './router';
@@ -48,6 +48,7 @@ function renderSide() {
   const posted = new Set(all(d.posting.iter()).map((p) => p.proposalId));
   const counts: Record<string, number> = {
     inbox: inbox(d, manager?.name).length,
+    agents: all(d.agentEvent.iter()).filter((e) => Date.now() - e.at.toDate().getTime() < 600_000).length,
     projects: all(d.project.iter()).length,
     close: all(d.proposal.iter()).filter((p) => (p.status === 'open' || p.status === 'approved') && !posted.has(p.id)).length,
     evidence: all(d.source.iter()).length,
@@ -57,7 +58,7 @@ function renderSide() {
   };
   for (const el of document.querySelectorAll<HTMLElement>('[data-count]')) {
     const k = el.dataset.count!;
-    el.textContent = k === 'connections' ? '' : String(counts[k] ?? '');
+    el.textContent = k === 'connections' || (k === 'agents' && !counts.agents) ? '' : String(counts[k] ?? '');
     el.classList.toggle('hot', k === 'inbox' && counts.inbox > 0);
   }
   $('liveDot').hidden = false;
@@ -143,6 +144,10 @@ const ctx: Ctx = {
 convex.onUpdate(api.managers.current, {}, (m) => { manager = m; schedule(); });
 setInterval(() => { if (override && Date.now() > override.until) { override = null; schedule(); } }, 500); // badge leaves a transient state
 mount();
-connect('controller', 'Dana').then((c) => { conn = c; onChange(schedule); renderSide(); mount(); }, (e) => {
+connect('controller', 'Dana').then((c) => {
+  conn = c; onChange(schedule);
+  subscribeExtra(c, ['agent_event'], () => {}, (e) => console.warn('agent_event not on this ledger', e)); // separate: prod may lack the table
+  renderSide(); mount();
+}, (e) => {
   $('page').innerHTML = `<p class="empty err">Cannot reach the ledger at ${esc(STDB_URI)}: ${esc(String(e?.message ?? e))}</p>`;
 });

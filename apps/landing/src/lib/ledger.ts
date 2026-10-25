@@ -41,6 +41,24 @@ export async function connect(role: Role, name = NAMES[role], tables = TABLES): 
   return conn;
 }
 
+/** A separate subscription for tables production may not have yet (agent_event): the main TABLES subscription
+ *  must not fail because of them. onError fires when the server rejects the query (table missing). */
+const hooked = new Set<string>();
+export function subscribeExtra(conn: DbConnection, tables: string[], onApplied: () => void, onError: (e: unknown) => void) {
+  return conn.subscriptionBuilder()
+    .onApplied(() => {
+      for (const t of tables) {
+        if (hooked.has(t)) continue;
+        hooked.add(t);
+        const tbl = (conn.db as any)[t.replace(/_(\w)/g, (_: string, x: string) => x.toUpperCase())];
+        tbl.onInsert(bump); tbl.onUpdate?.(bump); tbl.onDelete(bump);
+      }
+      bump(); onApplied();
+    })
+    .onError((ctx) => onError((ctx as any).event ?? new Error('subscription failed')))
+    .subscribe(tables.map((t) => `SELECT * FROM ${t}`));
+}
+
 /** Await a reducer call: null when it succeeded, otherwise the SenderError message ("code: message"). */
 export async function call(p: Promise<unknown>): Promise<string | null> {
   try { await p; return null; } catch (e: any) { return String(e?.message ?? e); }
