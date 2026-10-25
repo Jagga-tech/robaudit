@@ -22,7 +22,7 @@ One page of where everything lives. Open items are in `docs/track-todo.md`.
 |---|---|
 | Hyphenate (primary) | Agent roster refactor, sources-disagree control, return/hold handling, agent_event log, Gemini reviewer: other agent's branch work, see git log |
 | Spacetime | Ledger module, 15+ reducers, Maincloud. Done |
-| Convex | Clarification channel, voice actions, file storage, realtime. `hackathon.md` written. No component, no auth (decided) |
+| Convex | Clarification channel, voice actions, file storage, realtime, `@convex-dev/action-retrier` component, Convex Auth (anonymous) on the call mutations. `hackathon.md` written. PROD DEPLOY PENDING: `npx convex deploy -y` |
 | Cartesia | Sonic TTS + Ink STT in `convex/voice.ts`. Flyer never checked |
 | Microsoft | Container Apps, Document Intelligence, Static Web Apps. Devpost text pending |
 | Atlassian | `apps/jira-forge` web trigger + `apps/jira-bridge`. Deployed, installed, smoke-tested (SUMMO-1). Live beat untested |
@@ -34,6 +34,7 @@ One page of where everything lives. Open items are in `docs/track-todo.md`.
 
 `.env` at repo root: Anthropic, Cartesia, Gemini, Azure DI, `JIRA_WEBTRIGGER_URL`, `SUMMO_WEBHOOK_SECRET`, `STDB_URI`/`STDB_DB`.
 `demo/identities.json` must be the Maincloud copy for the demo (`identities.maincloud.json`), the local copy for local work.
+Convex env on dev and prod: `CARTESIA_API_KEY`, `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL` (auth keys generated 2026-10-25, scratch copies not kept).
 Forge variables on the app: `SUMMO_WEBHOOK_SECRET` (encrypted), `JIRA_PROJECT_KEY=SUMMO`.
 
 ## Demo start order

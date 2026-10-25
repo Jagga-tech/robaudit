@@ -50,33 +50,14 @@ Rubric: customer understanding, measurable usefulness, prototype-to-production, 
 - [ ] Rejection logging (Hyphenate item) also strengthens responsible design here.
 - [ ] Optional, skip unless idle: route Claude through Azure AI Foundry (base URL + key in `apps/agent/src/claude.ts`) for an all-Azure agent. Risky before the demo.
 
-## Convex — Best Use of Convex (modest chance; Convex is the side channel, ledger is SpacetimeDB)
+## Convex — Best Use of Convex (component + auth added 2026-10-25 04:20 PDT)
 
-Their hackathon.md template scores: components, features, Convex hosting, auth, realtime. We have no component, no auth, UI on Azure. Strong point is realtime (phone rings, transcript streams).
+Built: `@convex-dev/action-retrier` wraps both Cartesia actions (`convex/convex.config.ts`, `clarifications.ts`); Convex Auth anonymous provider (`convex/auth.ts`, `http.ts`, `authTables`), required by `startAnswer`/`submitAnswerAudio`/`confirm`/`decline`; `confirm` records `speakerUserId`. Phone, harness, demo script, bench and e2e test sign in anonymously. Verified on dev: 5/5 e2e, unauthenticated confirm rejected. `hackathon.md` updated (3,909 chars).
 
-- [ ] Commit `hackathon.md` + README "How we use Convex" section alone, not with the teammate's web files.
-- [ ] Video must show the phone ringing and the transcript streaming (Convex realtime doing visible work).
-- [ ] Optional, only after the video: add `@convex-dev/presence` for the judge-joined indicator, replacing the hand-rolled `managers` table (`convex/managers.ts`, `apps/landing/src/{phone,workbench,landing}.ts`). ~45 min, needs `convex/convex.config.ts` with `app.use(presence)`, test against the dev deployment first. Ticks their "Components" box.
-- [ ] Convex Auth considered, skipped: 1.5-2 h (React-centric client, our UI is plain TS), adds a login step to the judge QR flow, and roles are enforced in SpacetimeDB not Convex. Only the Anonymous provider keeps the one-tap flow. Presence component is the better buy.
-- [ ] Do NOT move the ledger to Convex; not possible before 9 AM and weakens Spacetime + Hyphenate.
-
-## MLH Best Use of Gemini API — entered, loosely met ("multimodality and flash models")
-
-- [x] Flash model: `gemini-3.5-flash-lite` as second reader (`apps/agent/src/gemini.ts`).
-- [ ] Set `GEMINI_API_KEY` before recording the video, or the Gemini extraction row never shows.
-- [x] Gemini roles (owned by the Hyphenate agent refactor): reader-gemini plus a Gemini reviewer that checks each proposal (numbers vs calculation, entry balanced, convention cited) and shows "Reviewed by Gemini" on the proposal. Multimodal photo read deferred.
-
-## MLH Commit Fellowship
-
-- [ ] Opt in on Devpost and submit the form at mlh.link/commit.
-
-## MLH Best Domain from GoDaddy Registry — not entered, cheapest extra track
-
-- [x] Domain `robaudit.us` registered 2026-10-25 09:44Z via Porkbun (.us is a GoDaddy Registry TLD, so it still counts). Azure side: apex registered on SWA `roboaudit-web`, status Validating.
-- [ ] Porkbun DNS (delete the default parking ALIAS/CNAME first): ALIAS `@` -> `kind-river-0eb9d010f.5.azurestaticapps.net`; CNAME `www` -> same; TXT `@` = `_3i24sgtlce8kd1mhd916uww5gbgkmj2`.
-- [ ] GitHub repo: description, homepage, topics set 2026-10-25. Switch homepage to https://www.robaudit.us once live: `gh repo edit Jagga-tech/robaudit --homepage https://www.robaudit.us`.
-- [ ] After the CNAME exists: `az staticwebapp hostname set -n roboaudit-web -g keel-rg --hostname www.robaudit.us`, wait for the cert.
-- [ ] Then replace the azurestaticapps URL in `hackathon.md`, `README.md`, `docs/demo-flow.md`, `docs/frontend-guide.md`, `docs/video-shot-list.md`. QR needs no change (uses `location.origin`).
+- [ ] USER: `npx convex deploy -y` (prod). The sandbox blocks production deploys. Until then prod has the old functions; the pushed phone page still works there (sign-in just warns).
+- [ ] After prod deploy: `pnpm test:convex` against prod once (resets open clarifications), then `pnpm demo --reset-only`.
+- [ ] Video must show the phone ringing and the transcript streaming.
+- [x] Presence component skipped in favour of action-retrier (server-only, no UI collision).
 
 ## Cartesia — criteria not checked yet
 
