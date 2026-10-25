@@ -98,7 +98,7 @@ export function caseView(s: Snapshot): CaseView {
   if (note) {
     if (latestIsForNote) {
       stage = posting ? 'posted' : ({ open: 'proposed', approved: 'approved', returned: 'returned', held: 'held', stale: 'stale' } as Record<string, Stage>)[latest!.status] ?? 'proposed';
-    } else if (ref?.status === 'open') stage = call?.status === 'unconfirmed' ? 'unconfirmed' : 'awaiting_clarification';
+    } else if (ref?.status === 'open') stage = call?.status === 'unconfirmed' ? 'unconfirmed' : call?.status === 'confirmed' ? 'calculating' : 'awaiting_clarification';
     else if (ref?.status === 'confirmed' || s.agentBusy) stage = ref ? 'calculating' : 'reading';
     else stage = 'reading';
   }

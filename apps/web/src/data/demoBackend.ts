@@ -104,6 +104,32 @@ export class DemoBackend implements KeelBackend {
     this.currentRole = (this.storage?.getItem(ROLE_KEY) as Role) || 'accountant';
     this.channel?.addEventListener('message', () => this.reload());
     if (typeof window !== 'undefined') window.addEventListener('storage', (e) => e.key === STORE_KEY && this.reload());
+    this.recover();
+  }
+
+  /** Agent steps run on timers in the tab that triggered them; if that tab navigated away, finish the work here. Each step is idempotent. */
+  private recover() {
+    const t = this.state.tables;
+    const c = t.call;
+    if (c?.status === 'confirmed' && t.clarificationRefs.some((r) => r.convexId === c.id && r.status === 'open')) {
+      this.schedule(() => this.agentResume(c.id), 400);
+      return;
+    }
+    for (const ref of t.clarificationRefs) {
+      if (ref.status !== 'confirmed' || t.calculations.some((x) => x.forecastSourceId === ref.sourceId)) continue;
+      const note = t.sources.find((s) => s.id === ref.sourceId);
+      const clar = t.sources.find((s) => s.kind === 'clarification' && s.parentSourceId === ref.sourceId);
+      const amount = note && parseAmountCents(note.text);
+      if (note && amount != null) {
+        const answer = ref.answer as ClarificationAnswer;
+        this.schedule(() => this.mutate(() => this.proposeForecast(note.id, amount, answer, clar?.text ?? '', '', clar?.id, JSON.stringify({ template: 'forecast', key: 'another_means', value: answer }))), 400);
+        return;
+      }
+    }
+    if (this.state.agentBusy) {
+      const last = maxBy(t.sources.filter((s) => s.kind === 'note' || s.kind === 'commissioning_log'));
+      if (last) this.schedule(() => this.agentRead(last.id), 400);
+    }
   }
 
   getSnapshot = () => this.snapshot;
@@ -222,7 +248,15 @@ export class DemoBackend implements KeelBackend {
     this.mutate(() => {
       const t = this.state.tables;
       const src = t.sources.find((s) => s.id === sourceId);
-      if (!src) return;
+      if (!src || t.extractions.some((e) => e.sourceId === sourceId) || (src.kind === 'commissioning_log' && t.workItems.some((w) => w.title === 'Milestone invoice: acceptance'))) {
+        // Already read (e.g. by another tab). Settle a convention-path proposal that never landed.
+        const conv = t.conventions.find((c) => c.template === 'forecast' && c.key === 'another_means');
+        const amount = src ? parseAmountCents(src.text) : null;
+        if (src?.kind === 'note' && conv && amount != null && !t.clarificationRefs.some((r) => r.sourceId === sourceId) && !t.calculations.some((x) => x.forecastSourceId === sourceId))
+          this.proposeForecast(src.id, amount, conv.value as ClarificationAnswer, '', `Convention v${conv.policyVersion}: another_means = ${conv.value}`);
+        else this.state.agentBusy = false;
+        return;
+      }
       if (src.kind === 'commissioning_log') return this.milestoneInvoice(src.id);
       const amount = parseAmountCents(src.text);
       const additive = /\banother\b|\bmore\b|\bextra\b|\badditional\b/i.test(src.text);
@@ -285,6 +319,7 @@ export class DemoBackend implements KeelBackend {
   private proposeForecast(noteId: bigint, amount: bigint, convention: ClarificationAnswer, citation: string, conventionLine = '', clarId?: bigint, pendingConventionJson = '') {
     const t = this.state.tables;
     const note = t.sources.find((s) => s.id === noteId)!;
+    if (t.calculations.some((x) => x.forecastSourceId === noteId)) { this.state.agentBusy = false; return; }
     const { workItemId, snap } = this.baseline(note.projectId);
     const next = { ...snap, remaining: applyUpdate(snap.remaining, amount, convention) };
     const before = compute(snap), after = compute(next);

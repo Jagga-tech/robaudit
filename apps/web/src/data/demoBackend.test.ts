@@ -112,3 +112,19 @@ describe('DemoBackend (mirrors reducers + agent loop, arithmetic from @keel/engi
     expect(b.getSnapshot().call).toBeNull();
   });
 });
+
+describe('DemoBackend recovery', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  it('finishes the agent step when the tab that confirmed navigated away', async () => {
+    const storage = new MemoryStorage();
+    const phoneTab = new DemoBackend(storage);
+    const call = await toClarification(phoneTab);
+    await phoneTab.confirm(call.id, 'additional', 'Matt');
+    vi.clearAllTimers(); // phone tab navigates away before the agent resumes
+    const desk = new DemoBackend(storage);
+    await vi.runAllTimersAsync();
+    expect(caseView(desk.getSnapshot()).stage).toBe('proposed');
+    expect(desk.getSnapshot().calculations.filter((c) => c.progressBp === 4000)).toHaveLength(1);
+  });
+});
