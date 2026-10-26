@@ -19,6 +19,8 @@
   <img src="apps/landing/public/summo-suit.png" alt="Summo, the Robaudit agent: a fuzzy green character in a charcoal suit" width="240">
 </p>
 
+> **Status (Oct 2026):** Cal Hacks 13.0 is over and this project is archived as open source under the [MIT license](LICENSE). The hosted demo at robaudit.us, the Maincloud ledger, the Convex deployment and the Azure agent are being retired, so the live links below may stop working. Everything needed to run it yourself is in [Run it](#run-it) and `.env.example`.
+
 ## Meet Summo
 
 Summo is the agent inside Robaudit. It fills the project accountant's revenue-close seat on fixed-price robotics installations recognized with cost-to-cost, and the part of the controller's week spent chasing deployment managers. It never takes the approver's seat.
